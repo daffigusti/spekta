@@ -1,5 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 
+import { confirmDialog } from '@/components/system-dialog';
 import SpektaLayout from '@/layouts/spekta-layout';
 
 interface ProjectCard {
@@ -71,14 +72,37 @@ export default function Dashboard({ projects }: { projects: ProjectCard[] }) {
                         <Link
                             key={p.id}
                             href={href}
-                            className="rounded-xl border border-gray-200 bg-white p-[18px] transition hover:-translate-y-px hover:shadow-lg"
+                            className="group rounded-xl border border-gray-200 bg-white p-[18px] transition hover:-translate-y-px hover:shadow-lg"
                         >
                             <div className="flex items-start justify-between gap-2.5">
                                 <div className="text-sm leading-tight font-bold text-gray-800">{p.name}</div>
-                                <span className={`inline-flex flex-none items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wide ${b.cls}`}>
-                                    <span className={`h-1.5 w-1.5 rounded-full ${b.dot}`} />
-                                    {b.label}
-                                </span>
+                                <div className="flex flex-none items-center gap-1.5">
+                                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wide ${b.cls}`}>
+                                        <span className={`h-1.5 w-1.5 rounded-full ${b.dot}`} />
+                                        {b.label}
+                                    </span>
+                                    {/* BR-29: shared/approved tidak bisa dihapus — tombol disembunyikan */}
+                                    {!['shared', 'approved'].includes(p.status) && (
+                                        <button
+                                            type="button"
+                                            title="Hapus proyek"
+                                            className="hidden h-6 w-6 items-center justify-center rounded-md text-gray-300 group-hover:flex hover:bg-red-50 hover:text-red-500"
+                                            onClick={async (e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                if (await confirmDialog(`Hapus proyek "${p.name}" beserta semua dokumennya?`)) {
+                                                    router.delete(route('projects.destroy', p.id));
+                                                }
+                                            }}
+                                        >
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M3 6h18" />
+                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+                                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             <div className="mt-1 text-xs font-medium text-gray-400">
                                 {p.client_name ?? 'Tanpa klien'} · {p.updated_at}
