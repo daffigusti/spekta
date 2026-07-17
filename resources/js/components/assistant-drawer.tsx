@@ -3,6 +3,8 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useEffect, useRef, useState } from 'react';
 
+import MarkdownPreview from '@/components/markdown-preview';
+
 const mdHtml = (md: string) => DOMPurify.sanitize(marked.parse(md) as string);
 
 // usulan revisi dokumen dari asisten: <<<DOC key\n…markdown…\nDOC>>> — bisa lebih dari satu blok
@@ -199,9 +201,9 @@ export default function AssistantDrawer({
                         const { text, proposals, truncatedKey } = parseAssistant(m.body);
                         return (
                             <div key={m.id} className="rounded-xl border border-gray-200 bg-white px-3.5 py-3">
-                                <div
+                                <MarkdownPreview
+                                    html={mdHtml(text)}
                                     className="prose prose-sm max-w-none text-[13px] leading-relaxed text-gray-700 prose-headings:my-2 prose-headings:text-[13.5px] prose-p:my-1.5 prose-table:text-[12px] prose-li:my-0.5"
-                                    dangerouslySetInnerHTML={{ __html: mdHtml(text) }}
                                 />
                                 {proposals.map((proposal, pi) => {
                                     const target = applyTargets.find((d) => d.doc_key === proposal.docKey);

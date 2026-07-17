@@ -1,9 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import AssistantDrawer, { AssistantButton } from '@/components/assistant-drawer';
+import MarkdownPreview from '@/components/markdown-preview';
 import { confirmDialog, promptDialog } from '@/components/system-dialog';
 import SpektaLayout from '@/layouts/spekta-layout';
 
@@ -150,39 +151,6 @@ function healthColor(h: number | null) {
     if (h >= 85) return '#059669';
     if (h >= 70) return '#D97706';
     return '#DC2626';
-}
-
-/** Rich preview + render blok ```mermaid jadi diagram SVG (erDiagram, flowchart, dll). */
-function MarkdownPreview({ html }: { html: string }) {
-    const ref = useRef<HTMLElement>(null);
-    useEffect(() => {
-        const root = ref.current;
-        if (!root || !root.querySelector('code.language-mermaid')) return;
-        let alive = true;
-        import('mermaid').then(({ default: mermaid }) => {
-            if (!alive || !ref.current) return;
-            mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
-            ref.current.querySelectorAll('pre > code.language-mermaid').forEach((code) => {
-                const div = document.createElement('div');
-                div.className = 'mermaid my-4 flex justify-center';
-                div.textContent = code.textContent ?? '';
-                code.parentElement!.replaceWith(div);
-            });
-            // Diagram invalid dibiarkan sebagai teks — mermaid menampilkan pesan error inline
-            mermaid.run({ nodes: ref.current.querySelectorAll<HTMLElement>('div.mermaid') }).catch(() => {});
-        });
-        return () => {
-            alive = false;
-        };
-    }, [html]);
-
-    return (
-        <article
-            ref={ref}
-            className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none"
-            dangerouslySetInnerHTML={{ __html: html }}
-        />
-    );
 }
 
 function FindingRow({ f, onFix }: { f: Finding; onFix?: () => void }) {
@@ -702,7 +670,9 @@ export default function ProjectPage({
                         </div>
 
                         <div className="mt-3.5 overflow-auto" style={{ maxHeight: 'calc(100vh - 330px)' }}>
-                            {mode === 'preview' && <MarkdownPreview html={html} />}
+                            {mode === 'preview' && (
+                                <MarkdownPreview html={html} className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none" />
+                            )}
                             {mode === 'raw' && (
                                 <pre className="rounded-[10px] border border-gray-100 bg-gray-50 p-4 font-mono text-xs leading-[1.7] font-medium whitespace-pre-wrap text-gray-700">
                                     {doc?.content_md}
