@@ -27,10 +27,15 @@ const CARD_META: Record<TemplateKind, { title: string; desc: string; fields: Fie
         fields: [
             { key: 'primary_color', type: 'color', label: 'Warna utama' },
             { key: 'accent_color', type: 'color', label: 'Warna aksen' },
-            { key: 'page_format', type: 'select', label: 'Format halaman', options: [
-                { value: 'A4', label: 'A4' },
-                { value: 'Letter', label: 'Letter' },
-            ] },
+            {
+                key: 'page_format',
+                type: 'select',
+                label: 'Format halaman',
+                options: [
+                    { value: 'A4', label: 'A4' },
+                    { value: 'Letter', label: 'Letter' },
+                ],
+            },
             { key: 'footer_text', type: 'text', label: 'Teks footer', placeholder: 'mis. Rahasia — PT Contoh' },
             { key: 'show_cover', type: 'bool', label: 'Tampilkan halaman sampul' },
         ],
@@ -41,10 +46,15 @@ const CARD_META: Record<TemplateKind, { title: string; desc: string; fields: Fie
         fields: [
             { key: 'heading_numbering', type: 'bool', label: 'Penomoran heading otomatis' },
             { key: 'include_toc', type: 'bool', label: 'Sertakan daftar isi' },
-            { key: 'language', type: 'select', label: 'Bahasa dokumen', options: [
-                { value: 'id', label: 'Indonesia' },
-                { value: 'en', label: 'English' },
-            ] },
+            {
+                key: 'language',
+                type: 'select',
+                label: 'Bahasa dokumen',
+                options: [
+                    { value: 'id', label: 'Indonesia' },
+                    { value: 'en', label: 'English' },
+                ],
+            },
         ],
     },
     portal: {
@@ -70,14 +80,18 @@ function TemplateCard({ template, canManage }: { template: TemplateData; canMana
 
     const save = () => {
         setProcessing(true);
-        router.post(route('templates.update', template.kind), { config }, {
-            preserveScroll: true,
-            onSuccess: () => {
-                setSaved(true);
-                window.setTimeout(() => setSaved(false), 2000);
+        router.post(
+            route('templates.update', template.kind),
+            { config },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setSaved(true);
+                    window.setTimeout(() => setSaved(false), 2000);
+                },
+                onFinish: () => setProcessing(false),
             },
-            onFinish: () => setProcessing(false),
-        });
+        );
     };
 
     return (
@@ -214,13 +228,11 @@ function BrandingCard({ branding, canManage }: { branding: { logo_url: string | 
     return (
         <div className="rounded-xl border border-gray-200 bg-white p-[18px]">
             <div className="text-[15px] font-bold text-gray-800">Branding workspace</div>
-            <div className="mt-1 text-[11.5px] leading-relaxed font-medium text-gray-400">
-                Logo dipakai di proposal &amp; portal klien (FR-16).
-            </div>
+            <div className="mt-1 text-[11.5px] leading-relaxed font-medium text-gray-400">Logo dipakai di proposal &amp; portal klien (FR-16).</div>
 
             <div className="mt-4 flex flex-wrap items-center gap-4">
                 {shown ? (
-                    <img src={shown} alt="Logo" className="h-16 w-16 flex-none rounded-xl border border-gray-200 object-contain bg-white p-1.5" />
+                    <img src={shown} alt="Logo" className="h-16 w-16 flex-none rounded-xl border border-gray-200 bg-white object-contain p-1.5" />
                 ) : (
                     <div className="flex h-16 w-16 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-teal-400 text-xl font-extrabold text-white">
                         {initials || 'S'}
@@ -232,7 +244,7 @@ function BrandingCard({ branding, canManage }: { branding: { logo_url: string | 
                         <input
                             ref={fileRef}
                             type="file"
-                            accept="image/jpeg,image/png,image/svg+xml,image/webp"
+                            accept="image/jpeg,image/png,image/webp"
                             onChange={(e) => onPick(e.target.files?.[0] ?? null)}
                             className="text-[12.5px] font-medium text-gray-600 file:mr-3 file:rounded-[10px] file:border-2 file:border-gray-200 file:bg-gray-50 file:px-3 file:py-1.5 file:text-[12.5px] file:font-bold file:text-gray-600 hover:file:bg-gray-100"
                         />
