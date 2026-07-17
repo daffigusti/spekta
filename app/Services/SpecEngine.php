@@ -309,7 +309,7 @@ SYS;
         }
         $ctx[] = 'PERTANYAAN: '.$question;
 
-        return $this->text('standard', <<<'SYS'
+        $out = $this->text('standard', <<<'SYS'
 Kamu asisten spec engineering Spekta untuk software house Indonesia. Jawab pertanyaan tentang spesifikasi proyek ini:
 ringkas, konkret, rujuk nomor FR/BR/section bila relevan.
 Bila user minta PERUBAHAN spec: jelaskan singkat dampaknya (dokumen terdampak, perkiraan effort), lalu sertakan di akhir jawaban
@@ -330,6 +330,16 @@ KHUSUS WIREFRAMES: isinya JSON (bukan markdown) berskema {"screens":[{id,name,fl
 revisi = salin seluruh JSON lalu ubah screen/section yang diminta, blok DOC berisi JSON lengkap yang valid tanpa code fence.
 Bahasa Indonesia, istilah teknis Inggris.
 SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
+
+        // Stream terputus di tengah blok DOC (mis. proxy memotong output) = usulan cacat — gagal keras, jangan disimpan
+        if (substr_count($out, '<<<DOC') !== substr_count($out, 'DOC>>>')) {
+            throw new \RuntimeException(
+                'Jawaban terputus di tengah usulan revisi (output dipotong provider/proxy, ±'.($to ?? 0).' token). '
+                .'Coba lagi, atau minta revisi satu dokumen per pesan.'
+            );
+        }
+
+        return $out;
     }
 
     // ---------- FR-11: auto-repair satu pass ----------

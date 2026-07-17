@@ -17,9 +17,12 @@ class GenerationPipeline
     public function start(Project $project): GenerationRun
     {
         $complexity = $project->understanding?->complexity ?? 3;
-        // Set dokumen template perusahaan jadi default saat depth 'auto';
-        // kedalaman eksplisit (concise/full) tetap menimpa template & kompleksitas.
-        $tplKinds = $project->docTemplate?->doc_kinds;
+        // Set dokumen template perusahaan hanya bila user memilih "Standar workspace" di wizard;
+        // pilihan "Default" tetap scale-adaptive kompleksitas (FR-07).
+        // Kedalaman eksplisit (concise/full) menimpa keduanya.
+        $tplKinds = ($project->blueprint['template'] ?? 'default') === 'workspace'
+            ? $project->docTemplate?->doc_kinds
+            : null;
         $docKeys = match ($project->blueprint['depth'] ?? 'auto') {
             'concise' => config('spekta.doc_sets.1'),
             'full' => config('spekta.doc_sets.3'),
