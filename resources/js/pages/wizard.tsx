@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import MarkdownPreview from '@/components/markdown-preview';
 import { confirmDialog, promptDialog, selectDialog } from '@/components/system-dialog';
 import {
     Building2,
@@ -1522,9 +1523,10 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                             </div>
                         ) : stream?.text ? (
                             <div ref={streamRef} className="mt-3 max-h-[420px] min-h-[330px] overflow-auto rounded-xl border border-gray-200 p-[18px]">
-                                <article
+                                <MarkdownPreview
+                                    html={streamHtml}
+                                    skipLastMermaid={(shown.match(/```/g)?.length ?? 0) % 2 === 1}
                                     className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none"
-                                    dangerouslySetInnerHTML={{ __html: streamHtml }}
                                 />
                                 <span className="ml-0.5 inline-block h-[14px] w-[8px] animate-pulse bg-teal-600 align-text-bottom" />
                             </div>

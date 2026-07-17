@@ -273,9 +273,10 @@ export default function AssistantDrawer({
                             const streamText = cut === -1 ? shown : shown.slice(0, cut);
                             return (
                                 <div className="rounded-xl border border-teal-200 bg-white px-3.5 py-3">
-                                    <div
+                                    <MarkdownPreview
+                                        html={mdHtml(streamText) + '<span class="animate-pulse text-teal-600">▌</span>'}
+                                        skipLastMermaid={(streamText.match(/```/g)?.length ?? 0) % 2 === 1}
                                         className="prose prose-sm max-w-none text-[13px] leading-relaxed text-gray-700 prose-headings:my-2 prose-headings:text-[13.5px] prose-p:my-1.5 prose-table:text-[12px] prose-li:my-0.5"
-                                        dangerouslySetInnerHTML={{ __html: mdHtml(streamText) + '<span class="animate-pulse text-teal-600">▌</span>' }}
                                     />
                                     {cut !== -1 && (
                                         <div className="mt-2 flex items-center gap-2 text-[11.5px] font-bold text-teal-700">
