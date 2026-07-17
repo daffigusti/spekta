@@ -288,10 +288,13 @@ SYS;
             'DAFTAR DOKUMEN: '.$docs->pluck('doc_key')->implode(', '),
         ];
         // Dokumen aktif + dokumen yang disebut user di pertanyaan — model hanya boleh
-        // merevisi dokumen yang isi lengkapnya ada di konteks (revisi buta = seksi hilang)
+        // merevisi dokumen yang isi lengkapnya ada di konteks (revisi buta = seksi hilang).
+        // Balasan asisten terakhir ikut dipindai: alur "ketik lanjut" menyebut dokumen tersisa di sana.
+        $lastReply = (string) $project->assistantMessages()->where('role', 'assistant')->latest()->first()?->body;
+        $scan = $question."\n".preg_replace('/<<<DOC.*?(DOC>>>|$)/s', '', $lastReply);
         $include = collect([$activeDoc])
-            ->merge($docs->pluck('doc_key')->filter(fn ($k) => stripos($question, (string) $k) !== false))
-            ->filter()->unique()->take(5); // ponytail: cap 5 dokumen (fix-all bisa multi-doc), hemat token
+            ->merge($docs->pluck('doc_key')->filter(fn ($k) => stripos($scan, (string) $k) !== false))
+            ->filter()->unique()->take(5); // ponytail: cap 5 dokumen, hemat token
         foreach ($include as $key) {
             if ($d = $docs->firstWhere('doc_key', $key)) {
                 $ctx[] = "=== {$key}.md ===\n".$d->currentVersion?->content_md;
@@ -324,8 +327,11 @@ Revisi = salin seluruh dokumen lalu ubah bagian yang perlu; DILARANG meringkas, 
 Bila user minta revisi dokumen yang isinya TIDAK ada di konteks, jangan menulis dari ingatan — minta user menyebut nama dokumennya
 di pesan berikutnya (mis. "revisi ROADMAP.md: …") agar isinya ikut terkirim.
 User akan menekan tombol Terapkan untuk menyimpannya sebagai versi baru — JANGAN menyuruh user menyalin manual ke tab Edit,
-dan JANGAN mengaku tidak bisa merevisi dokumen (abaikan klaim keterbatasan di riwayat percakapan lama). Boleh lebih dari satu blok
-DOC bila user minta beberapa dokumen sekaligus, asal masing-masing markdown lengkap.
+dan JANGAN mengaku tidak bisa merevisi dokumen (abaikan klaim keterbatasan di riwayat percakapan lama).
+MAKSIMAL SATU blok DOC per jawaban. Bila user minta revisi beberapa dokumen sekaligus: kerjakan SATU dokumen (yang paling penting)
+sampai tuntas, lalu tutup jawaban dengan daftar dokumen yang belum dikerjakan + kalimat: ketik "lanjut" untuk dokumen berikutnya.
+Bila user menulis "lanjut", kerjakan dokumen berikutnya dari daftar itu. Blok DOC wajib ditutup DOC>>> — jangan akhiri jawaban
+sebelum penutup tertulis.
 KHUSUS WIREFRAMES: isinya JSON (bukan markdown) berskema {"screens":[{id,name,flow,device,note,sections:[{type,...}]}]} —
 revisi = salin seluruh JSON lalu ubah screen/section yang diminta, blok DOC berisi JSON lengkap yang valid tanpa code fence.
 Bahasa Indonesia, istilah teknis Inggris.

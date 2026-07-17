@@ -834,7 +834,7 @@ export default function ProjectPage({
                                         .map((f, i) => `${i + 1}. ${f.location?.split(' / ')[0] ?? activeKey}.md — ${f.message}.${f.suggestion ? ` ${f.suggestion}` : ''}`)
                                         .join('\n');
                                     setChatPrefill(
-                                        `Perbaiki SEMUA temuan spec health berikut sekaligus (revisi ${docs.map((d) => `${d}.md`).join(', ')}):\n${list}`,
+                                        `Perbaiki SEMUA temuan spec health berikut (revisi ${docs.map((d) => `${d}.md`).join(', ')} — kerjakan satu dokumen per jawaban, saya akan ketik "lanjut"):\n${list}`,
                                     );
                                     setChatOpen(true);
                                 }}
