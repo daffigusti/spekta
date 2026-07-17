@@ -288,16 +288,16 @@ SYS;
         }
         $ctx[] = 'PERTANYAAN: '.$question;
 
-        $active = $activeDoc ?: 'dokumen aktif';
-
-        return $this->text('standard', <<<SYS
+        return $this->text('standard', <<<'SYS'
 Kamu asisten spec engineering Spekta untuk software house Indonesia. Jawab pertanyaan tentang spesifikasi proyek ini:
 ringkas, konkret, rujuk nomor FR/BR/section bila relevan.
 Bila user minta PERUBAHAN spec: jelaskan singkat dampaknya (dokumen terdampak, perkiraan effort), lalu sertakan di akhir jawaban
 VERSI LENGKAP dokumen yang sudah direvisi di antara penanda persis:
-<<<DOC {$active}
+<<<DOC KEY
 (markdown lengkap hasil revisi, bukan cuplikan)
 DOC>>>
+KEY = doc_key dokumen yang DIREVISI, persis seperti di header konteksnya "=== KEY.md ===" (mis. revisi TESTING.md → <<<DOC TESTING).
+KEY BUKAN otomatis dokumen yang sedang dibuka user — salah KEY membuat dokumen lain tertimpa.
 ATURAN KERAS: hanya buat blok DOC untuk dokumen yang isi lengkapnya tersedia di konteks (bagian "=== KEY.md ===").
 Revisi = salin seluruh dokumen lalu ubah bagian yang perlu; DILARANG meringkas, memotong, atau menghapus seksi yang tidak diminta.
 Bila user minta revisi dokumen yang isinya TIDAK ada di konteks, jangan menulis dari ingatan — minta user menyebut nama dokumennya

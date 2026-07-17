@@ -184,6 +184,11 @@ export default function AssistantDrawer({
                                     if (!target) return null;
                                     const key = `${m.id}:${pi}`;
                                     const applied = appliedProposals.has(key) || target.content_md === proposal.md;
+                                    // Guard salah label: judul awal usulan menyebut dokumen LAIN → AI kemungkinan salah KEY
+                                    const head = proposal.md.split('\n').slice(0, 3).join('\n');
+                                    const mismatch = applyTargets.find(
+                                        (d) => d.doc_key !== proposal.docKey && new RegExp(`^#\\s+.*\\b${d.doc_key}(\\.md)?\\b`, 'mi').test(head),
+                                    );
                                     return (
                                         <div key={key} className="mt-2.5 flex items-center justify-between gap-2 rounded-[10px] border border-teal-200 bg-teal-50 px-3 py-2.5">
                                             <div className="min-w-0">
@@ -191,6 +196,12 @@ export default function AssistantDrawer({
                                                 <div className="text-[11px] font-medium text-teal-700">
                                                     {proposal.md.split('\n').length} baris — tersimpan sebagai versi baru
                                                 </div>
+                                                {mismatch && !applied && (
+                                                    <div className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-700">
+                                                        ⚠ Isi tampak seperti {mismatch.doc_key}.md — cek dulu sebelum terapkan, ini bisa menimpa{' '}
+                                                        {proposal.docKey}.md dengan konten yang salah.
+                                                    </div>
+                                                )}
                                             </div>
                                             {applied ? (
                                                 <span className="flex-none rounded-lg border border-teal-300 px-3 py-1.5 text-[11.5px] font-bold text-teal-700">

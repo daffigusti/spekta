@@ -53,6 +53,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('ratecards', [RateCardController::class, 'index'])->name('ratecards.index');
     Route::patch('ratecards/{rateCardId}', [RateCardController::class, 'update'])->name('ratecards.update');
 
+    // Template perusahaan (FR-16/FR-24) — POST update supaya upload logo multipart jalan
+    Route::get('templates', [\App\Http\Controllers\TemplateController::class, 'index'])->name('templates.index');
+    Route::post('templates/{kind}', [\App\Http\Controllers\TemplateController::class, 'update'])->name('templates.update');
+
+    // Tim & klien (FR-24/BR-01)
+    Route::get('team', [\App\Http\Controllers\TeamController::class, 'index'])->name('team.index');
+    Route::post('team/members', [\App\Http\Controllers\TeamController::class, 'store'])->name('team.members.store');
+    Route::patch('team/members/{memberId}', [\App\Http\Controllers\TeamController::class, 'update'])->name('team.members.update');
+    Route::delete('team/members/{memberId}', [\App\Http\Controllers\TeamController::class, 'destroy'])->name('team.members.destroy');
+
     // Export (FR-21)
     Route::get('projects/{project}/export/{kind}', [ExportController::class, 'download'])->name('projects.export');
 

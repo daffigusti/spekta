@@ -33,6 +33,11 @@ class Workspace extends Model
         return $this->hasMany(RateCard::class);
     }
 
+    public function docTemplates()
+    {
+        return $this->hasMany(DocTemplate::class);
+    }
+
     public function subscription()
     {
         return $this->hasOne(Subscription::class)->latestOfMany();
