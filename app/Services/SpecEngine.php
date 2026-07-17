@@ -434,6 +434,42 @@ SYS, "TEMUAN VALIDASI:\n$list\n\nKONTEKS PROYEK:\n".$this->documentContext($proj
         ]];
     }
 
+    // ---------- FR-10: selective regeneration ----------
+
+    /** Revisi dokumen existing sesuai instruksi perubahan — bukan tulis ulang dari nol. Return [md, meta]. */
+    public function regenerateDocument(Project $project, string $docKey, array $upstreamDocs, string $instruction, string $currentMd, ?callable $onDelta = null): array
+    {
+        if ($this->driver() === 'stub') {
+            return [$currentMd."\n\n<!-- regen: $instruction -->",
+                ['model' => 'stub', 'tokens_in' => 0, 'tokens_out' => 0, 'generated_by' => 'ai-regen']];
+        }
+
+        $started = microtime(true);
+        $format = $docKey === 'WIREFRAMES'
+            ? 'Konten dokumen ini JSON berskema {"screens":[…]} — balas HANYA JSON valid lengkap tanpa code fence.'
+            : 'Balas HANYA markdown lengkap hasil revisi, tanpa pembuka/penutup.';
+
+        $md = $this->text('standard', <<<SYS
+Kamu technical writer software house Indonesia. Revisi dokumen $docKey sesuai INSTRUKSI PERUBAHAN.
+Revisi = salin seluruh dokumen lalu ubah bagian yang terdampak; DILARANG meringkas, memotong, atau menghapus seksi yang tidak berkaitan.
+Jaga konsistensi nomor FR/BR, entity, dan istilah dengan dokumen upstream di konteks.
+$format
+SYS, "INSTRUKSI PERUBAHAN:\n$instruction\n\nKONTEKS PROYEK:\n".$this->documentContext($project, $upstreamDocs)
+            ."\n\n=== DOKUMEN SAAT INI ($docKey) ===\n".$currentMd, $ti, $to, $onDelta);
+
+        if ($docKey === 'WIREFRAMES') {
+            $md = preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md));
+        }
+
+        return [$md, [
+            'model' => config('spekta.llm.models.standard'),
+            'tokens_in' => $ti,
+            'tokens_out' => $to,
+            'duration_ms' => (int) ((microtime(true) - $started) * 1000),
+            'generated_by' => 'ai-regen',
+        ]];
+    }
+
     private function documentContext(Project $project, array $upstreamDocs): string
     {
         $u = $project->understanding;

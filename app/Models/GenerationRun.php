@@ -11,7 +11,7 @@ class GenerationRun extends Model
 
     protected $guarded = [];
 
-    protected $casts = ['started_at' => 'datetime', 'finished_at' => 'datetime', 'repaired_at' => 'datetime'];
+    protected $casts = ['started_at' => 'datetime', 'finished_at' => 'datetime', 'repaired_at' => 'datetime', 'meta' => 'array'];
 
     public function project()
     {

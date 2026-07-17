@@ -60,7 +60,16 @@ class GenerateDocumentJob implements ShouldQueue
         };
 
         try {
-            [$md, $meta] = $engine->generateDocument($project, $node->doc_key, $upstream, $onDelta);
+            [$md, $meta] = $run->trigger === 'regen'
+                ? $engine->regenerateDocument(
+                    $project,
+                    $node->doc_key,
+                    $upstream,
+                    (string) ($run->meta['instruction'] ?? ''),
+                    (string) $project->documents()->where('doc_key', $node->doc_key)->first()?->currentVersion?->content_md,
+                    $onDelta,
+                )
+                : $engine->generateDocument($project, $node->doc_key, $upstream, $onDelta);
         } catch (\App\Exceptions\LlmTruncated $e) {
             // Deterministik — retry pasti kena batas yang sama; fail langsung, jangan bakar 2 panggilan LLM lagi
             $this->fail($e);

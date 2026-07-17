@@ -77,6 +77,36 @@ class GenerationPipeline
         return $run;
     }
 
+    /** FR-10: regen selektif dokumen terdampak dengan instruksi perubahan (design §2). */
+    public function startRegeneration(Project $project, array $docKeys, string $instruction): GenerationRun
+    {
+        $graph = config('spekta.doc_pipeline');
+        $existing = $project->documents()->pluck('doc_key')->all();
+        $keys = array_values(array_intersect($docKeys, array_keys($graph), $existing));
+        if (! $keys) {
+            throw new \InvalidArgumentException('Tidak ada dokumen valid untuk diregenerasi.');
+        }
+
+        $run = $project->generationRuns()->create([
+            'trigger' => 'regen',
+            'status' => 'queued',
+            'meta' => ['instruction' => $instruction],
+        ]);
+
+        $nodes = [];
+        foreach ($this->topoSort($keys, $graph) as $key) {
+            $nodes[] = $run->nodes()->create([
+                'doc_key' => $key,
+                // upstream boleh dokumen yang tak ikut regen — job baca isinya dari DB
+                'depends_on' => array_values(array_intersect($graph[$key] ?? [], $existing)),
+            ]);
+        }
+
+        $this->dispatchChain($nodes);
+
+        return $run;
+    }
+
     public function resume(GenerationRun $run): void
     {
         $pending = $run->nodes()->whereIn('status', ['queued', 'error', 'running'])->get();
