@@ -336,11 +336,14 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
             return $acc;
         }
 
-        $resp = $pending->retry(2, 2000)->post($url, $payload)->throw()->json();
+        $body = $pending->retry(2, 2000)->post($url, $payload)->throw()->body();
+        // Beberapa proxy Anthropic-compatible menempel sisa SSE ("data: [DONE]") di belakang JSON
+        $resp = json_decode(substr($body, 0, strrpos($body, '}') + 1), true)
+            ?? throw new \RuntimeException('LLM response bukan JSON valid: '.mb_substr($body, 0, 200));
         $tokensIn = $resp['usage']['input_tokens'] ?? 0;
         $tokensOut = $resp['usage']['output_tokens'] ?? 0;
 
-        return collect($resp['content'])->where('type', 'text')->pluck('text')->implode('');
+        return collect($resp['content'] ?? [])->where('type', 'text')->pluck('text')->implode('');
     }
 
     /** OpenAI Chat Completions — kompatibel OpenAI/Groq/DeepSeek/OpenRouter/Ollama dll. */
