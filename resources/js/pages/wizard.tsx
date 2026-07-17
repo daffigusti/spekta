@@ -1519,8 +1519,16 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                 {run && running && (
                     <>
                         <div className="flex items-center justify-between">
-                            <div className="text-sm font-bold text-gray-800">
-                                Sedang menulis — <span className="font-mono text-teal-700">{currentNode?.doc_key ?? '…'}.md</span>
+                            <div className="flex items-center gap-3">
+                                <div className="text-sm font-bold text-gray-800">
+                                    Sedang menulis — <span className="font-mono text-teal-700">{currentNode?.doc_key ?? '…'}.md</span>
+                                </div>
+                                <button
+                                    className="text-[12px] font-bold text-teal-700 hover:text-teal-900"
+                                    onClick={() => router.visit(route('projects.show', project.id))}
+                                >
+                                    Buka workspace tanpa nunggu →
+                                </button>
                             </div>
                             {stale ? (
                                 <span

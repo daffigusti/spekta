@@ -390,13 +390,17 @@ export default function ProjectPage({
             </div>
 
             {run && run.status !== 'done' && (
-                <div className="mb-3.5 flex flex-wrap items-center gap-3 rounded-[10px] border border-amber-200 bg-amber-50/70 px-3.5 py-2.5 text-xs">
+                <div className="mb-3.5 rounded-[10px] border border-amber-200 bg-amber-50/70 px-3.5 py-2.5 text-xs">
+                    <div className="flex flex-wrap items-center gap-3">
                     <span className="font-bold text-amber-800">
                         {run.status === 'paused' ? 'Generate terhenti' : 'Sedang generate'} —{' '}
                         {run.nodes.filter((n) => n.status === 'done').length}/{run.nodes.length} dokumen
                     </span>
                     <span className="min-w-0 truncate font-mono text-amber-700">
-                        {run.nodes.filter((n) => n.status !== 'done').map((n) => n.doc_key).join(' · ')}
+                        {(() => {
+                            const writing = run.nodes.find((n) => n.status === 'running');
+                            return writing ? `menulis ${writing.doc_key}.md…` : run.nodes.filter((n) => n.status !== 'done').map((n) => n.doc_key).join(' · ');
+                        })()}
                     </span>
                     <span className="ml-auto flex gap-3">
                         <Link href={route('projects.wizard', project.id)} className="font-bold text-teal-700 hover:text-teal-900">
@@ -411,6 +415,13 @@ export default function ProjectPage({
                             </button>
                         )}
                     </span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-amber-200/60">
+                        <div
+                            className="h-full rounded-full bg-teal-600 transition-all duration-500"
+                            style={{ width: `${(run.nodes.filter((n) => n.status === 'done').length / Math.max(run.nodes.length, 1)) * 100}%` }}
+                        />
+                    </div>
                 </div>
             )}
 
