@@ -1388,6 +1388,20 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
         return () => clearInterval(t);
     }, [running]);
 
+    // Deteksi worker mati: run "running" tapi stream & progress node diam >90 dtk
+    const [stale, setStale] = useState(false);
+    const staleDone = run?.nodes.filter((n) => n.status === 'done').length ?? 0;
+    const lastProgress = useRef(Date.now());
+    useEffect(() => {
+        lastProgress.current = Date.now();
+        setStale(false);
+    }, [stream?.text?.length, staleDone, running]);
+    useEffect(() => {
+        if (!running) return;
+        const t = setInterval(() => setStale(Date.now() - lastProgress.current > 90_000), 5000);
+        return () => clearInterval(t);
+    }, [running]);
+
     // auto-scroll ke bawah saat teks stream bertambah
     useEffect(() => {
         streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
@@ -1480,9 +1494,18 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                             <div className="text-sm font-bold text-gray-800">
                                 Sedang menulis — <span className="font-mono text-teal-700">{currentNode?.doc_key ?? '…'}.md</span>
                             </div>
-                            <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-[3px] font-mono text-[11px] font-bold text-gray-500 uppercase">
-                                {run.status}
-                            </span>
+                            {stale ? (
+                                <span
+                                    className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-[3px] text-[11px] font-bold text-amber-800"
+                                    title="Tidak ada progress >90 detik. Cek apakah queue worker jalan (composer run dev), lalu run lanjut otomatis."
+                                >
+                                    ⚠ Diam — worker queue jalan?
+                                </span>
+                            ) : (
+                                <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-[3px] font-mono text-[11px] font-bold text-gray-500 uppercase">
+                                    {run.status}
+                                </span>
+                            )}
                         </div>
                         {stream?.text && isWireframe ? (
                             <div
