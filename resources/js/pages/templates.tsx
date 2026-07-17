@@ -157,14 +157,14 @@ function TemplateModal({
 
     const save = () => {
         setProcessing(true);
-        const payload: Record<string, unknown> = {
+        const payload = {
             name: form.name,
             doc_kinds: form.doc_kinds,
             language: form.language,
             tone: form.tone,
             config: { white_label: form.white_label },
+            ...(form.logo ? { logo: form.logo } : {}),
         };
-        if (form.logo) payload.logo = form.logo;
 
         const url = mode === 'edit' && editing ? route('templates.update', editing.id) : route('templates.store');
         router.post(url, payload, {

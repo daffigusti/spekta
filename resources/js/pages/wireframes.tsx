@@ -274,7 +274,7 @@ function ScreenFrame({ screen, selected, onSelect }: { screen: Screen; selected:
     );
 }
 
-export default function WireframesPage({ project, document: doc, run, assistant_messages = [], chat_stream = null, errors = {} }: Props) {
+export default function WireframesPage({ project, document: doc, run, assistant_messages = [], chat_stream = null, chat_quota = null, errors = {} }: Props) {
     const [chatOpen, setChatOpen] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [view, setView] = useState({ x: 48, y: 48, k: 0.85 });
