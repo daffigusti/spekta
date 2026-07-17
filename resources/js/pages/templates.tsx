@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import SpektaLayout from '@/layouts/spekta-layout';
 
@@ -125,11 +125,13 @@ function TemplateModal({
     mode,
     editing,
     docKindOptions,
+    logoUrl,
     onClose,
 }: {
     mode: 'create' | 'edit';
     editing: TemplateData | null;
     docKindOptions: string[];
+    logoUrl: string | null;
     onClose: () => void;
 }) {
     const [form, setForm] = useState<FormState>(
@@ -154,6 +156,9 @@ function TemplateModal({
         }));
 
     const canSave = form.name.trim().length > 0 && form.doc_kinds.length > 0 && !processing;
+
+    // Preview logo: file baru yang dipilih menang atas logo workspace tersimpan
+    const logoPreview = useMemo(() => (form.logo ? URL.createObjectURL(form.logo) : logoUrl), [form.logo, logoUrl]);
 
     const save = () => {
         setProcessing(true);
@@ -276,13 +281,24 @@ function TemplateModal({
                             />
                             White-label + logo
                         </label>
-                        <input
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.webp"
-                            onChange={(e) => setForm((f) => ({ ...f, logo: e.target.files?.[0] ?? null }))}
-                            className="mt-2.5 text-[12.5px] font-medium text-gray-600 file:mr-3 file:rounded-[10px] file:border-2 file:border-gray-200 file:bg-gray-50 file:px-3 file:py-1.5 file:text-[12.5px] file:font-bold file:text-gray-600 hover:file:bg-gray-100"
-                        />
-                        <div className="mt-1.5 text-[11.5px] font-medium text-gray-400">Logo workspace — dipakai proposal &amp; portal.</div>
+                        <div className="mt-2.5 flex items-center gap-3">
+                            {logoPreview && (
+                                <img
+                                    src={logoPreview}
+                                    alt="Logo workspace"
+                                    className="h-10 w-10 flex-none rounded-lg border border-gray-200 bg-white object-contain p-1"
+                                />
+                            )}
+                            <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png,.webp"
+                                onChange={(e) => setForm((f) => ({ ...f, logo: e.target.files?.[0] ?? null }))}
+                                className="text-[12.5px] font-medium text-gray-600 file:mr-3 file:rounded-[10px] file:border-2 file:border-gray-200 file:bg-gray-50 file:px-3 file:py-1.5 file:text-[12.5px] file:font-bold file:text-gray-600 hover:file:bg-gray-100"
+                            />
+                        </div>
+                        <div className="mt-1.5 text-[11.5px] font-medium text-gray-400">
+                            {form.logo ? 'Logo baru — tersimpan saat klik Simpan.' : 'Logo workspace — dipakai proposal & portal.'}
+                        </div>
                         {errors.logo && <div className="mt-1 text-[11.5px] font-bold text-red-500">{errors.logo}</div>}
                     </div>
                 </div>
@@ -319,6 +335,7 @@ function TemplateModal({
 export default function Templates({
     templates,
     docKindOptions,
+    logoUrl,
     canManage,
 }: {
     templates: TemplateData[];
@@ -361,6 +378,7 @@ export default function Templates({
                     mode={modal.mode}
                     editing={modal.editing}
                     docKindOptions={docKindOptions}
+                    logoUrl={logoUrl}
                     onClose={() => setModal(null)}
                 />
             )}

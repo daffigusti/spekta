@@ -10,11 +10,15 @@ use App\Models\RateCard;
  * FR-14 + BR-20/BR-21/BR-22.
  * Bottom-up: MD fitur = Σ sub-fitur (atau est fitur bila tanpa sub) + overhead integrasi 10%.
  * Baris buffer "setup, deploy, UAT & buffer" 15% dari total.
- * RAB = Σ (MD per peran × tarif) × (1 + margin). Distribusi peran default: FE 35% BE 40% QA 15% PM 10%.
+ * RAB = Σ (MD per peran × tarif) × (1 + margin). Distribusi peran: config spekta.estimate.role_split.
  */
 class Estimator
 {
-    private const ROLE_SPLIT = ['FE' => 0.35, 'BE' => 0.40, 'QA' => 0.15, 'PM' => 0.10];
+    /** @return array<string, float> */
+    public static function roleSplit(): array
+    {
+        return config('spekta.estimate.role_split');
+    }
 
     /**
      * Multiplier efektif mode pengerjaan: impl_multiplier hanya kena porsi FE+BE;
@@ -24,7 +28,8 @@ class Estimator
     public static function effectiveMultiplier(string $mode): float
     {
         $impl = (float) (config("spekta.estimate.work_modes.$mode.impl_multiplier") ?? 1.0);
-        $implShare = self::ROLE_SPLIT['FE'] + self::ROLE_SPLIT['BE'];
+        $split = self::roleSplit();
+        $implShare = ($split['FE'] ?? 0) + ($split['BE'] ?? 0);
 
         return round($implShare * $impl + (1 - $implShare), 3);
     }
@@ -87,7 +92,7 @@ class Estimator
         $totalCost += $bufferCost;
 
         // Komposisi tim & durasi kasar: paralel 3 track, 5 hari/minggu
-        $teamComposition = collect(self::ROLE_SPLIT)
+        $teamComposition = collect(self::roleSplit())
             ->map(fn ($pct, $role) => ['role' => $role, 'md' => round($totalMd * $pct, 1)])
             ->values()->all();
         $durationWeeks = round($totalMd / (3 * 5), 1);
@@ -187,7 +192,7 @@ class Estimator
     {
         $breakdown = [];
         $cost = 0.0;
-        foreach (self::ROLE_SPLIT as $role => $pct) {
+        foreach (self::roleSplit() as $role => $pct) {
             $roleMd = $md * $pct;
             $rate = (float) ($rates[$role]['daily_rate'] ?? 0);
             $breakdown[] = ['role' => $role, 'md' => round($roleMd, 2)];

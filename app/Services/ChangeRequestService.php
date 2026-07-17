@@ -12,7 +12,6 @@ use App\Models\Project;
  */
 class ChangeRequestService
 {
-    private const ROLE_SPLIT = ['FE' => 0.35, 'BE' => 0.40, 'QA' => 0.15, 'PM' => 0.10];
 
     public function create(Project $project, array $attrs): ChangeRequest
     {
@@ -92,7 +91,7 @@ class ChangeRequestService
         $margin = ($card?->margin_pct ?? 0) / 100;
 
         $cost = 0.0;
-        foreach (self::ROLE_SPLIT as $role => $pct) {
+        foreach (Estimator::roleSplit() as $role => $pct) {
             $cost += $deltaMd * $pct * (float) ($rates[$role]['daily_rate'] ?? 0);
         }
 

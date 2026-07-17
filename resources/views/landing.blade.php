@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spekta — Meeting selesai, spec &amp; RAB ikut selesai</title>
 <meta name="description" content="AI presales engine untuk software house Indonesia. Tempel transkrip meeting, dapatkan 11 dokumen spesifikasi + estimasi man-days & RAB.">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -56,8 +57,8 @@ html[data-theme="light"] .icon-sun{display:none}
   <div class="nav-shell">
     <nav class="nav">
       <div style="display:flex;align-items:center;gap:9px">
-        <div class="logo">S</div>
-        <span class="sora" style="font-size:15px;font-weight:800;color:var(--heading);letter-spacing:-0.01em">Spekta</span>
+        <div class="logo"><svg width="17" height="17" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M36 11 H19 A6.5 6.5 0 0 0 19 24 H29 A6.5 6.5 0 0 1 29 37 H20" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><circle cx="12" cy="37" r="3" fill="#F5A623"/></svg></div>
+        <span class="sora" style="font-size:15px;font-weight:800;color:var(--heading);letter-spacing:-0.01em">Spekta<span style="color:#F5A623">.</span></span>
       </div>
       <div class="nav-links">
         <a href="#fitur">Fitur</a>
@@ -312,8 +313,10 @@ html[data-theme="light"] .icon-sun{display:none}
     </div>
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:30px 4px 10px">
       <div style="display:flex;align-items:center;gap:9px">
-        <div class="logo" style="width:24px;height:24px;border-radius:7px;font-size:11px">S</div>
-        <span class="sora" style="font-size:13px;font-weight:700;color:var(--heading)">Spekta</span>
+        <div class="logo" style="width:24px;height:24px;border-radius:7px">
+          <svg width="14" height="14" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M36 11 H19 A6.5 6.5 0 0 0 19 24 H29 A6.5 6.5 0 0 1 29 37 H20" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><circle cx="12" cy="37" r="3" fill="#F5A623"/></svg>
+        </div>
+        <span class="sora" style="font-size:13px;font-weight:700;color:var(--heading)">Spekta<span style="color:#F5A623">.</span></span>
         <span style="font-size:12px;color:var(--muted);opacity:0.7">— produk PT Amanah Karya Indonesia</span>
       </div>
       <div style="margin-left:auto;display:flex;gap:18px;font-size:12.5px;font-weight:600">

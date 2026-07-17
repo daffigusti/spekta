@@ -90,6 +90,10 @@ return [
         'buffer_pct' => 15,
         'confidence_range_pct' => 15,
 
+        // Distribusi MD per peran — satu-satunya sumber untuk Estimator, RabExporter,
+        // ChangeRequestService, dan tampilan alokasi di halaman rate card. Total harus 1.0.
+        'role_split' => ['FE' => 0.33, 'BE' => 0.38, 'QA' => 0.14, 'PM' => 0.10, 'DevOps' => 0.05],
+
         // Mode pengerjaan: impl_multiplier hanya kena porsi implementasi (FE+BE);
         // QA & PM tetap 1.0× — review kode AI & komunikasi klien tidak ikut cepat.
         // range_pct melebar untuk mode AI — variance delivery lebih tinggi.

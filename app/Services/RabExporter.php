@@ -13,10 +13,9 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
  */
 class RabExporter
 {
-    private const ROLE_SPLIT = ['FE' => 0.35, 'BE' => 0.40, 'QA' => 0.15, 'PM' => 0.10];
-
     public function generate(Project $project, Estimate $estimate): string
     {
+        $roleSplit = Estimator::roleSplit();
         $sheet = ($spreadsheet = new Spreadsheet)->getActiveSheet();
         $sheet->setTitle('RAB');
 
@@ -30,7 +29,7 @@ class RabExporter
         $sheet->setCellValue('A3', 'Parameter');
         $sheet->getStyle('A3')->getFont()->setBold(true);
         $row = 4;
-        foreach (self::ROLE_SPLIT as $role => $pct) {
+        foreach ($roleSplit as $role => $pct) {
             $sheet->setCellValue("A{$row}", "Rate {$role} /MD");
             $sheet->setCellValue("B{$row}", (float) ($rates[$role]['daily_rate'] ?? 0));
             $sheet->setCellValue("C{$row}", $pct);
@@ -49,7 +48,7 @@ class RabExporter
         // Blended rate per MD = Σ(rate × porsi) — sel bantu untuk formula baris
         $blendedRow = $bufferRow + 1;
         $rateStart = 4;
-        $rateEnd = $rateStart + count(self::ROLE_SPLIT) - 1;
+        $rateEnd = $rateStart + count($roleSplit) - 1;
         $sheet->setCellValue("A{$blendedRow}", 'Blended rate /MD');
         $sheet->setCellValue("B{$blendedRow}", "=SUMPRODUCT(B{$rateStart}:B{$rateEnd},C{$rateStart}:C{$rateEnd})");
 

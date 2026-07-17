@@ -16,16 +16,17 @@ type RateCardData = {
     margin_pct: number;
 }
 
-// ponytail: level/alokasi display-only per design, tidak disimpan di DB
-const ROLE_META: Record<string, { level: string; alloc: string }> = {
-    Frontend: { level: 'Mid', alloc: '2 orang · 40%' },
-    Backend: { level: 'Mid–Senior', alloc: '2 orang · 40%' },
-    QA: { level: 'Mid', alloc: '1 orang · 12%' },
-    PM: { level: 'Senior', alloc: '0.5 orang · 5%' },
-    DevOps: { level: 'Mid', alloc: 'on-demand · 3%' },
+// ponytail: level/orang display-only per design, tidak disimpan di DB.
+// Persentase alokasi datang dari prop roleSplit (config spekta.estimate.role_split) — sumber sama dengan Estimator.
+const ROLE_META: Record<string, { level: string; orang: string }> = {
+    FE: { level: 'Mid', orang: '2 orang' },
+    BE: { level: 'Mid–Senior', orang: '2 orang' },
+    QA: { level: 'Mid', orang: '1 orang' },
+    PM: { level: 'Senior', orang: '0.5 orang' },
+    DevOps: { level: 'Mid', orang: 'on-demand' },
 };
 
-export default function RateCards({ rateCards }: { rateCards: RateCardData[] }) {
+export default function RateCards({ rateCards, roleSplit }: { rateCards: RateCardData[]; roleSplit: Record<string, number> }) {
     const card = rateCards[0];
     const { data, setData, patch, processing, recentlySuccessful } = useForm<{ name: string; margin_pct: number; roles: RoleRate[] }>({
         name: card?.name ?? '',
@@ -33,8 +34,16 @@ export default function RateCards({ rateCards }: { rateCards: RateCardData[] }) 
         roles: card?.roles ?? [],
     });
 
-    const rates = data.roles.map((r) => r.daily_rate);
-    const blended = rates.length ? rates.reduce((a, b) => a + b, 0) / rates.length : 0;
+    const allocOf = (role: string) => {
+        const pct = roleSplit[role];
+        if (pct === undefined) return '—';
+        const orang = ROLE_META[role]?.orang;
+        return `${orang ? orang + ' · ' : ''}${Math.round(pct * 100)}%`;
+    };
+
+    // Weighted sesuai role_split engine — cocok dengan Estimator::costOf; role di luar split tidak dihitung
+    const rateOf = Object.fromEntries(data.roles.map((r) => [r.role, r.daily_rate]));
+    const blended = Object.entries(roleSplit).reduce((sum, [role, pct]) => sum + pct * (rateOf[role] ?? 0), 0);
     const sampleRab = Math.round((blended * 124 * (1 + data.margin_pct / 100)) / 1e6);
     const marginChips = [20, 30, 40].includes(data.margin_pct) ? [20, 30, 40] : [20, 30, 40, data.margin_pct];
 
@@ -92,14 +101,18 @@ export default function RateCards({ rateCards }: { rateCards: RateCardData[] }) 
                                         <td className="px-4 py-3 font-semibold text-gray-500">{ROLE_META[r.role]?.level ?? 'Mid'}</td>
                                         <td className="px-4 py-2 text-right">
                                             <input
-                                                type="number"
+                                                type="text"
+                                                inputMode="numeric"
                                                 className="w-[150px] rounded-[10px] border-2 border-gray-200 bg-gray-50 px-[11px] py-[7px] text-right text-[12.5px] font-semibold text-gray-700 focus:border-teal-400 focus:bg-white focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none"
                                                 style={{ fontFamily: 'ui-monospace,SFMono-Regular,Menlo,monospace' }}
-                                                value={r.daily_rate}
-                                                onChange={(e) => setData('roles', data.roles.map((x, j) => (j === i ? { ...x, daily_rate: Number(e.target.value) } : x)))}
+                                                value={r.daily_rate.toLocaleString('id-ID')}
+                                                onChange={(e) => {
+                                                    const num = Number(e.target.value.replace(/\D/g, ''));
+                                                    setData('roles', data.roles.map((x, j) => (j === i ? { ...x, daily_rate: num } : x)));
+                                                }}
                                             />
                                         </td>
-                                        <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-500">{ROLE_META[r.role]?.alloc ?? '—'}</td>
+                                        <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-500">{allocOf(r.role)}</td>
                                         <td className="pr-3 text-right">
                                             <button
                                                 className="text-sm font-bold text-gray-300 hover:text-red-500"

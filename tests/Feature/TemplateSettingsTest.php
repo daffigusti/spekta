@@ -62,6 +62,28 @@ class TemplateSettingsTest extends TestCase
         $this->assertSame(1, DocTemplate::where('workspace_id', $workspace->id)->where('is_default', true)->count());
     }
 
+    public function test_update_with_logo_stores_file_and_updates_workspace_logo_url(): void
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $owner = $this->owner();
+        $workspace = $owner->currentWorkspace();
+
+        $this->actingAs($owner)->get('/templates');
+        $tpl = DocTemplate::where('workspace_id', $workspace->id)->firstOrFail();
+
+        $this->actingAs($owner)->post("/templates/{$tpl->id}", [
+            'name' => 'Dengan Logo',
+            'logo' => \Illuminate\Http\Testing\File::image('logo.png', 120, 40),
+        ])->assertSessionHasNoErrors();
+
+        $logoUrl = $workspace->fresh()->logo_url;
+        $this->assertNotNull($logoUrl);
+        $this->assertStringStartsWith('/storage/logos/', $logoUrl);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists(
+            str_replace('/storage/', '', $logoUrl),
+        );
+    }
+
     public function test_member_cannot_update_template(): void
     {
         $owner = $this->owner();

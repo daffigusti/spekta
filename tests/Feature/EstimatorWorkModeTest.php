@@ -34,21 +34,43 @@ class EstimatorWorkModeTest extends TestCase
         return $project;
     }
 
+    public function test_role_split_konsisten_dan_berjumlah_satu(): void
+    {
+        $split = Estimator::roleSplit();
+        $this->assertEqualsWithDelta(1.0, array_sum($split), 0.001);
+        $this->assertArrayHasKey('DevOps', $split); // tarif DevOps ikut dihitung
+    }
+
     public function test_multiplier_efektif_hanya_kena_porsi_implementasi(): void
     {
-        // FE 35% + BE 40% kena impl_multiplier; QA 15% + PM 10% tetap 1.0×
+        // FE 33% + BE 38% kena impl_multiplier; QA/PM/DevOps 29% tetap 1.0×
         $this->assertSame(1.0, Estimator::effectiveMultiplier('conservative'));
-        $this->assertSame(0.7, Estimator::effectiveMultiplier('ai_assisted')); // 0.75×0.6 + 0.25
-        $this->assertSame(0.55, Estimator::effectiveMultiplier('vibe'));       // 0.75×0.4 + 0.25
+        $this->assertSame(0.716, Estimator::effectiveMultiplier('ai_assisted')); // 0.71×0.6 + 0.29
+        $this->assertSame(0.574, Estimator::effectiveMultiplier('vibe'));        // 0.71×0.4 + 0.29
         $this->assertSame(1.0, Estimator::effectiveMultiplier('mode_tak_dikenal'));
+    }
+
+    public function test_tarif_devops_memengaruhi_total_cost(): void
+    {
+        $project = $this->projectWithStructure(null);
+        $card = $project->workspace->rateCards()->where('is_default', true)->firstOrFail();
+
+        $costBefore = app(Estimator::class)->compute($project, 'mvp')->total_cost;
+
+        $card->update(['roles' => collect($card->roles)->map(
+            fn ($r) => $r['role'] === 'DevOps' ? [...$r, 'daily_rate' => 0] : $r
+        )->all()]);
+        $costAfter = app(Estimator::class)->compute($project->fresh(), 'mvp')->total_cost;
+
+        $this->assertLessThan($costBefore, $costAfter);
     }
 
     public function test_vibe_mode_menurunkan_total_dan_menyimpan_baseline(): void
     {
         $est = app(Estimator::class)->compute($this->projectWithStructure('vibe'), 'mvp');
 
-        // 10 MD × 1.1 overhead = 11 baseline; ×0.55 = 6.05; +15% buffer = 6.96
-        $this->assertEqualsWithDelta(6.96, $est->total_md, 0.05);
+        // 10 MD × 1.1 overhead = 11 baseline; ×0.574 = 6.31; +15% buffer = 7.26
+        $this->assertEqualsWithDelta(7.26, $est->total_md, 0.05);
         $this->assertEqualsWithDelta(12.65, $est->baseline_md, 0.06); // 11 × 1.15
         $this->assertSame('vibe', $est->work_mode);
         $this->assertSame(25, (int) $est->range_pct);

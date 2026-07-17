@@ -13,6 +13,7 @@ class RateCardController extends Controller
 
         return Inertia::render('ratecards', [
             'rateCards' => $workspace->rateCards()->get(),
+            'roleSplit' => \App\Services\Estimator::roleSplit(),
         ]);
     }
 

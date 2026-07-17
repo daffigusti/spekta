@@ -1,3 +1,4 @@
+import AppLogoIcon from '@/components/app-logo-icon';
 import { Link } from '@inertiajs/react';
 import { PropsWithChildren, useState } from 'react';
 
@@ -81,14 +82,13 @@ export function SpektaAuthShell({ children, active }: PropsWithChildren<{ active
                         alignItems: 'center',
                         justifyContent: 'center',
                         color: '#042F2E',
-                        fontWeight: 800,
-                        fontSize: 15,
-                        fontFamily: "'Sora',sans-serif",
                     }}
                 >
-                    S
+                    <AppLogoIcon style={{ width: 20, height: 20 }} />
                 </div>
-                <span style={{ fontSize: 17, fontWeight: 800, color: '#fff', fontFamily: "'Sora',sans-serif", letterSpacing: '-0.01em' }}>Spekta</span>
+                <span style={{ fontSize: 17, fontWeight: 800, color: '#fff', fontFamily: "'Sora',sans-serif", letterSpacing: '-0.01em' }}>
+                    Spekta<span style={{ color: '#F5A623' }}>.</span>
+                </span>
             </Link>
 
             <div

@@ -1,3 +1,4 @@
+import AppLogoIcon from '@/components/app-logo-icon';
 import { Link, router, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode } from 'react';
 
@@ -133,11 +134,13 @@ export default function SpektaLayout({
         <div className="flex min-h-screen bg-gray-50 text-sm text-gray-700">
             <aside className="sticky top-0 flex h-screen w-[250px] flex-none flex-col border-r border-gray-200 bg-white">
                 <div className="flex items-center gap-2.5 px-4 pt-[18px] pb-3.5">
-                    <div className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[10px] bg-gradient-to-br from-teal-600 to-teal-400 text-base font-extrabold text-white">
-                        S
+                    <div className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-[10px] bg-gradient-to-br from-[#14B8A6] to-[#5EEAD4] text-[#042F2E]">
+                        <AppLogoIcon className="h-[22px] w-[22px]" />
                     </div>
                     <div className="min-w-0">
-                        <div className="text-[15px] font-extrabold tracking-tight text-gray-900">Spekta</div>
+                        <div className="text-[15px] font-extrabold tracking-tight text-gray-900">
+                            Spekta<span className="text-[#F5A623]">.</span>
+                        </div>
                         <div className="truncate text-[11px] font-semibold text-gray-400">{workspace?.name ?? '—'} Workspace</div>
                     </div>
                 </div>
