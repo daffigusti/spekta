@@ -595,7 +595,7 @@ SYS, "TEMUAN VALIDASI:\n$list\n\nKONTEKS PROYEK:\n".$this->documentContext($proj
     private function guardTruncation(bool $truncated, string $out): void
     {
         if ($truncated) {
-            throw new \RuntimeException(sprintf(
+            throw new \App\Exceptions\LlmTruncated(sprintf(
                 'Output LLM terpotong di batas max_tokens (%d) — naikkan SPEKTA_LLM_MAX_TOKENS. Akhir output: …%s',
                 (int) config('spekta.llm.max_tokens', 16000),
                 mb_substr($out, -120)

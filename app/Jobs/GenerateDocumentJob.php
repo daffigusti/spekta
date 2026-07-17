@@ -59,7 +59,14 @@ class GenerateDocumentJob implements ShouldQueue
             Cache::put($streamKey, ['doc_key' => $node->doc_key, 'text' => $acc], 600);
         };
 
-        [$md, $meta] = $engine->generateDocument($project, $node->doc_key, $upstream, $onDelta);
+        try {
+            [$md, $meta] = $engine->generateDocument($project, $node->doc_key, $upstream, $onDelta);
+        } catch (\App\Exceptions\LlmTruncated $e) {
+            // Deterministik — retry pasti kena batas yang sama; fail langsung, jangan bakar 2 panggilan LLM lagi
+            $this->fail($e);
+
+            return;
+        }
         Cache::forget($streamKey);
 
         $document = Document::firstOrCreate(
