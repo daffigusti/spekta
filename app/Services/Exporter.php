@@ -76,7 +76,7 @@ MD;
             foreach ($phase['features'] as $f) {
                 $tasks .= "- [ ] **{$f['title']}** ({$f['est_md']} MD, scope {$f['scope']})\n";
                 foreach ($f['subfeatures'] as $sub) {
-                    $tasks .= "  - [ ] $sub\n";
+                    $tasks .= "  - [ ] {$sub['title']}\n";
                 }
             }
             $tasks .= "\n";

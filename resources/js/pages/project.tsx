@@ -270,7 +270,23 @@ export default function ProjectPage({
 
             <div className="mb-[18px] flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-[22px] font-extrabold tracking-[-0.02em] text-gray-900">{project.name}</h1>
+                    <h1 className="group flex items-center gap-2 text-[22px] font-extrabold tracking-[-0.02em] text-gray-900">
+                        {project.name}
+                        <button
+                            type="button"
+                            title="Ubah nama proyek"
+                            className="text-gray-300 opacity-0 transition group-hover:opacity-100 hover:text-teal-700"
+                            onClick={async () => {
+                                const name = await promptDialog('Nama proyek:', project.name);
+                                if (name?.trim() && name.trim() !== project.name)
+                                    router.patch(route('projects.update', project.id), { name: name.trim() }, { preserveScroll: true });
+                            }}
+                        >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                        </button>
+                    </h1>
                     <div className="mt-1 text-[13px] font-medium text-gray-500">
                         Klien: {project.client_name ?? '—'} · {documents.length} dokumen ·{' '}
                         <span className="font-mono font-semibold">v{doc?.version_no ?? 1}</span>

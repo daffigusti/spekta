@@ -107,6 +107,17 @@ class ProjectController extends Controller
         ]);
     }
 
+    public function update(Request $request, Project $project)
+    {
+        $this->authorizeProject($request, $project);
+        $project->update($request->validate([
+            'name' => 'required|string|max:120',
+            'client_name' => 'nullable|string|max:120',
+        ]));
+
+        return back();
+    }
+
     public function destroy(Request $request, Project $project)
     {
         $this->authorizeProject($request, $project);

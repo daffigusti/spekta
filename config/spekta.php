@@ -68,7 +68,8 @@ return [
         'API' => ['REQUIREMENTS'],
         'ARCHITECTURE' => ['REQUIREMENTS'],
         'FEATURES' => ['REQUIREMENTS', 'USER_FLOWS'],
-        'TESTING' => ['DATABASE', 'API'],
+        // REQUIREMENTS ikut jadi upstream: TESTING wajib melihat daftar FR (rule fr_has_test)
+        'TESTING' => ['REQUIREMENTS', 'DATABASE', 'API'],
         'DESIGN' => ['USER_FLOWS'],
         'ROADMAP' => ['PRD', 'REQUIREMENTS'],
     ],
@@ -95,6 +96,11 @@ return [
 
         // Log prompt+response mentah ke storage/logs/llm.log (channel 'llm')
         'log' => env('SPEKTA_LLM_LOG', true),
+
+        // Batas output per panggilan — dokumen terpotong (stop_reason max_tokens) = error, bukan diam-diam
+        'max_tokens' => (int) env('SPEKTA_LLM_MAX_TOKENS', 16000),
+        // Dokumen spec butuh konsistensi, bukan kreativitas
+        'temperature' => (float) env('SPEKTA_LLM_TEMPERATURE', 0.3),
 
         // Driver anthropic — base_url bisa diganti ke endpoint Anthropic-compatible
         'anthropic_key' => env('ANTHROPIC_API_KEY'),

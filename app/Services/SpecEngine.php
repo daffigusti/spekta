@@ -23,7 +23,8 @@ class SpecEngine
     // ---------- FR-02: AI Understanding ----------
     public function understand(Project $project): array
     {
-        $input = $project->inputs()->latest()->first()?->raw_text ?? '';
+        // Semua input digabung — multi-upload (file + teks) jangan ada yang terabaikan
+        $input = $project->inputs()->oldest()->pluck('raw_text')->filter()->implode("\n\n---\n\n");
 
         if ($this->driver() === 'stub') {
             return $this->stubUnderstanding($input);
@@ -40,7 +41,8 @@ SYS, $input);
     public function interviewQuestions(Project $project): array
     {
         $u = $project->understanding;
-        $ctx = json_encode(['roles' => $u->roles, 'features' => $u->features, 'domain' => $u->domain], JSON_UNESCAPED_UNICODE);
+        $ctx = json_encode(['roles' => $u->roles, 'features' => $u->features, 'domain' => $u->domain], JSON_UNESCAPED_UNICODE)
+            ."\n\nINPUT ASLI USER (cuplikan):\n".$this->rawInput($project, 3000);
 
         if ($this->driver() === 'stub') {
             return $this->stubInterview($u->features ?? []);
@@ -59,11 +61,7 @@ SYS, $ctx);
     public function buildStructure(Project $project): array
     {
         $u = $project->understanding;
-        $answers = $project->interviewItems->map(fn ($i) => [
-            'q' => $i->question,
-            'a' => $i->skipped ? '(dilewati — asumsi: '.$i->assumption_text.')' : $i->answer_text,
-        ]);
-        $ctx = json_encode(['features' => $u->features, 'complexity' => $u->complexity, 'answers' => $answers], JSON_UNESCAPED_UNICODE);
+        $ctx = json_encode(['features' => $u->features, 'complexity' => $u->complexity, 'answers' => $this->interviewAnswers($project)], JSON_UNESCAPED_UNICODE);
 
         if ($this->driver() === 'stub') {
             return $this->stubStructure($u->features ?? []);
@@ -85,7 +83,14 @@ SYS, $ctx);
         $u = $project->understanding;
         // BR-16 complexity governor
         $maxClass = $u->complexity <= 2 ? 'monolith' : ($u->complexity === 3 ? 'monolith modular' : 'services dengan justifikasi');
-        $ctx = json_encode(['domain' => $u->domain, 'complexity' => $u->complexity, 'max_architecture' => $maxClass], JSON_UNESCAPED_UNICODE);
+        // Fitur + jawaban interview ikut — kebutuhan nyata (realtime, mobile, payment) menentukan stack
+        $ctx = json_encode([
+            'domain' => $u->domain,
+            'complexity' => $u->complexity,
+            'max_architecture' => $maxClass,
+            'features' => collect($u->features ?? [])->pluck('title')->values()->all(),
+            'interview' => $this->interviewAnswers($project),
+        ], JSON_UNESCAPED_UNICODE);
 
         if ($this->driver() === 'stub') {
             return $this->stubStack($u->complexity);
@@ -229,17 +234,37 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
         $u = $project->understanding;
         $parts = [
             'PROYEK: '.$project->name.' — klien: '.($project->client_name ?? '-'),
-            'DOMAIN: '.$u?->domain,
+            'DOMAIN: '.$u?->domain.' · KOMPLEKSITAS: '.($u?->complexity ?? '-').'/5',
             'ROLES: '.json_encode($u?->roles, JSON_UNESCAPED_UNICODE),
             'FITUR & STRUKTUR: '.json_encode($this->structureArray($project), JSON_UNESCAPED_UNICODE),
-            'STACK: '.json_encode($project->stackChoices->map(fn ($s) => [$s->layer => $s->choice]), JSON_UNESCAPED_UNICODE),
+            'STACK: '.json_encode($project->stackChoices->map(fn ($s) => ['layer' => $s->layer, 'choice' => $s->choice, 'justification' => $s->justification]), JSON_UNESCAPED_UNICODE),
             'ASUMSI: '.json_encode($project->assumptions(), JSON_UNESCAPED_UNICODE),
+            // Sumber kebenaran nuansa asli — jangan hanya andalkan hasil distilasi understanding
+            "INPUT ASLI USER:\n".$this->rawInput($project, 6000),
+            'HASIL INTERVIEW (klarifikasi user): '.json_encode($this->interviewAnswers($project), JSON_UNESCAPED_UNICODE),
         ];
         foreach ($upstreamDocs as $key => $content) {
             $parts[] = "=== UPSTREAM $key.md ===\n".$content;
         }
 
         return implode("\n\n", $parts);
+    }
+
+    /** Gabungan seluruh raw input proyek, dipotong dari depan (bagian awal paling padat konteks). */
+    private function rawInput(Project $project, int $limit): string
+    {
+        $text = $project->inputs()->oldest()->pluck('raw_text')->filter()->implode("\n\n---\n\n");
+
+        return Str::limit($text, $limit, '… [dipotong]');
+    }
+
+    /** Q&A interview — jawaban user atau asumsi bila dilewati. */
+    private function interviewAnswers(Project $project): array
+    {
+        return $project->interviewItems->map(fn ($i) => [
+            'q' => $i->question,
+            'a' => $i->skipped ? '(dilewati — asumsi: '.$i->assumption_text.')' : $i->answer_text,
+        ])->values()->all();
     }
 
     public function structureArray(Project $project): array
@@ -251,9 +276,14 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
                 'phase' => $phase->title,
                 'features' => $nodes->where('parent_id', $phase->id)->map(fn ($f) => [
                     'title' => $f->title,
+                    'description' => $f->description,
                     'scope' => $f->scope,
                     'est_md' => $f->est_md,
-                    'subfeatures' => $nodes->where('parent_id', $f->id)->pluck('title')->values()->all(),
+                    'subfeatures' => $nodes->where('parent_id', $f->id)->map(fn ($s) => [
+                        'title' => $s->title,
+                        'description' => $s->description,
+                        'est_md' => $s->est_md,
+                    ])->values()->all(),
                 ])->values()->all(),
             ];
         }
@@ -265,10 +295,22 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
 
     private function json(string $class, string $system, string $user): array
     {
-        $raw = $this->text($class, $system."\nBalas HANYA JSON valid.", $user, $ti, $to);
-        $raw = preg_replace('/^```(json)?|```$/m', '', trim($raw));
+        $sys = $system."\nBalas HANYA JSON valid.";
+        $clean = fn (string $r) => trim(preg_replace('/^```(json)?|```$/m', '', trim($r)));
 
-        return json_decode(trim($raw), true) ?? [];
+        $raw = $this->text($class, $sys, $user, $ti, $to);
+        $out = json_decode($clean($raw), true);
+        if (is_array($out)) {
+            return $out;
+        }
+
+        // Satu kali retry dengan umpan balik — [] diam-diam = understanding kosong lolos ke DB
+        $raw = $this->text($class, $sys, $user."\n\nOutput sebelumnya BUKAN JSON valid:\n".mb_substr($raw, 0, 2000)."\n\nUlangi. Balas HANYA JSON valid.", $ti2, $to2);
+        $out = json_decode($clean($raw), true);
+
+        return is_array($out)
+            ? $out
+            : throw new \RuntimeException('LLM tidak menghasilkan JSON valid setelah retry: '.mb_substr($raw, 0, 200));
     }
 
     private function text(string $class, string $system, string $user, ?int &$tokensIn = null, ?int &$tokensOut = null, ?callable $onDelta = null): string
