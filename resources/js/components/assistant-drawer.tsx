@@ -8,14 +8,20 @@ const mdHtml = (md: string) => DOMPurify.sanitize(marked.parse(md) as string);
 // usulan revisi dokumen dari asisten: <<<DOC key\n…markdown…\nDOC>>> — bisa lebih dari satu blok
 export const parseAssistant = (body: string) => {
     const proposals: { docKey: string; md: string }[] = [];
+    let truncatedKey: string | null = null;
     const text = body
         .replace(/<<<DOC\s+([\w-]+)\s*\n([\s\S]*?)\nDOC>>>/g, (_all, key: string, md: string) => {
             proposals.push({ docKey: key, md });
             return '';
         })
+        // blok terbuka tanpa penutup = jawaban terpotong max_tokens — buang isinya, catat key-nya
+        .replace(/<<<DOC\s+([\w-]+)[\s\S]*$/, (_all, key: string) => {
+            truncatedKey = key;
+            return '';
+        })
         .replace(/<<<DOC[^\n]*|DOC>>>/g, '') // sapu sisa penanda tidak lengkap
         .trim();
-    return { text, proposals };
+    return { text, proposals, truncatedKey };
 };
 
 export type AssistantMsg = { id: string; role: string; body: string };
@@ -173,7 +179,7 @@ export default function AssistantDrawer({
                                     {m.body}
                                 </div>
                             );
-                        const { text, proposals } = parseAssistant(m.body);
+                        const { text, proposals, truncatedKey } = parseAssistant(m.body);
                         return (
                             <div key={m.id} className="rounded-xl border border-gray-200 bg-white px-3.5 py-3">
                                 <div
@@ -232,6 +238,12 @@ export default function AssistantDrawer({
                                         </div>
                                     );
                                 })}
+                                {truncatedKey && (
+                                    <div className="mt-2.5 rounded-[10px] border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] font-semibold text-amber-700">
+                                        ⚠ Usulan revisi {truncatedKey}.md terpotong — jawaban kena batas panjang output. Minta AI kirim ulang
+                                        dokumen itu saja, mis. "kirim ulang revisi {truncatedKey}.md".
+                                    </div>
+                                )}
                             </div>
                         );
                     })}

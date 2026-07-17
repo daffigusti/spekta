@@ -26,6 +26,8 @@ type EstimateData = {
     id: string;
     scope: string;
     total_md: number;
+    baseline_md: number | null;
+    work_mode: string;
     range_pct: number;
     total_cost: number;
     currency: string;
@@ -38,6 +40,12 @@ type EstimateData = {
 type Props = {
     project: { id: string; name: string; client_name: string | null };
     estimates: EstimateData[];
+};
+
+const WORK_MODES: Record<string, string> = {
+    conservative: 'Konvensional',
+    ai_assisted: 'AI-assisted',
+    vibe: 'Vibe / AI-first',
 };
 
 const fmtIdr = (n: number) =>
@@ -116,6 +124,12 @@ export default function EstimatePage({ project, estimates }: Props) {
                             <div className="mt-1 text-[11.5px] font-medium text-gray-400">
                                 ±{est.range_pct}% confidence: {Math.round(est.total_md * (1 - est.range_pct / 100))}–{Math.round(est.total_md * (1 + est.range_pct / 100))} MD
                             </div>
+                            {est.work_mode !== 'conservative' && est.baseline_md != null && est.baseline_md > est.total_md && (
+                                <div className="mt-1 text-[11.5px] font-medium text-gray-400">
+                                    Mode <b className="text-teal-700">{WORK_MODES[est.work_mode] ?? est.work_mode}</b> — baseline konvensional{' '}
+                                    <span className="line-through">{Math.round(est.baseline_md)} MD</span>
+                                </div>
+                            )}
                         </div>
                         <div className="rounded-xl border border-gray-200 bg-white p-[18px]">
                             <div className="text-[11px] font-bold tracking-[0.08em] text-gray-500">ESTIMASI BIAYA (RAB)</div>
