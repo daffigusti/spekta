@@ -39,7 +39,7 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 330), // > timeout job LLM (300 dtk) agar tidak dobel proses
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 630), // > queue:listen --timeout (600) agar job tidak dobel proses
             'after_commit' => false,
         ],
 

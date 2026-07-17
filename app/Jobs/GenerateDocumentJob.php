@@ -19,7 +19,7 @@ class GenerateDocumentJob implements ShouldQueue
 
     public int $tries = 3; // BR-11: retry maks 2×
 
-    public int $timeout = 300; // panggilan LLM per dokumen bisa >60 dtk; harus < retry_after queue
+    public int $timeout = 540; // panggilan LLM per dokumen bisa >4 mnt; harus < queue:listen --timeout (600) < retry_after (630)
 
     public function __construct(public string $nodeId) {}
 
