@@ -16,12 +16,28 @@ class Estimator
 {
     private const ROLE_SPLIT = ['FE' => 0.35, 'BE' => 0.40, 'QA' => 0.15, 'PM' => 0.10];
 
+    /**
+     * Multiplier efektif mode pengerjaan: impl_multiplier hanya kena porsi FE+BE;
+     * QA & PM tetap 1.0× (review kode AI & komunikasi klien tidak ikut cepat).
+     * est_md dari AI = baseline konvensional (prompt buildStructure).
+     */
+    public static function effectiveMultiplier(string $mode): float
+    {
+        $impl = (float) (config("spekta.estimate.work_modes.$mode.impl_multiplier") ?? 1.0);
+        $implShare = self::ROLE_SPLIT['FE'] + self::ROLE_SPLIT['BE'];
+
+        return round($implShare * $impl + (1 - $implShare), 3);
+    }
+
     public function compute(Project $project, string $scope, ?RateCard $rateCard = null): Estimate
     {
         $cfg = config('spekta.estimate');
         $rateCard ??= $project->workspace->rateCards()->where('is_default', true)->first();
         $rates = collect($rateCard?->roles ?? [])->keyBy('role');
         $margin = ($rateCard?->margin_pct ?? 0) / 100;
+
+        $mode = $project->blueprint['work_mode'] ?? 'conservative';
+        $mult = self::effectiveMultiplier($mode);
 
         $nodes = $project->structureNodes;
         $features = $nodes->where('kind', 'feature')->filter(
@@ -33,18 +49,22 @@ class Estimator
             [
                 'rate_card_snapshot' => $rateCard?->only(['name', 'currency', 'roles', 'margin_pct']),
                 'currency' => $rateCard?->currency ?? 'IDR',
-                'range_pct' => $cfg['confidence_range_pct'],
+                'range_pct' => config("spekta.estimate.work_modes.$mode.range_pct") ?? $cfg['confidence_range_pct'],
+                'work_mode' => $mode,
                 'status' => 'draft',
             ]
         );
         $estimate->lines()->delete();
 
         $totalMd = 0.0;
+        $baselineMd = 0.0;
         $totalCost = 0.0;
 
         foreach ($features as $feature) {
             $subMd = $nodes->where('parent_id', $feature->id)->sum('est_md');
-            $md = ($subMd > 0 ? $subMd : $feature->est_md) * (1 + $cfg['integration_overhead_pct'] / 100);
+            $mdBase = ($subMd > 0 ? $subMd : $feature->est_md) * (1 + $cfg['integration_overhead_pct'] / 100);
+            $baselineMd += $mdBase;
+            $md = $mdBase * $mult;
 
             $existing = $estimate->lines()->where('structure_node_id', $feature->id)->first();
             [$roleBreakdown, $cost] = $this->costOf($md, $rates, $margin);
@@ -63,6 +83,7 @@ class Estimator
         $bufferMd = $totalMd * $cfg['buffer_pct'] / 100;
         [, $bufferCost] = $this->costOf($bufferMd, $rates, $margin);
         $totalMd += $bufferMd;
+        $baselineMd *= 1 + $cfg['buffer_pct'] / 100;
         $totalCost += $bufferCost;
 
         // Komposisi tim & durasi kasar: paralel 3 track, 5 hari/minggu
@@ -73,10 +94,11 @@ class Estimator
 
         $estimate->update([
             'total_md' => round($totalMd, 1),
+            'baseline_md' => round($baselineMd, 1),
             'total_cost' => round($totalCost),
             'team_composition' => $teamComposition,
             'duration_weeks' => $durationWeeks,
-            'timeline' => $this->timeline($project, $scope, $cfg, $bufferMd),
+            'timeline' => $this->timeline($project, $scope, $cfg, $bufferMd, $mult),
         ]);
 
         return $estimate->fresh('lines');
@@ -88,7 +110,7 @@ class Estimator
      *
      * @return array<int, array{label: string, start_week: float, weeks: float, md: float, kind: string}>
      */
-    private function timeline(Project $project, string $scope, array $cfg, float $bufferMd): array
+    private function timeline(Project $project, string $scope, array $cfg, float $bufferMd, float $mult = 1.0): array
     {
         $nodes = $project->structureNodes;
         $phases = $nodes->where('kind', 'phase')->sortBy('phase_no')->values();
@@ -104,7 +126,7 @@ class Estimator
 
                     return $sub > 0 ? $sub : $f->est_md;
                 });
-            $md *= 1 + $cfg['integration_overhead_pct'] / 100;
+            $md *= (1 + $cfg['integration_overhead_pct'] / 100) * $mult;
             if ($md <= 0) {
                 continue;
             }

@@ -88,6 +88,15 @@ return [
         'integration_overhead_pct' => 10,
         'buffer_pct' => 15,
         'confidence_range_pct' => 15,
+
+        // Mode pengerjaan: impl_multiplier hanya kena porsi implementasi (FE+BE);
+        // QA & PM tetap 1.0× — review kode AI & komunikasi klien tidak ikut cepat.
+        // range_pct melebar untuk mode AI — variance delivery lebih tinggi.
+        'work_modes' => [
+            'conservative' => ['label' => 'Konvensional', 'impl_multiplier' => 1.0, 'range_pct' => 15],
+            'ai_assisted' => ['label' => 'AI-assisted', 'impl_multiplier' => 0.6, 'range_pct' => 20],
+            'vibe' => ['label' => 'Vibe / AI-first', 'impl_multiplier' => 0.4, 'range_pct' => 25],
+        ],
     ],
 
     'llm' => [

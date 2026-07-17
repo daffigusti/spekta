@@ -16,6 +16,7 @@ class Estimate extends Model
         'team_composition' => 'array',
         'timeline' => 'array',
         'total_md' => 'float',
+        'baseline_md' => 'float',
         'total_cost' => 'float',
         'duration_weeks' => 'float',
     ];

@@ -113,6 +113,7 @@ export default function AssistantDrawer({
             { message: chat, doc_key: docKey, screen },
             {
                 preserveScroll: true,
+                preserveState: true, // tanpa ini POST me-reset state komponen — drawer tertutup, terasa seperti refresh
                 only: ['assistant_messages', 'chat_stream', 'errors'],
                 onSuccess: () => setChat(''),
                 onFinish: () => setChatSending(false),
@@ -268,10 +269,10 @@ export default function AssistantDrawer({
                     <div ref={chatEndRef} />
                 </div>
 
-                <div className="flex-none border-t border-gray-200 bg-white px-5 py-3.5">
+                <div className="flex flex-none gap-2 border-t border-gray-200 bg-white px-5 py-3.5">
                     <input
                         autoFocus
-                        className="w-full rounded-[10px] border-2 border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-gray-700 focus:border-teal-400 focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none"
+                        className="min-w-0 flex-1 rounded-[10px] border-2 border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-gray-700 focus:border-teal-400 focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none"
                         placeholder={placeholder}
                         value={chat}
                         disabled={busy}
@@ -283,6 +284,18 @@ export default function AssistantDrawer({
                             }
                         }}
                     />
+                    <button
+                        type="button"
+                        title="Kirim"
+                        disabled={busy || !chat.trim()}
+                        onClick={sendChat}
+                        className="flex-none rounded-[10px] bg-teal-600 px-3.5 text-white hover:bg-teal-700 disabled:opacity-40"
+                    >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m22 2-7 20-4-9-9-4Z" />
+                            <path d="M22 2 11 13" />
+                        </svg>
+                    </button>
                 </div>
             </div>
         </div>

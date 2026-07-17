@@ -67,6 +67,7 @@ class WizardController extends Controller
             'file' => 'required_without:raw_text|nullable|file|mimes:txt,md,docx,pdf|max:10240', // FR-01 multi-source
             'language' => 'nullable|in:id,en,bilingual',
             'depth' => 'nullable|in:auto,concise,full',
+            'work_mode' => 'nullable|in:conservative,ai_assisted,vibe',
             'template' => 'nullable|string|max:40',
         ]);
 
@@ -91,6 +92,7 @@ class WizardController extends Controller
             'blueprint' => [
                 'language' => $data['language'] ?? 'id',
                 'depth' => $data['depth'] ?? 'auto',
+                'work_mode' => $data['work_mode'] ?? 'ai_assisted',
                 'template' => $data['template'] ?? 'default',
             ],
         ]);

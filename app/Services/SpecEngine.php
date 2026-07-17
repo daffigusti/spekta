@@ -75,6 +75,8 @@ SYS, $ctx);
 Susun struktur proyek software: fase → fitur → sub-fitur, dengan estimasi man-days kasar per sub-fitur.
 Balas JSON: {"phases":[{"title":"","features":[{"title":"","description":"","est_md":0,"scope":"mvp|full","subfeatures":[{"title":"","description":"","est_md":0}]}]}]}
 description = 1-2 kalimat penjelasan lingkup fitur/sub-fitur.
+est_md = BASELINE KONVENSIONAL: effort 1 developer level menengah bekerja manual tanpa AI coding tools
+(penyesuaian mode AI-assisted/vibe dihitung sistem terpisah — jangan didiskon di sini).
 Maksimal 4 fase. Fitur inti scope "mvp", pelengkap "full". Bahasa Indonesia.
 SYS, $ctx);
 

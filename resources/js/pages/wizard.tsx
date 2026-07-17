@@ -149,6 +149,7 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
         file: File | null;
         language: string;
         depth: string;
+        work_mode: string;
         template: string;
     }>({
         kind: input?.kind ?? 'idea',
@@ -156,6 +157,7 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
         file: null,
         language: 'id',
         depth: 'auto',
+        work_mode: 'ai_assisted',
         template: 'default',
     });
     const [dragOver, setDragOver] = useState(false);
@@ -397,6 +399,41 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                                 </>
                             )}{' '}
                             Dokumen yang belum digenerate bisa ditambah kapan saja lewat "Generate dokumen lanjutan" di halaman proyek.
+                        </div>
+                    </div>
+                    <div className="mt-4">
+                        <div className={sectionLabel}>Mode pengerjaan (estimasi)</div>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {[
+                                { v: 'conservative', l: 'Konvensional' },
+                                { v: 'ai_assisted', l: 'AI-assisted' },
+                                { v: 'vibe', l: 'Vibe / AI-first' },
+                            ].map((o) => (
+                                <button key={o.v} type="button" className={chip(data.work_mode === o.v)} onClick={() => setData('work_mode', o.v)}>
+                                    {o.l}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2.5 text-[11.5px] leading-relaxed font-medium text-gray-500">
+                            {data.work_mode === 'conservative' && (
+                                <>
+                                    <b className="text-gray-700">Konvensional</b> — tim koding manual. Estimasi man-days baseline penuh (1.0×),
+                                    confidence ±15%.
+                                </>
+                            )}
+                            {data.work_mode === 'ai_assisted' && (
+                                <>
+                                    <b className="text-gray-700">AI-assisted</b> — tim pakai Copilot/AI sebagai alat bantu. Porsi implementasi
+                                    (FE+BE) dihitung 0.6× baseline; QA & PM tetap penuh. Confidence ±20%.
+                                </>
+                            )}
+                            {data.work_mode === 'vibe' && (
+                                <>
+                                    <b className="text-gray-700">Vibe / AI-first</b> — AI menulis mayoritas kode. Porsi implementasi 0.4× baseline;
+                                    QA & PM tetap penuh — review kode AI tidak ikut cepat. Confidence melebar ±25%.
+                                </>
+                            )}{' '}
+                            Estimasi menampilkan baseline konvensional & angka mode ini berdampingan.
                         </div>
                     </div>
                     <div className="mt-4">
