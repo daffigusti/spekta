@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 
 // ponytail: cache module-level tanpa eviction — SVG per diagram kecil, halaman jarang punya puluhan diagram unik
 const svgCache = new Map<string, string>();
+const inflight = new Set<string>(); // cegah render ganda saat html berganti tiap tick stream
 let seq = 0;
 
 function swap(code: Element, svg: string) {
@@ -25,12 +26,13 @@ export default function MarkdownPreview({ html, className, skipLastMermaid = fal
         if (skipLastMermaid) codes.pop();
         // Blok yang sudah pernah dirender di-swap sinkron dari cache — tanpa flash saat html berganti tiap frame stream
         const pending = codes.filter((code) => {
-            const hit = svgCache.get(code.textContent ?? '');
+            const src = code.textContent ?? '';
+            const hit = svgCache.get(src);
             if (hit) swap(code, hit);
-            return !hit;
+            return !hit && !inflight.has(src);
         });
         if (!pending.length) return;
-        let alive = true;
+        pending.forEach((code) => inflight.add(code.textContent ?? ''));
         import('mermaid').then(async ({ default: mermaid }) => {
             mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict', suppressErrorRendering: true });
             for (const code of pending) {
@@ -38,15 +40,16 @@ export default function MarkdownPreview({ html, className, skipLastMermaid = fal
                 try {
                     const { svg } = await mermaid.render(`mmd-${seq++}`, src);
                     svgCache.set(src, svg);
-                    if (alive && root.contains(code)) swap(code, svg);
-                } catch {
-                    // diagram invalid (mis. AI salah sintaks) — biarkan sebagai code block
+                    // node bisa sudah diganti html baru (stream) — swap hanya bila masih terpasang; sisanya kena cache di effect berikutnya
+                    if (root.contains(code)) swap(code, svg);
+                } catch (e) {
+                    // diagram invalid (mis. AI salah sintaks) — biarkan sebagai code block, error ke console biar bisa didiagnosa
+                    console.warn('[mermaid] gagal render:', e instanceof Error ? e.message : e, '\n', src.slice(0, 200));
+                } finally {
+                    inflight.delete(src);
                 }
             }
         });
-        return () => {
-            alive = false;
-        };
     }, [html, skipLastMermaid]);
 
     return <article ref={ref} className={className} dangerouslySetInnerHTML={{ __html: html }} />;

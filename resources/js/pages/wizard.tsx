@@ -1452,7 +1452,15 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                     {run?.nodes.map((n) => (
                         <div
                             key={n.doc_key}
-                            onClick={n.status === 'done' ? () => openDoc(n.doc_key) : undefined}
+                            onClick={
+                                n.status === 'done'
+                                    ? () =>
+                                          // WIREFRAMES = JSON, bukan markdown — buka halaman wireframes di tab baru
+                                          n.doc_key === 'WIREFRAMES'
+                                              ? window.open(route('projects.wireframes', project.id), '_blank')
+                                              : openDoc(n.doc_key)
+                                    : undefined
+                            }
                             title={n.status === 'done' ? 'Klik untuk baca' : undefined}
                             className={`flex items-center gap-2 rounded-[7px] px-2 py-[5px] text-[12.5px] ${
                                 n.status === 'running'
