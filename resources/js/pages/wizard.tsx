@@ -1519,16 +1519,8 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                 {run && running && (
                     <>
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="text-sm font-bold text-gray-800">
-                                    Sedang menulis — <span className="font-mono text-teal-700">{currentNode?.doc_key ?? '…'}.md</span>
-                                </div>
-                                <button
-                                    className="text-[12px] font-bold text-teal-700 hover:text-teal-900"
-                                    onClick={() => router.visit(route('projects.show', project.id))}
-                                >
-                                    Buka workspace tanpa nunggu →
-                                </button>
+                            <div className="text-sm font-bold text-gray-800">
+                                Sedang menulis — <span className="font-mono text-teal-700">{currentNode?.doc_key ?? '…'}.md</span>
                             </div>
                             {stale ? (
                                 <span
@@ -1608,6 +1600,12 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                                     {shown.split('\n').length} baris · {(shown.length / 1000).toFixed(1)}k karakter
                                 </span>
                             )}
+                            <button
+                                className={`${shown && !isWireframe ? '' : 'ml-auto '}text-[12px] font-bold whitespace-nowrap text-teal-700 hover:text-teal-900`}
+                                onClick={() => router.visit(route('projects.show', project.id))}
+                            >
+                                Buka workspace tanpa nunggu →
+                            </button>
                         </div>
                     </>
                 )}
