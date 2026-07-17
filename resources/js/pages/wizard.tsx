@@ -1356,19 +1356,17 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
     useEffect(() => setShown(''), [stream?.doc_key]);
     useEffect(() => {
         if (!running || isWireframe) return;
-        let raf = 0;
-        const tick = () => {
+        // Tick 90ms bukan rAF: tiap tick = parse markdown + replace innerHTML seluruh teks — di 60fps dokumen panjang bikin berat
+        const iv = setInterval(() => {
             setShown((s) => {
                 const t = targetRef.current;
                 if (!t.startsWith(s)) return t;
                 if (s.length >= t.length) return s;
                 // ponytail: decay eksponensial ~1.2s habiskan sisa — selaras cadence poll
-                return t.slice(0, s.length + Math.max(2, Math.ceil((t.length - s.length) / 72)));
+                return t.slice(0, s.length + Math.max(12, Math.ceil((t.length - s.length) / 13)));
             });
-            raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
+        }, 90);
+        return () => clearInterval(iv);
     }, [running, isWireframe]);
 
     const streamHtml = useMemo(
