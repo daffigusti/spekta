@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wireframe — AI Spec &amp; Presales Engine</title>
+<style>
+  :root{
+    --ink:#1e293b; --line:#cbd5e1; --line2:#94a3b8; --bg:#f1f5f9;
+    --box:#f8fafc; --fill:#e2e8f0; --accent:#f97316; --dark:#334155;
+    --ok:#16a34a; --warn:#d97706; --blue:#2563eb;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); padding-bottom:60px;}
+
+  /* ===== viewer chrome ===== */
+  .viewer-head{position:sticky; top:0; z-index:50; background:#0f172a; color:#fff; padding:14px 24px;}
+  .viewer-head h1{font-size:16px; font-weight:600;}
+  .viewer-head p{font-size:12px; color:#94a3b8; margin-top:2px;}
+  .tabs{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;}
+  .tab{border:1px solid #334155; background:#1e293b; color:#cbd5e1; font-size:12px; padding:6px 12px; border-radius:99px; cursor:pointer;}
+  .tab.active{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600;}
+  .screen{display:none; max-width:1180px; margin:28px auto 0; padding:0 20px;}
+  .screen.active{display:block;}
+  .screen-title{margin-bottom:12px;}
+  .screen-title h2{font-size:18px;}
+  .screen-title p{font-size:13px; color:#64748b; margin-top:4px; max-width:820px;}
+
+  /* browser frame */
+  .frame{background:#fff; border:1.5px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:0 4px 16px rgba(15,23,42,.08);}
+  .frame-bar{display:flex; align-items:center; gap:8px; background:var(--box); border-bottom:1.5px solid var(--line); padding:9px 14px;}
+  .dot{width:10px; height:10px; border-radius:50%; background:var(--line);}
+  .urlbar{flex:1; margin-left:8px; background:#fff; border:1px solid var(--line); border-radius:6px; font-size:11px; color:#94a3b8; padding:4px 10px;}
+
+  /* wireframe primitives */
+  .wf-line{height:9px; border-radius:4px; background:var(--fill);}
+  .wf-line.w25{width:25%;} .wf-line.w40{width:40%;} .wf-line.w60{width:60%;} .wf-line.w80{width:80%;} .wf-line.w95{width:95%;}
+  .wf-title{height:14px; width:45%; border-radius:4px; background:var(--line2);}
+  .stack > * + *{margin-top:8px;}
+  .btn{display:inline-block; font-size:12px; font-weight:600; border-radius:8px; padding:8px 16px; border:1.5px solid var(--dark); background:var(--dark); color:#fff; cursor:default;}
+  .btn.ghost{background:#fff; color:var(--dark);}
+  .btn.small{padding:5px 10px; font-size:11px;}
+  .chip{display:inline-block; font-size:11px; border:1px solid var(--line2); border-radius:99px; padding:3px 10px; background:var(--box); color:var(--dark); margin:2px;}
+  .chip.on{background:var(--dark); color:#fff; border-color:var(--dark);}
+  .badge{display:inline-block; font-size:10px; font-weight:700; border-radius:5px; padding:2px 7px; letter-spacing:.02em;}
+  .badge.draft{background:#e2e8f0; color:#475569;}
+  .badge.review{background:#fef3c7; color:#92400e;}
+  .badge.approved{background:#dcfce7; color:#166534;}
+  .badge.cr{background:#fee2e2; color:#991b1b;}
+  .note{display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--accent); color:#fff; font-size:11px; font-weight:700; vertical-align:middle;}
+  .notes{margin-top:14px; background:#fff7ed; border:1px dashed var(--accent); border-radius:10px; padding:14px 16px; font-size:12.5px; color:#7c2d12;}
+  .notes div{display:flex; gap:8px; align-items:flex-start; margin:5px 0;}
+  .notes .note{flex:none; margin-top:1px;}
+  .dashed{border:1.5px dashed var(--line2); border-radius:8px; background:var(--box);}
+  .placeholder-x{position:relative; overflow:hidden;}
+  .placeholder-x::before,.placeholder-x::after{content:""; position:absolute; left:-10%; right:-10%; top:50%; height:1px; background:var(--line);}
+  .placeholder-x::before{transform:rotate(8deg);} .placeholder-x::after{transform:rotate(-8deg);}
+
+  /* app layout */
+  .app{display:flex; min-height:560px;}
+  .sidebar{width:200px; flex:none; border-right:1.5px solid var(--line); background:var(--box); padding:14px;}
+  .logo{display:flex; align-items:center; gap:8px; margin-bottom:18px;}
+  .logo .mark{width:26px; height:26px; border-radius:7px; background:var(--dark);}
+  .logo b{font-size:13px;}
+  .navitem{font-size:12.5px; padding:8px 10px; border-radius:7px; color:#475569; margin-bottom:2px;}
+  .navitem.on{background:var(--fill); color:var(--ink); font-weight:600;}
+  .main{flex:1; padding:20px 24px; min-width:0;}
+  .main-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+  .main-head h3{font-size:16px;}
+
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  .card{border:1.5px solid var(--line); border-radius:10px; background:#fff; padding:14px;}
+  .card .row{display:flex; justify-content:space-between; align-items:center;}
+  .meter{height:6px; border-radius:99px; background:var(--fill); margin-top:10px; overflow:hidden;}
+  .meter > i{display:block; height:100%; background:var(--line2);}
+
+  .stepper{display:flex; gap:0; margin-bottom:18px; font-size:11.5px;}
+  .step{flex:1; text-align:center; padding:8px 4px; border-bottom:3px solid var(--line); color:#94a3b8;}
+  .step.done{border-color:var(--ink); color:var(--ink);}
+  .step.now{border-color:var(--accent); color:var(--accent); font-weight:700;}
+
+  .input-tabs{display:flex; gap:8px; margin-bottom:14px;}
+  .itab{font-size:12px; padding:7px 14px; border:1.5px solid var(--line); border-radius:8px; background:#fff; color:#64748b;}
+  .itab.on{border-color:var(--ink); color:var(--ink); font-weight:700; background:var(--box);}
+  textarea.wf{width:100%; height:150px; border:1.5px solid var(--line); border-radius:10px; padding:12px; font-size:13px; color:#64748b; background:#fff; resize:none;}
+
+  .split{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  .qcard{border:1.5px solid var(--line); border-radius:10px; padding:14px; background:#fff; margin-bottom:10px;}
+  .opt{border:1.5px solid var(--line); border-radius:8px; padding:8px 10px; font-size:12.5px; margin-top:6px; display:flex; gap:8px; align-items:center; color:#475569;}
+  .opt .radio{width:13px; height:13px; border:1.5px solid var(--line2); border-radius:50%; flex:none;}
+  .opt.sel{border-color:var(--ink); background:var(--box); color:var(--ink); font-weight:600;}
+  .opt.sel .radio{border-color:var(--ink); background:var(--ink);}
+
+  /* canvas */
+  .canvas{position:relative; height:520px; background:
+    linear-gradient(var(--bg) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bg) 1px, transparent 1px);
+    background-size:22px 22px; background-color:#fff;}
+  .cnode{position:absolute; border:1.5px solid var(--line2); background:#fff; border-radius:10px; padding:10px 12px; font-size:12px; box-shadow:0 2px 6px rgba(15,23,42,.06); min-width:150px;}
+  .cnode b{display:block; font-size:12.5px;}
+  .cnode small{color:#94a3b8; font-size:10.5px;}
+  .cnode .fase{position:absolute; top:-9px; right:10px; background:var(--accent); color:#fff; font-size:9px; font-weight:800; border-radius:4px; padding:1px 6px;}
+  .cnode.root{border-color:var(--ink); border-width:2px;}
+  .cnode ul{list-style:none; margin-top:6px;}
+  .cnode li{border:1px solid var(--line); border-radius:6px; padding:3px 8px; font-size:11px; color:#475569; margin-top:4px; background:var(--box);}
+  svg.wires{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+  .canvas-toolbar{position:absolute; top:12px; left:12px; display:flex; gap:6px; z-index:5;}
+  .ctool{font-size:11px; border:1.5px solid var(--line); background:#fff; border-radius:7px; padding:5px 10px; color:var(--dark); box-shadow:0 1px 3px rgba(15,23,42,.08);}
+  .ctool.accent{border-color:var(--accent); color:var(--accent); font-weight:700;}
+
+  table.wf{width:100%; border-collapse:collapse; font-size:12px;}
+  table.wf th{background:var(--box); text-align:left; padding:8px 10px; border:1px solid var(--line); font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:#64748b;}
+  table.wf td{padding:8px 10px; border:1px solid var(--line); color:#475569;}
+  .gantt-row{display:flex; align-items:center; gap:10px; margin-top:8px; font-size:11.5px;}
+  .gantt-row .lbl{width:180px; flex:none; color:#475569;}
+  .gantt-track{flex:1; height:16px; background:var(--box); border:1px solid var(--line); border-radius:5px; position:relative;}
+  .gantt-bar{position:absolute; top:2px; bottom:2px; background:var(--line2); border-radius:4px;}
+
+  .doc-item{display:flex; align-items:center; gap:8px; font-size:12px; padding:6px 8px; border-radius:6px; color:#475569;}
+  .doc-item.on{background:var(--fill); font-weight:700; color:var(--ink);}
+  .st{width:16px; height:16px; border-radius:50%; flex:none; display:inline-flex; align-items:center; justify-content:center; font-size:10px; color:#fff;}
+  .st.done{background:var(--ok);} .st.run{background:var(--accent);} .st.wait{background:var(--line2);}
+
+  .chat-b{border:1.5px solid var(--line); border-radius:10px; padding:9px 11px; font-size:12px; margin-top:8px; background:var(--box); color:#475569;}
+  .chat-b.user{background:var(--dark); color:#e2e8f0; border-color:var(--dark); margin-left:24px;}
+
+  .score-ring{width:74px; height:74px; border-radius:50%; border:7px solid var(--ok); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:19px; margin:0 auto;}
+  .lint{display:flex; gap:7px; font-size:11.5px; margin-top:7px; color:#475569; align-items:flex-start;}
+  .lint .ic{flex:none; width:14px; text-align:center; font-weight:800;}
+  .lint .ok{color:var(--ok);} .lint .warn{color:var(--warn);} .lint .err{color:#dc2626;}
+
+  .comment{border:1.5px solid var(--line); border-radius:10px; padding:10px 12px; font-size:12px; background:#fff; margin-top:8px;}
+  .comment b{font-size:11.5px;}
+  .comment .when{color:#94a3b8; font-size:10.5px;}
+  .avatar{width:22px; height:22px; border-radius:50%; background:var(--fill); display:inline-block; vertical-align:middle; border:1px solid var(--line2);}
+
+  @media (max-width:900px){ .grid3{grid-template-columns:1fr;} .split{grid-template-columns:1fr;} .app{flex-direction:column;} .sidebar{width:100%;} }
+</style>
+</head>
+<body>
+
+<div class="viewer-head">
+  <h1>Wireframe — AI Spec &amp; Presales Engine <span style="font-weight:400;color:#94a3b8;">(low-fidelity, 9 layar)</span></h1>
+  <p>Klik tab untuk berpindah layar. Nomor oranye <span class="note">1</span> = anotasi fitur diferensiasi.</p>
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-s="s1">1 · Dashboard</button>
+    <button class="tab" data-s="s2">2 · Input Ide / Transkrip</button>
+    <button class="tab" data-s="s3">3 · AI Understanding &amp; Interview</button>
+    <button class="tab" data-s="s4">4 · Structure Canvas</button>
+    <button class="tab" data-s="s5">5 · Tech Stack</button>
+    <button class="tab" data-s="s6">6 · Generation Pipeline</button>
+    <button class="tab" data-s="s7">7 · Workspace 3-Panel</button>
+    <button class="tab" data-s="s8">8 · Estimasi &amp; Proposal (RAB)</button>
+    <button class="tab" data-s="s9">9 · Client Portal</button>
+  </div>
+</div>
+
+<!-- ============ S1 DASHBOARD ============ -->
+<section class="screen active" id="s1">
+  <div class="screen-title">
+    <h2>1 · Dashboard Proyek</h2>
+    <p>Halaman awal setelah login. Multi-workspace per perusahaan, daftar blueprint dengan status approval &amp; Spec Health Score.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">app.specengine.id / workspace / amanahcorp</span></div>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="logo"><span class="mark"></span><b>SpecEngine</b></div>
+        <div class="navitem on">📁 Proyek</div>
+        <div class="navitem">📄 Template Perusahaan <span class="note">2</span></div>
+        <div class="navitem">💰 Rate Card <span class="note">2</span></div>
+        <div class="navitem">🔌 Integrasi (ClickUp/Jira)</div>
+        <div class="navitem">👥 Tim &amp; Klien</div>
+        <div class="navitem">⚙️ Pengaturan</div>
+        <div style="margin-top:26px;" class="card">
+          <div style="font-size:11px; color:#64748b;">Kredit bulan ini</div>
+          <div style="font-weight:800; font-size:15px; margin-top:2px;">14 / 20 blueprint</div>
+          <div class="meter"><i style="width:70%"></i></div>
+        </div>
+      </aside>
+      <div class="main">
+        <div class="main-head">
+          <h3>Proyek <span style="color:#94a3b8; font-weight:400;">(8)</span></h3>
+          <div><span class="btn ghost small">Filter ▾</span> &nbsp;<span class="btn">+ Proyek Baru</span></div>
+        </div>
+        <div class="grid3">
+          <div class="card">
+            <div class="row"><b style="font-size:13px;">Kasir Pintar UMKM</b><span class="badge approved">APPROVED</span></div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:3px;">Klien: PT Maju Retail · 11 dokumen · v3</div>
+            <div class="stack" style="margin-top:10px;"><div class="wf-line w95"></div><div class="wf-line w60"></div></div>
+            <div class="row" style="margin-top:12px; font-size:11px;">
+              <span>Health <b style="color:var(--ok);">92</b> <span class="note">1</span></span>
+              <span>RAB: <b>Rp 486 jt</b> · 124 MD</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="row"><b style="font-size:13px;">Sistem HRIS Sekolah</b><span class="badge review">IN REVIEW</span></div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:3px;">Klien: Yayasan ABC · 8 dokumen · v1</div>
+            <div class="stack" style="margin-top:10px;"><div class="wf-line w80"></div><div class="wf-line w40"></div></div>
+            <div class="row" style="margin-top:12px; font-size:11px;">
+              <span>Health <b style="color:var(--warn);">74</b></span>
+              <span>💬 3 komentar klien</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="row"><b style="font-size:13px;">Marketplace Herbal</b><span class="badge draft">DRAFT</span></div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:3px;">Internal · dari transkrip meeting 12 Jul</div>
+            <div class="stack" style="margin-top:10px;"><div class="wf-line w95"></div><div class="wf-line w25"></div></div>
+            <div class="row" style="margin-top:12px; font-size:11px;">
+              <span>Health —</span><span>⏳ Interview 4/7</span>
+            </div>
+          </div>
+          <div class="card" style="border-style:dashed; display:flex; align-items:center; justify-content:center; min-height:140px; color:#94a3b8; font-size:13px;">+ Buat dari transkrip meeting</div>
+          <div class="card placeholder-x" style="min-height:140px;"></div>
+          <div class="card placeholder-x" style="min-height:140px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> Spec Health Score tampil sejak level dashboard — nilai jual "kualitas terukur", tidak ada di SpecKit/NgodingPakeAI.</div>
+    <div><span class="note">2</span> Template Perusahaan &amp; Rate Card = fondasi fitur B2B (output konsisten standar perusahaan + estimasi RAB otomatis).</div>
+  </div>
+</section>
+
+<!-- ============ S2 INPUT ============ -->
+<section class="screen" id="s2">
+  <div class="screen-title">
+    <h2>2 · Input Ide / Meeting-to-Spec</h2>
+    <p>Tiga jalur input. Diferensiasi utama: mulai dari transkrip meeting klien, bukan hanya ketik ide.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">app.specengine.id / new</span></div>
+    <div style="padding:24px 28px;">
+      <div class="stepper">
+        <div class="step now">1 · Input</div><div class="step">2 · Interview</div><div class="step">3 · Struktur</div><div class="step">4 · Stack</div><div class="step">5 · Generate</div><div class="step">6 · Estimasi</div>
+      </div>
+      <div class="input-tabs">
+        <span class="itab on">✏️ Ketik Ide</span>
+        <span class="itab">🎙️ Transkrip / Notulen Meeting <span class="note">1</span></span>
+        <span class="itab">📎 Dokumen RFP / Brief</span>
+      </div>
+      <div class="split">
+        <div>
+          <textarea class="wf">Contoh: "Klien saya butuh aplikasi kasir untuk 3 cabang toko retail, dengan pembayaran QRIS, laporan penjualan harian, dan prediksi stok..."</textarea>
+          <div class="dashed" style="margin-top:12px; padding:14px; font-size:12px; color:#64748b; text-align:center;">
+            ⬆️ Atau tarik file ke sini — .txt .docx .pdf audio/video<br>
+            <span style="font-size:11px;">Integrasi: Fireflies · Google Meet · WhatsApp export <span class="note">1</span></span>
+          </div>
+        </div>
+        <div class="card">
+          <b style="font-size:13px;">Pengaturan blueprint</b>
+          <div style="font-size:12px; color:#475569; margin-top:12px;">Bahasa dokumen <span class="note">2</span></div>
+          <div style="margin-top:5px;"><span class="chip on">🇮🇩 Indonesia</span><span class="chip">🇬🇧 English</span><span class="chip">Bilingual</span></div>
+          <div style="font-size:12px; color:#475569; margin-top:14px;">Kedalaman dokumen (scale-adaptive)</div>
+          <div style="margin-top:5px;"><span class="chip">Ringkas (4–5 docs)</span><span class="chip on">Otomatis ✨</span><span class="chip">Lengkap (12–15)</span></div>
+          <div style="font-size:12px; color:#475569; margin-top:14px;">Template</div>
+          <div style="margin-top:5px;"><span class="chip on">Standar AmanahCorp</span><span class="chip">Default</span></div>
+          <div style="font-size:12px; color:#475569; margin-top:14px;">Mode</div>
+          <div style="margin-top:5px;"><span class="chip on">Greenfield (baru)</span><span class="chip">Brownfield — connect repo <span class="note">3</span></span></div>
+        </div>
+      </div>
+      <div style="margin-top:18px; text-align:right;"><span class="btn">Analisa dengan AI →</span></div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> Meeting-to-Spec: upload transkrip/rekaman/chat WA → AI ekstrak requirement → interview hanya untuk gap. Killer feature untuk software house.</div>
+    <div><span class="note">2</span> Bilingual ID/EN sekali klik — dokumen internal vs dokumen klien enterprise.</div>
+    <div><span class="note">3</span> Brownfield mode (fase 4 roadmap) — spec fitur baru dalam konteks repo existing.</div>
+  </div>
+</section>
+
+<!-- ============ S3 INTERVIEW ============ -->
+<section class="screen" id="s3">
+  <div class="screen-title">
+    <h2>3 · AI Understanding + Adaptive Interview</h2>
+    <p>AI menunjukkan pemahamannya dulu (dikonfirmasi user), lalu bertanya hanya untuk gap. Semua asumsi dicatat eksplisit.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">app.specengine.id / new / interview</span></div>
+    <div style="padding:24px 28px;">
+      <div class="stepper">
+        <div class="step done">1 · Input</div><div class="step now">2 · Interview</div><div class="step">3 · Struktur</div><div class="step">4 · Stack</div><div class="step">5 · Generate</div><div class="step">6 · Estimasi</div>
+      </div>
+      <div class="split">
+        <div class="card">
+          <div class="row"><b style="font-size:13px;">🧠 Pemahaman AI</b><span class="chip">dari transkrip meeting 12 Jul</span></div>
+          <div style="font-size:11.5px; color:#64748b; margin-top:10px;">USER ROLES TERDETEKSI</div>
+          <div><span class="chip on">Owner</span><span class="chip on">Manajer Toko</span><span class="chip on">Kasir</span><span class="chip">+ tambah role</span></div>
+          <div style="font-size:11.5px; color:#64748b; margin-top:12px;">FITUR TEREKSTRAK (dari meeting) <span class="note">1</span></div>
+          <div class="stack" style="margin-top:6px;">
+            <div class="wf-line w95"></div><div class="wf-line w80"></div><div class="wf-line w80"></div><div class="wf-line w60"></div>
+          </div>
+          <div style="font-size:11.5px; color:#64748b; margin-top:12px;">KOMPLEKSITAS</div>
+          <div class="row" style="margin-top:4px; font-size:12px;"><span>Kecil</span><div class="meter" style="flex:1; margin:0 10px;"><i style="width:55%"></i></div><span>Enterprise</span></div>
+          <div style="font-size:11.5px; color:#64748b; margin-top:12px;">⚠️ ASUMSI YANG DIPAKAI <span class="note">2</span></div>
+          <div class="stack" style="margin-top:6px;"><div class="wf-line w95"></div><div class="wf-line w60"></div></div>
+        </div>
+        <div>
+          <div class="row" style="margin-bottom:8px;">
+            <b style="font-size:13px;">Pertanyaan 3 dari 7</b>
+            <span style="font-size:11.5px; color:var(--blue); text-decoration:underline;">Lewati semua — pakai asumsi AI (dicatat) <span class="note">2</span></span>
+          </div>
+          <div class="meter" style="margin-bottom:12px;"><i style="width:42%; background:var(--accent);"></i></div>
+          <div class="qcard">
+            <b style="font-size:12.5px;">Pembayaran digital apa saja yang harus didukung di v1?</b>
+            <div style="font-size:10.5px; color:#94a3b8; margin-top:2px;">Ditanya karena tidak disebut di meeting — berdampak ke API &amp; RAB</div>
+            <div class="opt sel"><span class="radio"></span> QRIS saja (Midtrans/Xendit)</div>
+            <div class="opt"><span class="radio"></span> QRIS + e-wallet (OVO, Dana, GoPay)</div>
+            <div class="opt"><span class="radio"></span> QRIS + e-wallet + kartu debit/kredit</div>
+            <div class="opt"><span class="radio"></span> ✏️ Jawaban lain…</div>
+          </div>
+          <div class="qcard" style="opacity:.5;">
+            <b style="font-size:12.5px;">Apakah kasir harus tetap bisa transaksi saat internet mati (offline mode)?</b>
+            <div class="opt"><span class="radio"></span> Ya, wajib offline-first</div>
+            <div class="opt"><span class="radio"></span> Tidak perlu</div>
+          </div>
+          <div style="text-align:right; margin-top:10px;"><span class="btn ghost">← Kembali</span> &nbsp;<span class="btn">Lanjut →</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> Panel kiri = bukti AI "mengerti" sebelum bertanya; user koreksi di sini, bukan setelah 11 dokumen jadi.</div>
+    <div><span class="note">2</span> Setiap pertanyaan yang di-skip menjadi asumsi eksplisit yang tercetak di PRD — melindungi software house saat dispute scope.</div>
+  </div>
+</section>
+
+<!-- ============ S4 CANVAS ============ -->
+<section class="screen" id="s4">
+  <div class="screen-title">
+    <h2>4 · Structure Canvas (mind-map editable)</h2>
+    <p>Gabungan kekuatan NgodingPakeAI (visual) + SpecKit (kedalaman). Struktur fitur per fase bisa di-drag &amp; edit sebelum dokumen digenerate.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">app.specengine.id / new / structure</span></div>
+    <div class="canvas">
+      <div class="canvas-toolbar">
+        <span class="ctool">+ Fase</span><span class="ctool">+ Fitur</span><span class="ctool">+ Sub-fitur</span>
+        <span class="ctool accent">Scope: MVP ⇄ Full <span class="note">1</span></span>
+        <span class="ctool">🔍 100%</span>
+      </div>
+      <svg class="wires">
+        <path d="M 240 265 C 320 265 320 120 400 120" stroke="#cbd5e1" stroke-width="1.5" fill="none"/>
+        <path d="M 240 265 C 320 265 320 250 400 250" stroke="#cbd5e1" stroke-width="1.5" fill="none"/>
+        <path d="M 240 265 C 320 265 320 380 400 380" stroke="#cbd5e1" stroke-width="1.5" fill="none"/>
+        <path d="M 590 120 C 660 120 660 100 720 100" stroke="#cbd5e1" stroke-width="1.5" fill="none"/>
+        <path d="M 590 250 C 660 250 660 255 720 255" stroke="#cbd5e1" stroke-width="1.5" fill="none"/>
+        <path d="M 590 380 C 660 380 660 400 720 400" stroke="#cbd5e1" stroke-width="1.5" fill="none"/>
+      </svg>
+      <div class="cnode root" style="left:60px; top:235px;">
+        <b>Kasir Pintar UMKM</b><small>Perencanaan · 3 fase · 12 fitur</small>
+      </div>
+      <div class="cnode" style="left:400px; top:88px;"><span class="fase">FASE 1</span><b>POS &amp; Transaksi</b><small>MVP · est. 38 MD</small></div>
+      <div class="cnode" style="left:720px; top:56px;">
+        <small>SUB-FITUR</small>
+        <ul><li>Keranjang &amp; barcode</li><li>Pembayaran QRIS</li><li>Struk digital + printer</li><li>Manajemen shift</li></ul>
+      </div>
+      <div class="cnode" style="left:400px; top:220px;"><span class="fase">FASE 2</span><b>Inventori Multi-Lokasi</b><small>MVP · est. 30 MD</small></div>
+      <div class="cnode" style="left:720px; top:215px;">
+        <small>SUB-FITUR</small>
+        <ul><li>Stok per lokasi</li><li>Transfer antar cabang</li><li>Batch &amp; supplier</li></ul>
+      </div>
+      <div class="cnode" style="left:400px; top:350px;"><span class="fase">FASE 3</span><b>Laporan &amp; AI Insight</b><small>Post-MVP · est. 26 MD <span class="note">2</span></small></div>
+      <div class="cnode" style="left:720px; top:352px;">
+        <small>SUB-FITUR</small>
+        <ul><li>Dashboard penjualan</li><li>Forecast stok (AI)</li><li>Rekomendasi restock</li></ul>
+      </div>
+    </div>
+    <div style="border-top:1.5px solid var(--line); padding:12px 20px; display:flex; justify-content:space-between; align-items:center; background:var(--box);">
+      <span style="font-size:12px; color:#64748b;">Perubahan struktur → hanya dokumen terdampak yang di-regenerate <span class="note">3</span></span>
+      <span><span class="btn ghost">← Interview</span> &nbsp;<span class="btn">Pilih Tech Stack →</span></span>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> Toggle scope MVP vs Full langsung menandai fitur mana masuk v1 — dasar roadmap &amp; estimasi.</div>
+    <div><span class="note">2</span> Estimasi man-days sudah muncul kasar di level node — presales bisa diskusi scope vs budget dengan klien di layar ini.</div>
+    <div><span class="note">3</span> Selective regeneration = hemat token + cepat; bedanya dengan tools yang regenerate semuanya.</div>
+  </div>
+</section>
+
+<!-- ============ S5 STACK ============ -->
+<section class="screen" id="s5">
+  <div class="screen-title">
+    <h2>5 · Tech Stack Recommendation</h2>
+    <p>Rekomendasi + justifikasi + alternatif. Preset "stack standar perusahaan" bisa dipakai sekali klik. Ada complexity governor.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">app.specengine.id / new / stack</span></div>
+    <div style="padding:24px 28px;">
+      <div class="row" style="display:flex; justify-content:space-between; margin-bottom:14px;">
+        <b style="font-size:14px;">Rekomendasi AI</b>
+        <span><span class="chip on">⭐ Pakai Stack Standar AmanahCorp</span><span class="chip">Rekomendasi AI murni</span></span>
+      </div>
+      <div class="card" style="border-color:var(--warn); background:#fffbeb; margin-bottom:14px; font-size:12.5px; color:#92400e;">
+        ⚖️ <b>Complexity governor:</b> Proyek ini skala UMKM 3 cabang — AI merekomendasikan <b>monolith modular</b>, BUKAN microservices. Arsitektur disesuaikan skala nyata klien. <span class="note">1</span>
+      </div>
+      <table class="wf">
+        <tr><th style="width:130px;">Layer</th><th>Pilihan</th><th>Justifikasi</th><th style="width:110px;">Aksi</th></tr>
+        <tr><td><b>Frontend</b></td><td>Next.js 15 + Tailwind</td><td><div class="wf-line w80"></div></td><td><span class="btn ghost small">Ubah ▾</span></td></tr>
+        <tr><td><b>Backend</b></td><td>NestJS (monolith modular)</td><td><div class="wf-line w60"></div></td><td><span class="btn ghost small">Ubah ▾</span></td></tr>
+        <tr><td><b>Database</b></td><td>PostgreSQL</td><td><div class="wf-line w80"></div></td><td><span class="btn ghost small">Ubah ▾</span></td></tr>
+        <tr><td><b>Payment</b></td><td>Midtrans (QRIS)</td><td><div class="wf-line w40"></div></td><td><span class="btn ghost small">Ubah ▾</span></td></tr>
+        <tr><td><b>Deploy</b></td><td>VPS + Docker Compose</td><td><div class="wf-line w60"></div></td><td><span class="btn ghost small">Ubah ▾</span></td></tr>
+      </table>
+      <div style="margin-top:12px; font-size:12px; color:#64748b;">Alternatif yang dipertimbangkan: <span class="chip">Laravel</span><span class="chip">Supabase</span><span class="chip">Xendit</span> — alasan tidak dipilih tercatat di ARCHITECTURE.md <span class="note">2</span></div>
+      <div style="margin-top:16px; text-align:right;"><span class="btn ghost">← Struktur</span> &nbsp;<span class="btn">Generate Blueprint →</span></div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> Memperbaiki kelemahan nyata SpecKit (sampel Anda direkomendasikan microservices+AWS untuk POS UMKM — over-engineered).</div>
+    <div><span class="note">2</span> Keputusan + alternatif yang ditolak terdokumentasi (ADR-style) — berguna saat klien/tim tanya "kenapa tidak pakai X?".</div>
+  </div>
+</section>
+
+<!-- ============ S6 GENERATION ============ -->
+<section class="screen" id="s6">
+  <div class="screen-title">
+    <h2>6 · Generation Pipeline (real-time)</h2>
+    <p>Bukan satu prompt raksasa — pipeline DAG: PRD dulu, dokumen turunan paralel, lalu validator konsistensi &amp; estimator. User melihat progres per dokumen.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">app.specengine.id / new / generate</span></div>
+    <div style="display:flex; min-height:480px;">
+      <div style="width:300px; flex:none; border-right:1.5px solid var(--line); padding:18px;">
+        <b style="font-size:13px;">11 dokumen · 6 selesai</b>
+        <div class="meter" style="margin:10px 0 14px;"><i style="width:55%; background:var(--accent);"></i></div>
+        <div class="doc-item"><span class="st done">✓</span> PRD.md</div>
+        <div class="doc-item"><span class="st done">✓</span> REQUIREMENTS.md</div>
+        <div class="doc-item"><span class="st done">✓</span> USER_FLOWS.md</div>
+        <div class="doc-item"><span class="st done">✓</span> BUSINESS_RULES.md</div>
+        <div class="doc-item"><span class="st done">✓</span> DATABASE.md</div>
+        <div class="doc-item"><span class="st done">✓</span> API.md</div>
+        <div class="doc-item on"><span class="st run">⟳</span> ARCHITECTURE.md <small style="color:#94a3b8;">— menulis…</small></div>
+        <div class="doc-item"><span class="st wait"> </span> FEATURES.md</div>
+        <div class="doc-item"><span class="st wait"> </span> TESTING.md</div>
+        <div class="doc-item"><span class="st wait"> </span> ROADMAP.md</div>
+        <div class="doc-item"><span class="st wait"> </span> DESIGN.md</div>
+        <div style="border-top:1px solid var(--line); margin-top:10px; padding-top:10px;">
+          <div class="doc-item"><span class="st wait"> </span> 🔎 Consistency Validator <span class="note">1</span></div>
+          <div class="doc-item"><span class="st wait"> </span> 💰 Estimator (MD &amp; RAB)</div>
+        </div>
+        <div class="card" style="margin-top:12px; font-size:11px; color:#64748b;">
+          Model routing aktif: <b>Opus</b> (PRD/Arch) · <b>Sonnet</b> (docs) · <b>DeepSeek</b> (API/DB) <span class="note">2</span>
+        </div>
+      </div>
+      <div style="flex:1; padding:18px 22px;">
+        <div class="row" style="display:flex; justify-content:space-between;">
+          <b style="font-size:13px;">Preview streaming — ARCHITECTURE.md</b>
+          <span class="chip">⏱ est. 40 dtk lagi</span>
+        </div>
+        <div class="card" style="margin-top:12px; min-height:340px;">
+          <div class="wf-title"></div>
+          <div class="stack" style="margin-top:12px;">
+            <div class="wf-line w95"></div><div class="wf-line w95"></div><div class="wf-line w80"></div><div class="wf-line w60"></div>
+          </div>
+          <div class="dashed" style="margin-top:14px; height:130px; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:12px;">[ diagram mermaid: arsitektur sistem — dirender live ]</div>
+          <div class="stack" style="margin-top:14px;">
+            <div class="wf-line w95"></div><div class="wf-line w80"></div><div class="wf-line w40" style="background:var(--accent); opacity:.5;"></div>
+          </div>
+        </div>
+        <div style="margin-top:10px; font-size:11.5px; color:#64748b;">💡 Anda bisa menutup halaman — generasi berjalan di background &amp; ada notifikasi saat selesai.</div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> Pass terakhir: linter lintas-dokumen (FR codes, entity ERD vs API, kontradiksi requirement) → menghasilkan Spec Health Score.</div>
+    <div><span class="note">2</span> Transparansi model per tugas = selling point (seperti NgodingPakeAI) sekaligus kontrol margin token.</div>
+  </div>
+</section>
+
+<!-- ============ S7 WORKSPACE ============ -->
+<section class="screen" id="s7">
+  <div class="screen-title">
+    <h2>7 · Workspace 3-Panel + Impact Analysis</h2>
+    <p>Seperti SpecKit tapi lebih kuat: diff compare, impact analysis lintas dokumen, Spec Health, dan export agent-ready.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">app.specengine.id / p / kasir-pintar / workspace</span></div>
+    <div style="display:flex; min-height:540px;">
+      <div style="width:210px; flex:none; border-right:1.5px solid var(--line); padding:14px; background:var(--box);">
+        <div class="row" style="display:flex; justify-content:space-between; margin-bottom:10px;">
+          <b style="font-size:12px;">DOKUMEN</b><span class="chip" style="font-size:9.5px;">v3</span>
+        </div>
+        <div class="doc-item">📄 PRD.md</div>
+        <div class="doc-item on">📄 REQUIREMENTS.md <span class="badge cr" style="font-size:8.5px;">EDITED</span></div>
+        <div class="doc-item">📄 FEATURES.md</div>
+        <div class="doc-item">📄 USER_FLOWS.md</div>
+        <div class="doc-item">📄 BUSINESS_RULES.md</div>
+        <div class="doc-item">📄 DATABASE.md</div>
+        <div class="doc-item">📄 API.md ⚠️</div>
+        <div class="doc-item">📄 ARCHITECTURE.md</div>
+        <div class="doc-item">📄 DESIGN.md</div>
+        <div class="doc-item">📄 TESTING.md ⚠️</div>
+        <div class="doc-item">📄 ROADMAP.md</div>
+        <div style="border-top:1px solid var(--line); margin-top:10px; padding-top:10px;">
+          <div class="doc-item">🖼 Wireframes <span class="note">3</span></div>
+          <div class="doc-item">💰 Estimasi &amp; RAB</div>
+        </div>
+        <div style="margin-top:14px;">
+          <span class="btn small" style="width:100%; text-align:center;">⬇ Export ▾</span>
+          <div style="font-size:10.5px; color:#94a3b8; margin-top:6px;">ZIP · PDF · DOCX · CLAUDE.md · .cursorrules · AGENTS.md <span class="note">4</span></div>
+          <span class="btn ghost small" style="width:100%; text-align:center; margin-top:6px;">→ Push ke ClickUp/Jira</span>
+        </div>
+      </div>
+      <div style="flex:1; padding:16px 20px; min-width:0;">
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <span class="itab on">Rich Preview</span><span class="itab">Raw Markdown</span><span class="itab">Diff v2 → v3 <span class="note">1</span></span>
+        </div>
+        <div class="card" style="min-height:430px;">
+          <div class="wf-title" style="width:60%;"></div>
+          <div class="stack" style="margin-top:12px;">
+            <div class="wf-line w95"></div><div class="wf-line w95"></div><div class="wf-line w80"></div>
+          </div>
+          <div class="card" style="margin-top:14px; border-left:4px solid var(--accent); background:#fff7ed;">
+            <b style="font-size:12px;">FR-02: Digital Payment Processing</b>
+            <div style="font-size:11.5px; color:#7c2d12; margin-top:4px;">Diedit: tambah dukungan e-wallet OVO &amp; Dana (sebelumnya QRIS saja)</div>
+          </div>
+          <div class="stack" style="margin-top:14px;">
+            <div class="wf-line w95"></div><div class="wf-line w60"></div><div class="wf-line w80"></div><div class="wf-line w40"></div>
+          </div>
+        </div>
+      </div>
+      <div style="width:270px; flex:none; border-left:1.5px solid var(--line); padding:14px; background:var(--box);">
+        <b style="font-size:12px;">SPEC HEALTH</b>
+        <div class="score-ring" style="margin-top:10px;">92</div>
+        <div class="lint"><span class="ic ok">✓</span> 14/14 FR punya acceptance criteria</div>
+        <div class="lint"><span class="ic warn">!</span> FR-02 diedit → API.md &amp; TESTING.md belum sinkron</div>
+        <div class="lint"><span class="ic err">✕</span> Entity "Refund" di ERD belum ada endpoint</div>
+        <div style="border-top:1px solid var(--line); margin:12px 0; padding-top:12px;">
+          <b style="font-size:12px;">🤖 AI ASSISTANT</b>
+          <div class="chat-b user">Ubah FR-02: tambahkan OVO &amp; Dana</div>
+          <div class="chat-b"><b>Impact analysis</b> <span class="note">2</span> — perubahan ini berdampak pada:<br>• API.md (endpoint payment)<br>• TESTING.md (3 skenario)<br>• ROADMAP.md (+4 MD)<br>• RAB (+Rp 14 jt)<br><br><span class="btn small">Terapkan &amp; regenerate 3 dok</span> <span class="btn ghost small">Batal</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> Diff compare antar versi per dokumen (SpecKit punya dasar ini — kita perkuat dengan propagasi lintas dokumen).</div>
+    <div><span class="note">2</span> Impact analysis + selective regeneration = "living spec". Perubahan 1 requirement langsung terlihat dampaknya ke dokumen, timeline, dan biaya.</div>
+    <div><span class="note">3</span> Wireframe low-fi per user flow ikut tergenerate — klien memvalidasi gambar, bukan teks.</div>
+    <div><span class="note">4</span> Export agent-ready (CLAUDE.md, .cursorrules, AGENTS.md) supaya blueprint langsung dieksekusi Claude Code/Cursor.</div>
+  </div>
+</section>
+
+<!-- ============ S8 ESTIMASI ============ -->
+<section class="screen" id="s8">
+  <div class="screen-title">
+    <h2>8 · Estimasi Man-Days, RAB &amp; Proposal</h2>
+    <p>Fitur yang tidak dimiliki satupun kompetitor: dari task breakdown → effort per fitur × rate card perusahaan → RAB + timeline + draft proposal.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">app.specengine.id / p / kasir-pintar / estimate</span></div>
+    <div style="padding:22px 26px;">
+      <div class="grid3" style="margin-bottom:16px;">
+        <div class="card"><div style="font-size:11px; color:#64748b;">TOTAL EFFORT</div><div style="font-size:22px; font-weight:800; margin-top:4px;">124 <span style="font-size:12px; font-weight:600;">man-days</span></div><div style="font-size:11px; color:#94a3b8;">±15% confidence range: 108–142 MD <span class="note">1</span></div></div>
+        <div class="card"><div style="font-size:11px; color:#64748b;">ESTIMASI BIAYA (RAB)</div><div style="font-size:22px; font-weight:800; margin-top:4px;">Rp 486 jt</div><div style="font-size:11px; color:#94a3b8;">Rate card: AmanahCorp 2026 · margin 30%</div></div>
+        <div class="card"><div style="font-size:11px; color:#64748b;">DURASI</div><div style="font-size:22px; font-weight:800; margin-top:4px;">16 minggu</div><div style="font-size:11px; color:#94a3b8;">Tim: 2 FE · 2 BE · 1 QA · 0.5 PM</div></div>
+      </div>
+      <table class="wf">
+        <tr><th>Modul / Fitur</th><th style="width:70px;">Fase</th><th style="width:90px;">Effort (MD)</th><th style="width:110px;">Biaya</th><th style="width:80px;">Prioritas</th></tr>
+        <tr><td>POS &amp; Transaksi (keranjang, QRIS, struk, shift)</td><td>1</td><td>38</td><td>Rp 149 jt</td><td><span class="badge approved">P0</span></td></tr>
+        <tr><td>Inventori multi-lokasi + transfer + batch</td><td>2</td><td>30</td><td>Rp 118 jt</td><td><span class="badge approved">P0</span></td></tr>
+        <tr><td>Laporan penjualan &amp; dashboard</td><td>2</td><td>18</td><td>Rp 71 jt</td><td><span class="badge review">P1</span></td></tr>
+        <tr><td>AI forecast &amp; rekomendasi restock</td><td>3</td><td>26</td><td>Rp 102 jt</td><td><span class="badge review">P1</span></td></tr>
+        <tr><td>Setup, auth, deploy, UAT &amp; buffer</td><td>—</td><td>12</td><td>Rp 46 jt</td><td><span class="badge draft">—</span></td></tr>
+      </table>
+      <div class="card" style="margin-top:16px;">
+        <b style="font-size:13px;">Timeline (auto-generated)</b>
+        <div class="gantt-row"><span class="lbl">Fase 1 · POS &amp; Transaksi</span><div class="gantt-track"><div class="gantt-bar" style="left:0%; width:38%;"></div></div></div>
+        <div class="gantt-row"><span class="lbl">Fase 2 · Inventori + Laporan</span><div class="gantt-track"><div class="gantt-bar" style="left:32%; width:36%;"></div></div></div>
+        <div class="gantt-row"><span class="lbl">Fase 3 · AI Insight</span><div class="gantt-track"><div class="gantt-bar" style="left:62%; width:26%;"></div></div></div>
+        <div class="gantt-row"><span class="lbl">UAT &amp; Go-live</span><div class="gantt-track"><div class="gantt-bar" style="left:84%; width:16%; background:var(--accent);"></div></div></div>
+      </div>
+      <div style="margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:12px; color:#64748b;">Skenario: <span class="chip on">Full scope</span><span class="chip">MVP saja (Rp 313 jt · 11 mgg)</span> <span class="note">2</span></span>
+        <span><span class="btn ghost">⬇ RAB Excel</span> &nbsp;<span class="btn">📄 Generate Proposal (DOCX/PDF) <span class="note">3</span></span></span>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> Estimasi dengan confidence range, bukan angka tunggal — lebih jujur &amp; profesional di depan klien.</div>
+    <div><span class="note">2</span> Skenario scope (MVP vs Full) sekali klik — alat negosiasi presales saat budget klien terbatas.</div>
+    <div><span class="note">3</span> Proposal DOCX mengikuti template &amp; branding perusahaan (white-label) — dari meeting ke proposal dalam satu jam.</div>
+  </div>
+</section>
+
+<!-- ============ S9 CLIENT PORTAL ============ -->
+<section class="screen" id="s9">
+  <div class="screen-title">
+    <h2>9 · Client Portal (review &amp; approval)</h2>
+    <p>Klien membuka link tanpa perlu akun penuh — baca dokumen, komentar per section, approve. Spec yang di-approve jadi baseline scope kontrak.</p>
+  </div>
+  <div class="frame">
+    <div class="frame-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="urlbar">portal.specengine.id / review / kasir-pintar-umkm (dilihat sebagai: Klien)</span></div>
+    <div style="border-bottom:1.5px solid var(--line); padding:14px 22px; display:flex; justify-content:space-between; align-items:center; background:var(--box);">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="mark" style="width:26px; height:26px; border-radius:7px; background:var(--dark); display:inline-block;"></span>
+        <div><b style="font-size:13px;">AmanahCorp</b> <span class="note">1</span><div style="font-size:11px; color:#94a3b8;">Proposal &amp; Spesifikasi — Kasir Pintar UMKM · v3</div></div>
+      </div>
+      <div><span class="badge review">MENUNGGU APPROVAL ANDA</span> &nbsp;<span class="btn">✓ Approve Semua Dokumen</span></div>
+    </div>
+    <div style="display:flex; min-height:460px;">
+      <div style="width:230px; flex:none; border-right:1.5px solid var(--line); padding:14px;">
+        <b style="font-size:12px;">DOKUMEN</b>
+        <div class="doc-item" style="margin-top:8px;"><span class="st done">✓</span> Ringkasan &amp; Scope <span class="badge approved" style="font-size:8.5px;">OK</span></div>
+        <div class="doc-item on"><span class="st run">!</span> Kebutuhan Fitur <span class="badge review" style="font-size:8.5px;">2💬</span></div>
+        <div class="doc-item"><span class="st wait"> </span> Alur Pengguna + Wireframe</div>
+        <div class="doc-item"><span class="st wait"> </span> Timeline &amp; Biaya</div>
+        <div style="border-top:1px solid var(--line); margin-top:12px; padding-top:12px; font-size:11px; color:#64748b;">
+          Progres review<br>
+          <div class="meter" style="margin-top:6px;"><i style="width:25%; background:var(--ok);"></i></div>
+          1 dari 4 disetujui
+        </div>
+      </div>
+      <div style="flex:1; padding:16px 22px; min-width:0;">
+        <div class="card">
+          <div class="wf-title" style="width:50%;"></div>
+          <div class="stack" style="margin-top:12px;"><div class="wf-line w95"></div><div class="wf-line w80"></div></div>
+          <div class="card" style="margin-top:12px; border-left:4px solid var(--blue);">
+            <b style="font-size:12px;">Fitur: Pembayaran Digital (QRIS + e-wallet)</b>
+            <div class="stack" style="margin-top:8px;"><div class="wf-line w95"></div><div class="wf-line w60"></div></div>
+            <div style="margin-top:8px; font-size:11px; color:var(--blue);">💬 2 komentar pada section ini</div>
+          </div>
+          <div class="stack" style="margin-top:12px;"><div class="wf-line w95"></div><div class="wf-line w80"></div><div class="wf-line w40"></div></div>
+        </div>
+        <div class="card" style="margin-top:12px; border-color:#fecaca; background:#fef2f2; font-size:12px; color:#991b1b;">
+          🔒 Setelah approval, perubahan scope tercatat sebagai <b>Change Request</b> dengan estimasi biaya &amp; dampak timeline tersendiri. <span class="note">2</span>
+        </div>
+      </div>
+      <div style="width:270px; flex:none; border-left:1.5px solid var(--line); padding:14px; background:var(--box);">
+        <b style="font-size:12px;">KOMENTAR — Kebutuhan Fitur</b>
+        <div class="comment">
+          <span class="avatar"></span> <b>Budi (Klien — PT Maju Retail)</b>
+          <div class="when">Kemarin 14:20</div>
+          <div style="margin-top:6px;">Apakah bisa tambah pembayaran transfer bank manual juga?</div>
+        </div>
+        <div class="comment" style="margin-left:14px;">
+          <span class="avatar" style="background:var(--dark);"></span> <b>Muammar (AmanahCorp)</b>
+          <div class="when">Kemarin 16:05</div>
+          <div style="margin-top:6px;">Bisa Pak — sudah saya simulasikan: +3 MD, +Rp 12 jt. Mau dimasukkan ke scope v1? <span class="note">3</span></div>
+        </div>
+        <div class="dashed" style="margin-top:10px; padding:8px 10px; font-size:11.5px; color:#94a3b8;">Tulis balasan…</div>
+        <div style="margin-top:14px;">
+          <span class="btn small" style="width:100%; text-align:center;">✓ Approve dokumen ini</span>
+          <span class="btn ghost small" style="width:100%; text-align:center; margin-top:6px;">✎ Minta perubahan</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="notes">
+    <div><span class="note">1</span> White-label: portal menampilkan logo software house Anda, bukan brand tools — klien melihat profesionalisme perusahaan Anda.</div>
+    <div><span class="note">2</span> Scope lock setelah approval — dasar kontrak; perubahan berikutnya otomatis jadi Change Request yang bisa ditagih.</div>
+    <div><span class="note">3</span> Simulasi dampak biaya langsung di thread komentar — menjawab pertanyaan klien dengan angka, bukan perkiraan kasar.</div>
+  </div>
+</section>
+
+<script>
+  const tabs=document.querySelectorAll('.tab'), screens=document.querySelectorAll('.screen');
+  tabs.forEach(t=>t.addEventListener('click',()=>{
+    tabs.forEach(x=>x.classList.remove('active')); screens.forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); document.getElementById(t.dataset.s).classList.add('active');
+    window.scrollTo({top:0});
+  }));
+</script>
+</body>
+</html>
