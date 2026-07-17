@@ -85,4 +85,31 @@ class TemplateSettingsTest extends TestCase
         $this->actingAs($owner)->delete("/templates/{$tpl->id}")->assertSessionHasErrors('template');
         $this->assertNotNull($tpl->fresh());
     }
+
+    public function test_new_project_gets_default_template(): void
+    {
+        $owner = $this->owner();
+
+        $this->actingAs($owner)->post('/projects');
+
+        $project = \App\Models\Project::firstOrFail();
+        $default = DocTemplate::where('workspace_id', $owner->currentWorkspace()->id)
+            ->where('is_default', true)->firstOrFail();
+        $this->assertSame($default->id, $project->doc_template_id);
+    }
+
+    public function test_pipeline_uses_template_doc_kinds_when_opted_in(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $owner = $this->owner();
+        $this->actingAs($owner)->post('/projects');
+
+        $project = \App\Models\Project::firstOrFail();
+        $project->docTemplate->update(['doc_kinds' => ['PRD', 'REQUIREMENTS']]);
+        $project->update(['blueprint' => ['template' => 'workspace', 'depth' => 'auto']]);
+
+        $run = app(\App\Services\GenerationPipeline::class)->start($project->fresh());
+
+        $this->assertEqualsCanonicalizing(['PRD', 'REQUIREMENTS'], $run->nodes()->pluck('doc_key')->all());
+    }
 }
