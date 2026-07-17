@@ -57,4 +57,31 @@ class RegenerationTest extends TestCase
         $this->assertStringContainsString('regen', $doc->fresh()->currentVersion->content_md);
         $this->assertSame('done', $run->fresh()->status);
     }
+
+    public function test_regenerate_endpoint_starts_run(): void
+    {
+        // Endpoint POST /projects/{project}/regenerate memulai regen run.
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail(); // User dari projectWithDocs()
+
+        $this->actingAs($user)->post(route('projects.regenerate', $project), [
+            'change_text' => 'Tambah FR notifikasi',
+            'doc_keys' => ['REQUIREMENTS'],
+        ])->assertRedirect();
+
+        $this->assertSame('regen', $project->generationRuns()->latest()->first()->trigger);
+    }
+
+    public function test_regenerate_blocked_on_baselined_doc_without_cr(): void
+    {
+        // BR-25: dokumen ter-baseline hanya boleh berubah lewat CR. Endpoint deny jika status=approved.
+        $project = $this->projectWithDocs();
+        $project->update(['status' => 'approved']); // BR-25 aktif
+        $user = User::firstOrFail();
+
+        $this->actingAs($user)->post(route('projects.regenerate', $project), [
+            'change_text' => 'x',
+            'doc_keys' => ['REQUIREMENTS'],
+        ])->assertForbidden();
+    }
 }

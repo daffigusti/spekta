@@ -87,6 +87,7 @@ Route::middleware(['auth'])->group(function () {
 
     // FR-09/FR-10: impact analysis + selective regeneration
     Route::post('projects/{project}/impact', [ImpactController::class, 'analyze'])->name('projects.impact');
+    Route::post('projects/{project}/regenerate', [ImpactController::class, 'regenerate'])->name('projects.regenerate');
 
     // Billing (FR-23)
     Route::get('billing', [BillingController::class, 'index'])->name('billing.index');
