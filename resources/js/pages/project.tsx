@@ -616,6 +616,15 @@ export default function ProjectPage({
                             <div className="mt-1.5 text-center font-mono text-[10px] leading-normal font-semibold text-gray-400">
                                 CLAUDE.md · .cursorrules · AGENTS.md
                             </div>
+                            <a
+                                href={route('projects.export', [project.id, 'pdf'])}
+                                className="mt-2 flex w-full items-center justify-center rounded-[10px] border border-gray-200 bg-white py-2 text-xs font-bold text-gray-700 hover:bg-gray-100"
+                            >
+                                Export PDF
+                            </a>
+                            <div className="mt-1.5 text-center font-mono text-[10px] leading-normal font-semibold text-gray-400">
+                                Satu PDF · semua dokumen
+                            </div>
                         </div>
                     </div>
 

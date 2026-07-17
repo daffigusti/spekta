@@ -16,10 +16,14 @@ class ExportController extends Controller
     public function download(Request $request, Project $project, string $kind, Exporter $exporter)
     {
         ProjectController::authorizeProject($request, $project);
-        abort_unless(in_array($kind, ['zip', 'agent_pack', 'proposal', 'rab']), 404);
+        abort_unless(in_array($kind, ['zip', 'agent_pack', 'proposal', 'rab', 'pdf']), 404);
 
         if (in_array($kind, ['proposal', 'rab'])) {
             return $this->presales($request, $project, $kind);
+        }
+
+        if ($kind === 'pdf') {
+            return response()->download($exporter->pdf($project), Str::slug($project->name).'-blueprint.pdf')->deleteFileAfterSend();
         }
 
         $path = $exporter->zip($project, $kind);
