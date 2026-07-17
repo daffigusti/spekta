@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CreditLedger;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\GenerationPipeline;
@@ -63,6 +64,8 @@ class RegenerationTest extends TestCase
         // Endpoint POST /projects/{project}/regenerate memulai regen run.
         $project = $this->projectWithDocs();
         $user = User::firstOrFail(); // User dari projectWithDocs()
+        $workspace = $project->workspace;
+        $balanceBefore = $workspace->creditBalance();
 
         $this->actingAs($user)->post(route('projects.regenerate', $project), [
             'change_text' => 'Tambah FR notifikasi',
@@ -70,6 +73,43 @@ class RegenerationTest extends TestCase
         ])->assertRedirect();
 
         $this->assertSame('regen', $project->generationRuns()->latest()->first()->trigger);
+
+        // BR-02: regenerate sukses mengkonsumsi 1 kredit (setelah pipeline start, bukan sebelum).
+        $ledger = $workspace->creditLedger()
+            ->where('kind', 'consume')
+            ->where('idempotency_key', 'like', 'consume-regen-%')
+            ->first();
+        $this->assertNotNull($ledger);
+        $this->assertSame(-1.0, $ledger->delta);
+        $this->assertSame($balanceBefore - 1.0, $workspace->fresh()->creditBalance());
+    }
+
+    public function test_regenerate_blocked_when_credits_exhausted(): void
+    {
+        // BR-02: kredit habis → redirect dengan error 'credits', run TIDAK terbentuk, tidak ada konsumsi tambahan.
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail();
+        $workspace = $project->workspace;
+
+        CreditLedger::create([
+            'workspace_id' => $workspace->id,
+            'delta' => -$workspace->creditBalance(),
+            'kind' => 'consume',
+            'ref_type' => 'project',
+            'ref_id' => $project->id,
+            'idempotency_key' => 'test-zero-'.$project->id,
+        ]);
+        $this->assertSame(0.0, $workspace->fresh()->creditBalance());
+
+        $runsBefore = $project->generationRuns()->count();
+
+        $this->actingAs($user)->post(route('projects.regenerate', $project), [
+            'change_text' => 'Tambah FR notifikasi',
+            'doc_keys' => ['REQUIREMENTS'],
+        ])->assertSessionHasErrors('credits');
+
+        $this->assertSame($runsBefore, $project->generationRuns()->count());
+        $this->assertSame(0.0, $workspace->fresh()->creditBalance());
     }
 
     public function test_regenerate_blocked_on_baselined_doc_without_cr(): void

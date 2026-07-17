@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\CreditLedger;
 use App\Models\Project;
 use App\Services\ChangeRequestService;
 use App\Services\GenerationPipeline;
@@ -15,6 +16,19 @@ class ImpactController extends Controller
     {
         ProjectController::authorizeProject($request, $project);
         $data = $request->validate(['change_text' => 'required|string|max:5000']);
+
+        $workspace = $project->workspace;
+
+        // BR-05: mode read-only setelah grace period habis — analisa (panggilan LLM) diblok
+        if ($workspace->subscription?->effectiveStatus() === 'readonly') {
+            abort(403, 'Langganan berakhir — workspace read-only (BR-05).');
+        }
+
+        // BR-02: analisa perlu kredit tersedia, tapi TIDAK mengkonsumsi — hanya preview;
+        // konsumsi baru terjadi saat regenerate() sukses.
+        if ($workspace->creditBalance() < 1) {
+            abort(402, 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).');
+        }
 
         return response()->json($engine->impact($project, $data['change_text']));
     }
@@ -38,12 +52,38 @@ class ImpactController extends Controller
                 "Proyek sudah di-approve — regenerasi $key wajib lewat Change Request (BR-25).");
         }
 
+        $workspace = $project->workspace;
+
+        // BR-05: mode read-only setelah grace period habis — regenerasi diblok
+        if ($workspace->subscription?->effectiveStatus() === 'readonly') {
+            return back()->withErrors(['credits' => 'Langganan berakhir — workspace read-only (BR-05).']);
+        }
+
+        // BR-02: 1 kredit per regenerasi (dikonsumsi setelah sukses, lihat bawah)
+        if ($workspace->creditBalance() < 1) {
+            return back()->withErrors(['credits' => 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).']);
+        }
+
+        if ($project->generationRuns()->whereIn('status', ['queued', 'running'])->exists()) {
+            return back()->withErrors(['credits' => 'Masih ada proses generate berjalan.']);
+        }
+
         // Mulai pipeline regenerasi dengan subset doc + instruksi
         try {
             $pipeline->startRegeneration($project, $data['doc_keys'], $data['change_text']);
         } catch (\InvalidArgumentException $e) {
             abort(422, $e->getMessage());
         }
+
+        // BR-02: konsumsi kredit HANYA setelah pipeline berhasil start — supaya 422 tidak membakar kredit
+        CreditLedger::create([
+            'workspace_id' => $workspace->id,
+            'delta' => -1,
+            'kind' => 'consume',
+            'ref_type' => 'project',
+            'ref_id' => $project->id,
+            'idempotency_key' => 'consume-regen-'.$project->id.'-'.now()->timestamp,
+        ]);
 
         return back();
     }

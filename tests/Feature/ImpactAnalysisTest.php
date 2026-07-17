@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CreditLedger;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\SpecEngine;
@@ -57,5 +58,28 @@ class ImpactAnalysisTest extends TestCase
         ]);
 
         $res->assertOk()->assertJsonStructure(['summary', 'delta_md', 'affected' => [['doc_key', 'reason', 'manual_edit']]]);
+    }
+
+    public function test_analyze_blocked_when_credits_exhausted(): void
+    {
+        // BR-02: analisa (panggilan LLM sinkron) butuh kredit tersedia meski tidak dikonsumsi.
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail();
+        $workspace = $project->workspace;
+
+        // Habiskan saldo: entri konsumsi menutup grant free awal (lihat Workspace::creditBalance()).
+        CreditLedger::create([
+            'workspace_id' => $workspace->id,
+            'delta' => -$workspace->creditBalance(),
+            'kind' => 'consume',
+            'ref_type' => 'project',
+            'ref_id' => $project->id,
+            'idempotency_key' => 'test-zero-'.$project->id,
+        ]);
+        $this->assertSame(0.0, $workspace->fresh()->creditBalance());
+
+        $this->actingAs($user)->postJson(route('projects.impact', $project), [
+            'change_text' => 'Tambah fitur notifikasi email',
+        ])->assertStatus(402);
     }
 }
