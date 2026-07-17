@@ -143,9 +143,15 @@ SYS, $ctx);
                 default => '',
             };
             $template = self::DOC_TEMPLATES[$docKey] ?? '';
+            // Soft cap panjang: target sebagai sinyal prioritas, bukan gunting — max_tokens tetap jaring pengaman
             $depthLine = ($project->blueprint['depth'] ?? 'auto') === 'concise'
-                ? 'Kedalaman: RINGKAS — poin esensial saja, tanpa penjelasan panjang.'
-                : 'Kedalaman: LENGKAP & DETAIL — jangan meringkas; isi tiap section konkret dan spesifik proyek ini, bukan placeholder generik.';
+                ? 'Kedalaman: RINGKAS — poin esensial saja, tanpa penjelasan panjang. Target maksimal ±1.500 kata.'
+                : <<<'DEPTH'
+Kedalaman: LENGKAP — isi tiap section konkret dan spesifik proyek ini, bukan placeholder generik. Target ±3.000-5.000 kata, dengan aturan alokasi:
+- Detail proporsional kompleksitas: fitur berisiko/kompleks (pembayaran, integrasi eksternal, keamanan) boleh dalam; fitur CRUD standar cukup 3-5 poin.
+- JANGAN ulang isi dokumen upstream — cukup rujuk nomornya (FR-xx/BR-xx). Duplikasi = sumber inkonsistensi.
+- Asumsi ditulis SEKALI di section Assumptions, di tempat lain cukup tanda "(asumsi)".
+DEPTH;
             $md = $this->text($class, <<<SYS
 Kamu technical writer software house Indonesia. Tulis dokumen $docKey.md lengkap dalam markdown untuk proyek berikut.
 Konsisten dengan dokumen upstream yang diberikan (penomoran FR/BR, istilah, entity).
