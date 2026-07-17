@@ -75,7 +75,8 @@ class TemplateController extends Controller
             'config.show_cover' => ['sometimes', 'boolean'],
             'config.heading_numbering' => ['sometimes', 'boolean'],
             'config.include_toc' => ['sometimes', 'boolean'],
-            'logo' => ['sometimes', 'nullable', 'image', 'max:2048', 'mimes:jpg,jpeg,png,svg,webp'],
+            // SVG ditolak: bisa memuat <script> — stored XSS bila diserve dari origin app
+            'logo' => ['sometimes', 'nullable', 'image', 'max:2048', 'mimes:jpg,jpeg,png,webp'],
         ]);
 
         $tpl = $workspace->docTemplates()->firstOrCreate(
