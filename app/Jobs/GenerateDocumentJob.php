@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Models\Document;
 use App\Models\GenerationNode;
-use App\Models\GenerationRun;
 use App\Services\SpecEngine;
 use App\Services\SpecHealthValidator;
 use Illuminate\Bus\Queueable;
@@ -12,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 
 class GenerateDocumentJob implements ShouldQueue
 {
@@ -21,9 +21,7 @@ class GenerateDocumentJob implements ShouldQueue
 
     public int $timeout = 300; // panggilan LLM per dokumen bisa >60 dtk; harus < retry_after queue
 
-    public function __construct(public string $nodeId)
-    {
-    }
+    public function __construct(public string $nodeId) {}
 
     public function handle(SpecEngine $engine): void
     {
@@ -58,11 +56,11 @@ class GenerateDocumentJob implements ShouldQueue
                 return; // throttle tulisan cache
             }
             $lastWrite = microtime(true);
-            \Illuminate\Support\Facades\Cache::put($streamKey, ['doc_key' => $node->doc_key, 'text' => $acc], 600);
+            Cache::put($streamKey, ['doc_key' => $node->doc_key, 'text' => $acc], 600);
         };
 
         [$md, $meta] = $engine->generateDocument($project, $node->doc_key, $upstream, $onDelta);
-        \Illuminate\Support\Facades\Cache::forget($streamKey);
+        Cache::forget($streamKey);
 
         $document = Document::firstOrCreate(
             ['project_id' => $project->id, 'doc_key' => $node->doc_key],
@@ -84,6 +82,11 @@ class GenerateDocumentJob implements ShouldQueue
             $run->update(['status' => 'done', 'finished_at' => now()]);
             $project->update(['status' => 'ready', 'wizard_step' => 'done']);
             app(SpecHealthValidator::class)->run($project);
+
+            // Auto-repair SATU pass bila masih ada temuan critical (repaired_at mencegah loop)
+            if (! $run->repaired_at && $project->healthFindings()->where('severity', 'critical')->exists()) {
+                RepairRunJob::dispatch($run->id);
+            }
         }
     }
 

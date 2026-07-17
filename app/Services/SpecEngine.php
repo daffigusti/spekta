@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Project;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
@@ -128,10 +130,16 @@ SYS, $ctx);
                 'bilingual' => 'Tulis bilingual: tiap section Bahasa Indonesia diikuti versi English-nya.',
                 default => 'Bahasa Indonesia, istilah teknis Inggris.',
             };
+            $template = self::DOC_TEMPLATES[$docKey] ?? '';
+            $depthLine = ($project->blueprint['depth'] ?? 'auto') === 'concise'
+                ? 'Kedalaman: RINGKAS — poin esensial saja, tanpa penjelasan panjang.'
+                : 'Kedalaman: LENGKAP & DETAIL — jangan meringkas; isi tiap section konkret dan spesifik proyek ini, bukan placeholder generik.';
             $md = $this->text($class, <<<SYS
 Kamu technical writer software house Indonesia. Tulis dokumen $docKey.md lengkap dalam markdown untuk proyek berikut.
 Konsisten dengan dokumen upstream yang diberikan (penomoran FR/BR, istilah, entity).
-Wajib: bila $docKey = PRD, sertakan section "Assumptions" berisi seluruh asumsi (BR-13).
+Gunakan INPUT ASLI USER dan HASIL INTERVIEW sebagai sumber kebenaran detail — jangan mengarang kebutuhan yang tidak disebut.
+$template
+$depthLine
 $langLine Hanya markdown, tanpa pembuka/penutup.
 SYS, $ctx, $tokensIn, $tokensOut, $onDelta);
             $meta = ['model' => config('spekta.llm.models.'.$class), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
@@ -142,6 +150,76 @@ SYS, $ctx, $tokensIn, $tokensOut, $onDelta);
 
         return [$md, $meta];
     }
+
+    /** Outline wajib per tipe dokumen — tanpa ini model menebak sendiri isi tiap dokumen. */
+    private const DOC_TEMPLATES = [
+        'PRD' => <<<'TPL'
+Struktur wajib PRD.md:
+1. "Visi Produk" — masalah, solusi, nilai bisnis untuk klien.
+2. "Target User & Roles" — tabel: role, kebutuhan utama, hak akses.
+3. "Functional Requirements" — SEMUA fitur dari FITUR & STRUKTUR jadi FR bernomor (FR-01, FR-02, …) urut mengikuti struktur; tiap FR: judul, deskripsi 2-3 kalimat, role terkait, scope (mvp/full).
+4. "Non-Functional Requirements" — performa, keamanan, skalabilitas, kompatibilitas, sesuai kompleksitas proyek.
+5. "Out of Scope" — hal yang eksplisit TIDAK dikerjakan (dari jawaban interview & asumsi).
+6. "Assumptions" — SELURUH asumsi proyek (wajib ada, BR-13).
+TPL,
+        'REQUIREMENTS' => <<<'TPL'
+Struktur wajib REQUIREMENTS.md: satu section per FR dari PRD (heading "### FR-xx: judul", nomor WAJIB sama persis dengan PRD).
+Tiap FR berisi: deskripsi singkat, "Acceptance Criteria" ≥3 butir terukur format Given/When/Then, dan "Edge Cases" ≥2 butir.
+Jangan ada FR dari PRD yang hilang.
+TPL,
+        'USER_FLOWS' => <<<'TPL'
+Struktur wajib USER_FLOWS.md: flow bernomor per role ("## Flow 1: nama (role)").
+Tiap flow: tujuan user, precondition, langkah bernomor (aksi user → respons sistem), jalur error/alternatif, dan satu diagram ```mermaid flowchart TD```.
+Cakup minimal satu flow per role dan semua fitur mvp.
+TPL,
+        'BUSINESS_RULES' => <<<'TPL'
+Struktur wajib BUSINESS_RULES.md: aturan bernomor ("### BR-01: judul"), dikelompokkan per area.
+Tiap BR: kondisi/trigger → aturan/aksi, contoh konkret, dan referensi FR terkait.
+Angkat aturan dari INPUT ASLI USER dan HASIL INTERVIEW (validasi, batasan, perhitungan, hak akses).
+TPL,
+        'DATABASE' => <<<'TPL'
+Struktur wajib DATABASE.md:
+1. Diagram relasi lengkap dalam ```mermaid erDiagram```.
+2. Satu section per tabel: tabel kolom (nama, tipe, constraint, default), index, relasi/foreign key.
+3. "Mapping Entity → FR" — tabel entity mana melayani FR mana.
+Konvensi penamaan konsisten (snake_case), sertakan kolom audit (created_at, updated_at) dan soft delete bila relevan.
+TPL,
+        'API' => <<<'TPL'
+Struktur wajib API.md:
+1. "Konvensi" — base URL, autentikasi, format error standar, pagination, versioning.
+2. Endpoint dikelompokkan per resource: method + path, deskripsi, auth/role, parameter, contoh request & response JSON, kode error.
+3. Tabel "Mapping Endpoint → FR".
+Cakup semua FR yang butuh API; skema konsisten dengan DATABASE.md.
+TPL,
+        'ARCHITECTURE' => <<<'TPL'
+Struktur wajib ARCHITECTURE.md:
+1. Diagram komponen ```mermaid flowchart``` (client, server, DB, layanan eksternal).
+2. "Keputusan Arsitektur" — per layer STACK: pilihan, justifikasi, konsekuensi (hormati max_architecture/BR-16 — jangan menaikkan kelas arsitektur).
+3. "Non-Functional" — target skala, keamanan (authn/authz, data sensitif), backup & recovery, observability.
+4. "Deployment" — topologi environment (dev/staging/prod), CI/CD ringkas.
+TPL,
+        'FEATURES' => <<<'TPL'
+Struktur wajib FEATURES.md: satu section per fitur mengikuti FITUR & STRUKTUR.
+Tiap fitur: user story ("Sebagai … saya ingin … agar …"), prioritas (P0 untuk mvp / P1 untuk full), dependency antar fitur, referensi FR dan Flow terkait, breakdown sub-fitur beserta deskripsinya.
+TPL,
+        'TESTING' => <<<'TPL'
+Struktur wajib TESTING.md: skenario uji per FR — SEMUA FR dari REQUIREMENTS wajib tercakup, tanpa kecuali.
+Tiap FR: heading "### TS-FR-xx: judul", lalu skenario happy path, skenario negatif (input invalid/unauthorized), dan edge case, format tabel (id, langkah, expected).
+Tutup dengan section "Integration & E2E" untuk alur lintas-fitur utama.
+TPL,
+        'DESIGN' => <<<'TPL'
+Struktur wajib DESIGN.md:
+1. "Design Tokens" — palet warna (hex), tipografi (keluarga, skala), spacing, radius, elevasi.
+2. "Komponen Inti" — button, form, tabel, card, navigasi: anatomi + state (default/hover/disabled/error).
+3. "Panduan per Layar" — catatan layout & hirarki untuk tiap flow di USER_FLOWS.
+4. "Aksesibilitas" — kontras, ukuran sentuh, keyboard.
+TPL,
+        'ROADMAP' => <<<'TPL'
+Struktur wajib ROADMAP.md: section per fase mengikuti FITUR & STRUKTUR.
+Tiap fase: tujuan/milestone, daftar FR dengan prioritas (P0 = scope mvp, P1 = full), total estimasi man-days, dependency terhadap fase lain, dan kriteria selesai (definition of done).
+Semua FR dari PRD wajib terpetakan ke fase.
+TPL,
+    ];
 
     /** Skema wireframe — dipakai prompt generate & chat revisi. Renderer toleran: type tak dikenal digambar placeholder. */
     private const WIREFRAME_SYSTEM = <<<'SYS'
@@ -227,6 +305,40 @@ KHUSUS WIREFRAMES: isinya JSON (bukan markdown) berskema {"screens":[{id,name,fl
 revisi = salin seluruh JSON lalu ubah screen/section yang diminta, blok DOC berisi JSON lengkap yang valid tanpa code fence.
 Bahasa Indonesia, istilah teknis Inggris.
 SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
+    }
+
+    // ---------- FR-11: auto-repair satu pass ----------
+    /** Perbaiki dokumen berdasar temuan Spec Health. Return [md, meta] seperti generateDocument. */
+    public function repairDocument(Project $project, string $docKey, array $findings, string $currentMd): array
+    {
+        if ($this->driver() === 'stub') {
+            return [$currentMd, ['model' => 'stub', 'tokens_in' => 0, 'tokens_out' => 0, 'generated_by' => 'ai-repair']];
+        }
+
+        $started = microtime(true);
+        $list = collect($findings)->map(fn ($f) => "- [{$f['severity']}] {$f['message']} — saran: {$f['suggestion']}")->implode("\n");
+        $format = $docKey === 'WIREFRAMES'
+            ? 'Konten dokumen ini JSON berskema {"screens":[…]} — balas HANYA JSON valid lengkap tanpa code fence.'
+            : 'Balas HANYA markdown lengkap hasil perbaikan, tanpa pembuka/penutup.';
+
+        $md = $this->text('standard', <<<SYS
+Kamu technical writer software house Indonesia. Dokumen $docKey gagal validasi spec health.
+Perbaiki HANYA bagian yang berkaitan dengan temuan di bawah; DILARANG mengubah, meringkas, atau menghapus bagian lain.
+$format
+SYS, "TEMUAN VALIDASI:\n$list\n\nKONTEKS PROYEK:\n".$this->documentContext($project, [])
+            ."\n\n=== DOKUMEN SAAT INI ($docKey) ===\n".$currentMd, $ti, $to);
+
+        if ($docKey === 'WIREFRAMES') {
+            $md = preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md));
+        }
+
+        return [$md, [
+            'model' => config('spekta.llm.models.standard'),
+            'tokens_in' => $ti,
+            'tokens_out' => $to,
+            'duration_ms' => (int) ((microtime(true) - $started) * 1000),
+            'generated_by' => 'ai-repair',
+        ]];
     }
 
     private function documentContext(Project $project, array $upstreamDocs): string
@@ -325,7 +437,7 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
             $model = config('spekta.llm.models.'.$class);
 
             // Payload lengkap → storage/logs/llm-*.log
-            \Illuminate\Support\Facades\Log::channel('llm')->debug('llm.call', [
+            Log::channel('llm')->debug('llm.call', [
                 'driver' => $this->driver(),
                 'model' => $model,
                 'class' => $class,
@@ -338,7 +450,7 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
             ]);
 
             // Ringkasan satu baris → channel default, kelihatan di `php artisan pail`
-            \Illuminate\Support\Facades\Log::info(sprintf(
+            Log::info(sprintf(
                 'LLM %s/%s [%s] %dms · in %d / out %d tokens · %s…',
                 $this->driver(), $model, $class, $ms, $tokensIn ?? 0, $tokensOut ?? 0,
                 mb_substr(str_replace("\n", ' ', $out), 0, 120)
@@ -353,7 +465,8 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
     {
         $payload = [
             'model' => config('spekta.llm.models.'.$class),
-            'max_tokens' => 8192,
+            'max_tokens' => (int) config('spekta.llm.max_tokens', 16000),
+            'temperature' => (float) config('spekta.llm.temperature', 0.3),
             'system' => $system,
             'messages' => [['role' => 'user', 'content' => $user]],
         ];
@@ -365,6 +478,7 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
 
         if ($onDelta) {
             $acc = '';
+            $stopReason = null;
             foreach ($this->sse($pending, $url, $payload + ['stream' => true]) as $event) {
                 if (($event['type'] ?? '') === 'content_block_delta') {
                     $acc .= $event['delta']['text'] ?? '';
@@ -373,8 +487,10 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
                     $tokensIn = $event['message']['usage']['input_tokens'] ?? 0;
                 } elseif (($event['type'] ?? '') === 'message_delta') {
                     $tokensOut = $event['usage']['output_tokens'] ?? 0;
+                    $stopReason = $event['delta']['stop_reason'] ?? $stopReason;
                 }
             }
+            $this->guardTruncation($stopReason === 'max_tokens', $acc);
 
             return $acc;
         }
@@ -385,8 +501,10 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
             ?? throw new \RuntimeException('LLM response bukan JSON valid: '.mb_substr($body, 0, 200));
         $tokensIn = $resp['usage']['input_tokens'] ?? 0;
         $tokensOut = $resp['usage']['output_tokens'] ?? 0;
+        $out = collect($resp['content'] ?? [])->where('type', 'text')->pluck('text')->implode('');
+        $this->guardTruncation(($resp['stop_reason'] ?? null) === 'max_tokens', $out);
 
-        return collect($resp['content'] ?? [])->where('type', 'text')->pluck('text')->implode('');
+        return $out;
     }
 
     /** OpenAI Chat Completions — kompatibel OpenAI/Groq/DeepSeek/OpenRouter/Ollama dll. */
@@ -394,7 +512,8 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
     {
         $payload = [
             'model' => config('spekta.llm.models.'.$class),
-            'max_tokens' => 8192,
+            'max_tokens' => (int) config('spekta.llm.max_tokens', 16000),
+            'temperature' => (float) config('spekta.llm.temperature', 0.3),
             'messages' => [
                 ['role' => 'system', 'content' => $system],
                 ['role' => 'user', 'content' => $user],
@@ -405,16 +524,19 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
 
         if ($onDelta) {
             $acc = '';
+            $finish = null;
             foreach ($this->sse($pending, $url, $payload + ['stream' => true, 'stream_options' => ['include_usage' => true]]) as $event) {
                 $acc .= $event['choices'][0]['delta']['content'] ?? '';
                 if ($event['choices'][0]['delta']['content'] ?? '') {
                     $onDelta($acc);
                 }
+                $finish = $event['choices'][0]['finish_reason'] ?? $finish;
                 if (isset($event['usage'])) {
                     $tokensIn = $event['usage']['prompt_tokens'] ?? 0;
                     $tokensOut = $event['usage']['completion_tokens'] ?? 0;
                 }
             }
+            $this->guardTruncation($finish === 'length', $acc);
 
             return $acc;
         }
@@ -422,12 +544,26 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
         $resp = $pending->retry(2, 2000)->post($url, $payload)->throw()->json();
         $tokensIn = $resp['usage']['prompt_tokens'] ?? 0;
         $tokensOut = $resp['usage']['completion_tokens'] ?? 0;
+        $out = $resp['choices'][0]['message']['content'] ?? '';
+        $this->guardTruncation(($resp['choices'][0]['finish_reason'] ?? null) === 'length', $out);
 
-        return $resp['choices'][0]['message']['content'] ?? '';
+        return $out;
+    }
+
+    /** Output terpotong max_tokens = dokumen cacat diam-diam — lebih baik node error & retry. */
+    private function guardTruncation(bool $truncated, string $out): void
+    {
+        if ($truncated) {
+            throw new \RuntimeException(sprintf(
+                'Output LLM terpotong di batas max_tokens (%d) — naikkan SPEKTA_LLM_MAX_TOKENS. Akhir output: …%s',
+                (int) config('spekta.llm.max_tokens', 16000),
+                mb_substr($out, -120)
+            ));
+        }
     }
 
     /** Baca respons SSE → generator array JSON per event `data:`. */
-    private function sse(\Illuminate\Http\Client\PendingRequest $pending, string $url, array $payload): \Generator
+    private function sse(PendingRequest $pending, string $url, array $payload): \Generator
     {
         $body = $pending->withOptions(['stream' => true])->post($url, $payload)->throw()->toPsrResponse()->getBody();
 
@@ -580,7 +716,7 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
             return $this->stubWireframes($structure);
         }
 
-        $md = "# $docKey: {$project->name}\n\n> Digenerate oleh Spekta · ".now()->format('d M Y')." · klien: ".($project->client_name ?? '-')."\n\n";
+        $md = "# $docKey: {$project->name}\n\n> Digenerate oleh Spekta · ".now()->format('d M Y').' · klien: '.($project->client_name ?? '-')."\n\n";
 
         if ($docKey === 'PRD') {
             $md .= "## Visi Produk\n\n{$u?->domain} untuk ".($project->client_name ?? 'klien').".\n\n## User Roles\n\n";

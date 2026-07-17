@@ -287,9 +287,29 @@ export default function ProjectPage({
                             </svg>
                         </button>
                     </h1>
-                    <div className="mt-1 text-[13px] font-medium text-gray-500">
-                        Klien: {project.client_name ?? '—'} · {documents.length} dokumen ·{' '}
-                        <span className="font-mono font-semibold">v{doc?.version_no ?? 1}</span>
+                    <div className="group/client mt-1 flex items-center gap-1.5 text-[13px] font-medium text-gray-500">
+                        <span>
+                            Klien: {project.client_name ?? '—'} · {documents.length} dokumen ·{' '}
+                            <span className="font-mono font-semibold">v{doc?.version_no ?? 1}</span>
+                        </span>
+                        <button
+                            type="button"
+                            title="Ubah nama klien"
+                            className="text-gray-300 opacity-0 transition group-hover/client:opacity-100 hover:text-teal-700"
+                            onClick={async () => {
+                                const client = await promptDialog('Nama klien (kosongkan untuk hapus):', project.client_name ?? '');
+                                if (client !== null && client.trim() !== (project.client_name ?? ''))
+                                    router.patch(
+                                        route('projects.update', project.id),
+                                        { name: project.name, client_name: client.trim() || null },
+                                        { preserveScroll: true },
+                                    );
+                            }}
+                        >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5">
