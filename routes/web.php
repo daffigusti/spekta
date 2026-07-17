@@ -47,6 +47,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('projects/{project}/run-status', [WizardController::class, 'runStatus'])->name('projects.run-status');
 
     // Dokumen (FR-08)
+    Route::get('projects/{project}/documents/{docKey}', [DocumentController::class, 'showByKey'])->name('projects.documents.show');
     Route::post('documents/{document}/versions', [DocumentController::class, 'storeVersion'])->name('documents.versions.store');
     Route::get('documents/{document}/versions/{versionNo}', [DocumentController::class, 'showVersion'])->name('documents.versions.show');
     Route::post('documents/{document}/versions/{versionNo}/restore', [DocumentController::class, 'restoreVersion'])->name('documents.versions.restore');

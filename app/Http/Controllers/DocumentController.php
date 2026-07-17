@@ -7,6 +7,18 @@ use Illuminate\Http\Request;
 
 class DocumentController extends Controller
 {
+    // Baca dokumen selesai saat run masih jalan (wizard step generate)
+    public function showByKey(Request $request, \App\Models\Project $project, string $docKey)
+    {
+        ProjectController::authorizeProject($request, $project);
+        $document = $project->documents()->where('doc_key', $docKey)->firstOrFail();
+
+        return response()->json([
+            'doc_key' => $docKey,
+            'content_md' => $document->currentVersion?->content_md ?? '',
+        ]);
+    }
+
     // FR-08: edit manual → versi baru dengan atribusi
     public function storeVersion(Request $request, Document $document)
     {

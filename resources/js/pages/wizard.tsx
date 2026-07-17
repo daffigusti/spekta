@@ -1394,6 +1394,18 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
         return () => clearInterval(t);
     }, [running]);
 
+    // Baca dokumen selesai sambil nunggu sisanya — fetch on demand, cache per doc_key
+    const [readDoc, setReadDoc] = useState<{ key: string; md: string | null } | null>(null);
+    const docCache = useRef<Record<string, string>>({});
+    const openDoc = async (key: string) => {
+        setReadDoc({ key, md: docCache.current[key] ?? null });
+        if (docCache.current[key] !== undefined) return;
+        const r = await fetch(route('projects.documents.show', [project.id, key]), { headers: { Accept: 'application/json' } });
+        const md = ((await r.json()) as { content_md: string }).content_md;
+        docCache.current[key] = md;
+        setReadDoc((cur) => (cur?.key === key ? { key, md } : cur));
+    };
+
     // Deteksi worker mati: run "running" tapi stream & progress node diam >90 dtk
     const [stale, setStale] = useState(false);
     const staleDone = run?.nodes.filter((n) => n.status === 'done').length ?? 0;
@@ -1440,11 +1452,13 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                     {run?.nodes.map((n) => (
                         <div
                             key={n.doc_key}
+                            onClick={n.status === 'done' ? () => openDoc(n.doc_key) : undefined}
+                            title={n.status === 'done' ? 'Klik untuk baca' : undefined}
                             className={`flex items-center gap-2 rounded-[7px] px-2 py-[5px] text-[12.5px] ${
                                 n.status === 'running'
                                     ? 'bg-teal-50 font-bold text-teal-900'
                                     : n.status === 'done'
-                                      ? 'font-semibold text-gray-700'
+                                      ? 'cursor-pointer font-semibold text-gray-700 hover:bg-gray-100'
                                       : n.status === 'error'
                                         ? 'font-semibold text-red-600'
                                         : 'font-medium text-gray-400'
@@ -1594,6 +1608,35 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                     </div>
                 )}
             </div>
+
+            {/* Modal baca dokumen selesai — run tetap jalan di background */}
+            {readDoc && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" onClick={() => setReadDoc(null)}>
+                    <div
+                        className="flex max-h-[85vh] w-full max-w-[860px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5">
+                            <div className="font-mono text-sm font-bold text-teal-700">{readDoc.key}.md</div>
+                            <button className="rounded-md px-2 py-1 text-lg leading-none text-gray-400 hover:bg-gray-100" onClick={() => setReadDoc(null)}>
+                                ×
+                            </button>
+                        </div>
+                        <div className="overflow-auto p-6">
+                            {readDoc.md === null ? (
+                                <div className="flex justify-center py-10">
+                                    <Spinner />
+                                </div>
+                            ) : (
+                                <MarkdownPreview
+                                    html={DOMPurify.sanitize(marked.parse(readDoc.md) as string)}
+                                    className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none"
+                                />
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
