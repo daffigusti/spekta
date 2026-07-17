@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { promptDialog } from '@/components/system-dialog';
+import { promptDialog, selectDialog } from '@/components/system-dialog';
 import SpektaLayout from '@/layouts/spekta-layout';
 
 export type Node = {
@@ -1085,6 +1085,15 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
 }
 
 // ---------- STEP 5: STACK ----------
+const STACK_OPTIONS: Record<string, string[]> = {
+    auth: ['NextAuth.js (Auth.js)', 'Laravel Sanctum', 'Session + OAuth Google', 'Auth0', 'Clerk', 'Custom JWT'],
+    backend: ['Laravel', 'Next.js API Routes + Prisma', 'Express + Prisma', 'NestJS', 'Django', 'Go (Fiber/Echo)'],
+    database: ['PostgreSQL', 'MySQL', 'SQLite', 'MongoDB'],
+    deploy: ['Vercel', 'VPS + Docker Compose', 'Railway/Fly.io', 'AWS (ECS/Fargate)', 'Supabase/Neon managed'],
+    frontend: ['React + Inertia', 'Next.js + Tailwind', 'Vue + Inertia', 'Nuxt', 'SvelteKit'],
+    payment: ['Midtrans', 'Xendit', 'Midtrans + Xendit', 'Stripe'],
+};
+
 export function StepStack({ project, stack, understanding }: Pick<Props, 'project' | 'stack' | 'understanding'>) {
     const arch = stack.find((s) => s.layer === 'backend');
     const alternatives = stack.flatMap((s) => s.alternatives ?? []);
@@ -1135,7 +1144,10 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
                                     <button
                                         className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-[5px] text-xs font-bold text-gray-700 hover:bg-gray-100"
                                         onClick={async () => {
-                                            const choice = await promptDialog(`Override ${s.layer}:`, s.choice);
+                                            const options = [
+                                                ...new Set([s.choice, ...(s.alternatives ?? []).map((a) => a.choice), ...(STACK_OPTIONS[s.layer] ?? [])]),
+                                            ];
+                                            const choice = await selectDialog(`Override ${s.layer}:`, options, s.choice);
                                             if (choice && choice !== s.choice)
                                                 router.patch(route('wizard.stack.update', [project.id, s.layer]), { choice }, { preserveScroll: true });
                                         }}
@@ -1186,9 +1198,34 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
     const currentNode = run?.nodes.find((n) => n.status === 'running') ?? run?.nodes.find((n) => n.status === 'queued');
     const streamRef = useRef<HTMLDivElement>(null);
     const isWireframe = stream?.doc_key === 'WIREFRAMES';
+
+    // Typewriter: poll datang per ~1 dtk dalam gumpalan — reveal per karakter via rAF biar terasa live
+    const [shown, setShown] = useState('');
+    const targetRef = useRef('');
+    useEffect(() => {
+        targetRef.current = stream?.text ?? '';
+    }, [stream?.text]);
+    useEffect(() => setShown(''), [stream?.doc_key]);
+    useEffect(() => {
+        if (!running || isWireframe) return;
+        let raf = 0;
+        const tick = () => {
+            setShown((s) => {
+                const t = targetRef.current;
+                if (!t.startsWith(s)) return t;
+                if (s.length >= t.length) return s;
+                // ponytail: decay eksponensial ~1.2s habiskan sisa — selaras cadence poll
+                return t.slice(0, s.length + Math.max(2, Math.ceil((t.length - s.length) / 72)));
+            });
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, [running, isWireframe]);
+
     const streamHtml = useMemo(
-        () => (stream?.text && !isWireframe ? DOMPurify.sanitize(marked.parse(stream.text) as string) : ''),
-        [stream?.text, isWireframe],
+        () => (shown && !isWireframe ? DOMPurify.sanitize(marked.parse(shown) as string) : ''),
+        [shown, isWireframe],
     );
     // WIREFRAMES streaming JSON mentah — tampilkan layar yang sudah tergambar, bukan teks JSON
     const wfScreens = useMemo(() => {
@@ -1201,14 +1238,14 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
 
     useEffect(() => {
         if (!running) return;
-        const t = setInterval(() => router.reload({ only: ['run', 'project', 'stream'] }), 1500);
+        const t = setInterval(() => router.reload({ only: ['run', 'project', 'stream'] }), 1000);
         return () => clearInterval(t);
     }, [running]);
 
     // auto-scroll ke bawah saat teks stream bertambah
     useEffect(() => {
         streamRef.current?.scrollTo({ top: streamRef.current.scrollHeight });
-    }, [stream?.text?.length]);
+    }, [shown.length, stream?.text?.length]);
 
     useEffect(() => {
         if (run?.status === 'done') router.visit(route('projects.show', project.id));
