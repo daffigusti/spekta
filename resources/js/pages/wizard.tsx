@@ -619,7 +619,8 @@ function StepUnderstanding({ project, understanding }: Pick<Props, 'project' | '
     });
 
     return (
-        <div className="mx-auto max-w-[640px]">
+        // ponytail: form step tetap dibatasi 960px — input full width susah dibaca
+        <div className="mx-auto max-w-[960px]">
             {/* nama auto dari AI — koreksi di sini; klien opsional */}
             <div className="mb-4 grid gap-3 rounded-xl border border-gray-200 bg-white p-[18px] sm:grid-cols-2">
                 <div>
@@ -1599,7 +1600,7 @@ export default function Wizard(props: Props) {
     return (
         <SpektaLayout crumb={props.project.name} active="projects">
             <Head title={`${props.project.name} — Wizard`} />
-            <div className={step === 'input' ? 'w-full' : 'mx-auto max-w-[1080px]'}>
+            <div className="w-full">
                 <Stepper current={step} />
                 {step === 'input' && <StepInput project={props.project} input={props.input} />}
                 {step === 'understanding' && <StepUnderstanding project={props.project} understanding={props.understanding} />}
