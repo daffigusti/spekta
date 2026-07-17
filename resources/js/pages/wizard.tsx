@@ -1573,6 +1573,11 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                                 <polyline points="12 6 12 12 16 14" />
                             </svg>
                             Berjalan di background — aman meninggalkan halaman ini.
+                            {shown && !isWireframe && (
+                                <span className="ml-auto font-mono text-[11px] text-gray-400">
+                                    {shown.split('\n').length} baris · {(shown.length / 1000).toFixed(1)}k karakter
+                                </span>
+                            )}
                         </div>
                     </>
                 )}
