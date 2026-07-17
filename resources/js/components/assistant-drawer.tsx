@@ -84,8 +84,9 @@ export default function AssistantDrawer({
     const lastMsg = messages[messages.length - 1];
     const busy = chatSending || stream != null || lastMsg?.role === 'user';
 
-    // Typewriter: poll datang per ~1.2 dtk dalam gumpalan — reveal per karakter via rAF biar terasa live
-    const [shown, setShown] = useState('');
+    // Typewriter: poll datang per ~1.2 dtk dalam gumpalan — reveal per karakter biar terasa live.
+    // Init dengan stream saat mount: refresh/reopen lanjut dari posisi sekarang, bukan replay dari awal
+    const [shown, setShown] = useState(stream ?? '');
     const targetRef = useRef('');
     useEffect(() => {
         targetRef.current = stream ?? '';

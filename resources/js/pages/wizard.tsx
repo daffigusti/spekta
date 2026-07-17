@@ -1347,13 +1347,19 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
     const streamRef = useRef<HTMLDivElement>(null);
     const isWireframe = stream?.doc_key === 'WIREFRAMES';
 
-    // Typewriter: poll datang per ~1 dtk dalam gumpalan — reveal per karakter via rAF biar terasa live
-    const [shown, setShown] = useState('');
+    // Typewriter: poll datang per ~1 dtk dalam gumpalan — reveal per karakter biar terasa live.
+    // Init dengan teks stream saat mount: refresh halaman lanjut dari posisi sekarang, bukan replay dari awal
+    const [shown, setShown] = useState(stream?.text ?? '');
     const targetRef = useRef('');
     useEffect(() => {
         targetRef.current = stream?.text ?? '';
     }, [stream?.text]);
-    useEffect(() => setShown(''), [stream?.doc_key]);
+    // Reset hanya saat GANTI dokumen — bukan saat mount (biar refresh tidak replay)
+    const prevDocKey = useRef(stream?.doc_key);
+    useEffect(() => {
+        if (prevDocKey.current !== stream?.doc_key) setShown('');
+        prevDocKey.current = stream?.doc_key;
+    }, [stream?.doc_key]);
     useEffect(() => {
         if (!running || isWireframe) return;
         // Tick 90ms bukan rAF: tiap tick = parse markdown + replace innerHTML seluruh teks — di 60fps dokumen panjang bikin berat
