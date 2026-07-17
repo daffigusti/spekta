@@ -67,6 +67,30 @@ export default function AssistantDrawer({
     const lastMsg = messages[messages.length - 1];
     const busy = chatSending || stream != null || lastMsg?.role === 'user';
 
+    // Typewriter: poll datang per ~1.2 dtk dalam gumpalan — reveal per karakter via rAF biar terasa live
+    const [shown, setShown] = useState('');
+    const targetRef = useRef('');
+    useEffect(() => {
+        targetRef.current = stream ?? '';
+        if (stream == null) setShown('');
+    }, [stream]);
+    useEffect(() => {
+        if (stream == null || !open) return;
+        let raf = 0;
+        const tick = () => {
+            setShown((s) => {
+                const t = targetRef.current;
+                if (!t.startsWith(s)) return t;
+                if (s.length >= t.length) return s;
+                // ponytail: decay eksponensial ~1.2s habiskan sisa — selaras cadence poll
+                return t.slice(0, s.length + Math.max(2, Math.ceil((t.length - s.length) / 72)));
+            });
+            raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(raf);
+    }, [stream == null, open]);
+
     const close = () => {
         setClosing(true);
         setTimeout(() => {
@@ -100,7 +124,7 @@ export default function AssistantDrawer({
     // auto-scroll chat ke bawah saat ada pesan/stream baru
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ block: 'nearest' });
-    }, [messages.length, stream, busy]);
+    }, [messages.length, shown.length, busy]);
 
     if (!open) return null;
 
@@ -196,8 +220,8 @@ export default function AssistantDrawer({
                     {busy &&
                         stream &&
                         (() => {
-                            const cut = stream.indexOf('<<<DOC');
-                            const streamText = cut === -1 ? stream : stream.slice(0, cut);
+                            const cut = shown.indexOf('<<<DOC');
+                            const streamText = cut === -1 ? shown : shown.slice(0, cut);
                             return (
                                 <div className="rounded-xl border border-teal-200 bg-white px-3.5 py-3">
                                     <div
