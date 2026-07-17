@@ -151,10 +151,10 @@ function healthColor(h: number | null) {
     return '#DC2626';
 }
 
-function FindingRow({ f }: { f: Finding }) {
+function FindingRow({ f, onFix }: { f: Finding; onFix?: () => void }) {
     const color = f.severity === 'critical' ? '#B91C1C' : f.severity === 'warning' ? '#B45309' : '#4B5563';
     return (
-        <div className="flex items-start gap-1.5 text-[11.5px] font-semibold" style={{ color }} title={f.suggestion ?? ''}>
+        <div className="group/finding flex items-start gap-1.5 text-[11.5px] font-semibold" style={{ color }} title={f.suggestion ?? ''}>
             {f.severity === 'critical' ? (
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="mt-px flex-none">
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -175,6 +175,15 @@ function FindingRow({ f }: { f: Finding }) {
             )}
             <span className="min-w-0">
                 {f.location && <span className="font-mono">{f.location}</span>} {f.message}
+                {onFix && (
+                    <button
+                        type="button"
+                        className="ml-1.5 inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-1.5 py-px text-[10.5px] font-bold text-teal-700 opacity-0 transition group-hover/finding:opacity-100 hover:bg-teal-100"
+                        onClick={onFix}
+                    >
+                        ✦ Fix di chat
+                    </button>
+                )}
             </span>
         </div>
     );
@@ -197,6 +206,7 @@ export default function ProjectPage({
     const [mode, setMode] = useState<'preview' | 'raw' | 'edit' | 'diff'>('preview');
     const [draft, setDraft] = useState('');
     const [chatOpen, setChatOpen] = useState(false);
+    const [chatPrefill, setChatPrefill] = useState<string | null>(null);
     // modal pilih dokumen lanjutan — default tidak ada yang tercentang
     const [genModal, setGenModal] = useState(false);
     const [genSel, setGenSel] = useState<Set<string>>(new Set());
@@ -796,7 +806,19 @@ export default function ProjectPage({
                                 </div>
                             )}
                             {findings.map((f) => (
-                                <FindingRow key={f.id} f={f} />
+                                <FindingRow
+                                    key={f.id}
+                                    f={f}
+                                    onFix={() => {
+                                        // Sebut nama dokumen di pesan → isinya ikut masuk konteks AI
+                                        const docName = f.location?.split(' / ')[0] ?? activeKey;
+                                        setChatPrefill(
+                                            `Perbaiki temuan spec health di ${docName}.md: ${f.message}.` +
+                                                (f.suggestion ? ` ${f.suggestion}` : ''),
+                                        );
+                                        setChatOpen(true);
+                                    }}
+                                />
                             ))}
                         </div>
 
@@ -859,7 +881,11 @@ export default function ProjectPage({
             {/* drawer chat asisten dari kanan */}
             <AssistantDrawer
                 open={chatOpen}
-                onClose={() => setChatOpen(false)}
+                onClose={() => {
+                    setChatOpen(false);
+                    setChatPrefill(null);
+                }}
+                initialMessage={chatPrefill}
                 projectId={project.id}
                 projectName={project.name}
                 contextLabel={`${activeKey}.md`}

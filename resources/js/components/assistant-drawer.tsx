@@ -39,6 +39,8 @@ type Props = {
     reloadOnApply?: string[];
     placeholder?: string;
     emptyHint?: string;
+    /** prefill input saat drawer dibuka (mis. tombol "Fix di chat" pada temuan spec health) */
+    initialMessage?: string | null;
 };
 
 export default function AssistantDrawer({
@@ -56,8 +58,12 @@ export default function AssistantDrawer({
     reloadOnApply = ['documents', 'project', 'findings', 'errors'],
     placeholder = 'Tanya atau minta perubahan… (Enter)',
     emptyHint = 'Tanya apa pun soal spec — mis. "Apa dampak menambah e-wallet OVO ke FR-02?"',
+    initialMessage = null,
 }: Props) {
     const [chat, setChat] = useState('');
+    useEffect(() => {
+        if (open && initialMessage) setChat(initialMessage);
+    }, [open, initialMessage]);
     const [chatSending, setChatSending] = useState(false);
     const [appliedProposals, setAppliedProposals] = useState<Set<string>>(new Set());
     const [applyingKey, setApplyingKey] = useState<string | null>(null);
