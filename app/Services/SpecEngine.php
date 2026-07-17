@@ -279,6 +279,52 @@ Aturan:
 - Label dalam Bahasa Indonesia, istilah teknis Inggris.
 SYS;
 
+    // ---------- FR-09: impact analysis ----------
+
+    /** Dampak permintaan perubahan → dokumen terdampak + delta MD. Konteks outline (bukan isi penuh) — kejar p90 ≤ 20 dtk. */
+    public function impact(Project $project, string $changeText): array
+    {
+        $docs = $project->documents()->with('currentVersion')->get();
+
+        if ($this->driver() === 'stub') {
+            $out = [
+                'summary' => 'Dampak stub untuk: '.$changeText,
+                'delta_md' => 1.5,
+                'affected' => $docs->take(2)->map(fn ($d) => [
+                    'doc_key' => $d->doc_key,
+                    'reason' => 'Terdampak (stub)',
+                ])->values()->all(),
+            ];
+        } else {
+            $outline = $docs->map(function ($d) {
+                preg_match_all('/^#{1,3}\s.*$/m', (string) $d->currentVersion?->content_md, $h);
+
+                return "== {$d->doc_key} ==\n".implode("\n", array_slice($h[0], 0, 40));
+            })->implode("\n\n");
+
+            $out = $this->json('reasoning', <<<'SYS'
+Kamu analis dampak perubahan spesifikasi software. Berdasar outline dokumen proyek dan permintaan perubahan,
+tentukan dokumen mana saja yang harus direvisi. Balas JSON:
+{"summary":"...","delta_md":<float perkiraan delta man-days, boleh negatif>,"affected":[{"doc_key":"...","reason":"..."}]}
+doc_key HARUS dari daftar dokumen yang diberikan. Jangan sertakan dokumen yang tidak perlu berubah.
+SYS, 'DAFTAR DOKUMEN: '.$docs->pluck('doc_key')->implode(', ')
+                ."\n\nSTRUKTUR: ".json_encode($this->structureArray($project), JSON_UNESCAPED_UNICODE)
+                ."\n\nOUTLINE DOKUMEN:\n".$outline
+                ."\n\nPERMINTAAN PERUBAHAN:\n".$changeText);
+        }
+
+        // manual_edit dari kode, bukan LLM (design §1)
+        $byKey = $docs->keyBy('doc_key');
+        $out['affected'] = collect($out['affected'] ?? [])
+            ->filter(fn ($a) => isset($byKey[$a['doc_key'] ?? '']))
+            ->map(fn ($a) => $a + ['manual_edit' => $byKey[$a['doc_key']]->currentVersion?->source === 'user'])
+            ->values()->all();
+        $out['delta_md'] = round((float) ($out['delta_md'] ?? 0), 1);
+        $out['summary'] = (string) ($out['summary'] ?? '');
+
+        return $out;
+    }
+
     // ---------- FR-09 (subset): asisten chat spec ----------
     /** ponytail: tanya-jawab read-only atas spec — impact analysis + apply perubahan = Fase 4. */
     public function chat(Project $project, string $question, ?string $activeDoc = null, ?callable $onDelta = null, ?string $screen = null): string
