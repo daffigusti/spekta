@@ -71,7 +71,8 @@ SYS, $ctx);
 
         $out = $this->json('reasoning', <<<'SYS'
 Susun struktur proyek software: fase → fitur → sub-fitur, dengan estimasi man-days kasar per sub-fitur.
-Balas JSON: {"phases":[{"title":"","features":[{"title":"","description":"","est_md":0,"scope":"mvp|full","subfeatures":[{"title":"","est_md":0}]}]}]}
+Balas JSON: {"phases":[{"title":"","features":[{"title":"","description":"","est_md":0,"scope":"mvp|full","subfeatures":[{"title":"","description":"","est_md":0}]}]}]}
+description = 1-2 kalimat penjelasan lingkup fitur/sub-fitur.
 Maksimal 4 fase. Fitur inti scope "mvp", pelengkap "full". Bahasa Indonesia.
 SYS, $ctx);
 

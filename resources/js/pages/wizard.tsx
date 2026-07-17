@@ -617,6 +617,7 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
     // ---- limit sub-fitur tampil per kartu (estimasi tetap hitung semua) ----
     const SUB_LIMIT = 3;
     const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
+    const [detail, setDetail] = useState<Node | null>(null);
     const visibleSubsOf = (fid: string) => (expandedSubs[fid] ? subsOf(fid) : subsOf(fid).slice(0, SUB_LIMIT));
     const hiddenSubsOf = (fid: string) => Math.max(subsOf(fid).length - SUB_LIMIT, 0);
     const subsOf = (fid: string) => nodes.filter((n) => n.parent_id === fid && n.kind === 'subfeature');
@@ -901,7 +902,13 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
                                     >
                                         {f.scope === 'mvp' ? 'MVP' : 'POST-MVP'}
                                     </button>
-                                    <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold text-gray-800">{f.title}</span>
+                                    <span
+                                        className="min-w-0 flex-1 cursor-pointer truncate text-[12.5px] font-bold text-gray-800 hover:text-teal-700"
+                                        title={f.title + (f.description ? ` — ${f.description}` : '')}
+                                        onClick={() => setDetail(f)}
+                                    >
+                                        {f.title}
+                                    </span>
                                     {subsOf(f.id).length > 0 && (
                                         <button
                                             className="text-gray-400 hover:text-teal-700"
@@ -941,7 +948,12 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
                                     <div className="mt-1.5 flex flex-col gap-1">
                                         <div className="text-[10px] font-bold tracking-[0.08em] text-gray-400">SUB-FITUR</div>
                                         {visibleSubsOf(f.id).map((s) => (
-                                            <span key={s.id} className="truncate rounded-md border border-gray-200 bg-gray-50 px-2 py-[3px] text-[11.5px] font-semibold text-gray-600">
+                                            <span
+                                                key={s.id}
+                                                className="cursor-pointer truncate rounded-md border border-gray-200 bg-gray-50 px-2 py-[3px] text-[11.5px] font-semibold text-gray-600 hover:border-teal-300 hover:bg-teal-50"
+                                                title={s.title + (s.description ? ` — ${s.description}` : '')}
+                                                onClick={() => setDetail(s)}
+                                            >
                                                 {s.title} <span className="font-mono text-gray-400">({Number(s.est_md).toFixed(0)})</span>
                                             </span>
                                         ))}
@@ -1010,6 +1022,42 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
                         </svg>
                     </button>
                 </div>
+
+                {/* popup detail node — klik judul fitur / chip sub-fitur */}
+                {detail && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-gray-900/30" onClick={() => setDetail(null)}>
+                        <div className="w-[min(440px,90%)] rounded-xl border border-gray-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-extrabold tracking-wide text-gray-500 uppercase">
+                                            {detail.kind === 'subfeature' ? 'Sub-fitur' : 'Fitur'}
+                                        </span>
+                                        {detail.kind === 'feature' && (
+                                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold ${detail.scope === 'mvp' ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-700'}`}>
+                                                {detail.scope === 'mvp' ? 'MVP' : 'POST-MVP'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-[15px] leading-snug font-bold text-gray-900">{detail.title}</div>
+                                </div>
+                                <button className="text-gray-300 hover:text-gray-600" onClick={() => setDetail(null)}>✕</button>
+                            </div>
+                            {(() => {
+                                const parent = nodes.find((n) => n.id === detail.parent_id);
+                                const grand = parent && nodes.find((n) => n.id === parent.parent_id);
+                                const path = [grand, parent].filter((n) => n && n.kind !== 'root').map((n) => n!.title);
+                                return path.length > 0 && <div className="mt-1 text-[11.5px] font-medium text-gray-400">{path.join(' › ')}</div>;
+                            })()}
+                            <div className="mt-3 text-[13px] leading-relaxed text-gray-600">
+                                {detail.description || <span className="text-gray-400 italic">Belum ada deskripsi untuk node ini.</span>}
+                            </div>
+                            <div className="mt-3.5 border-t border-gray-100 pt-3 font-mono text-[12px] font-semibold text-teal-700">
+                                est. {Number(detail.est_md).toFixed(0)} MD
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-[18px] py-3.5">

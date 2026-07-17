@@ -207,6 +207,7 @@ class WizardController extends Controller
                         $project->structureNodes()->create([
                             'kind' => 'subfeature', 'parent_id' => $featureNode->id,
                             'title' => is_array($sub) ? $sub['title'] : $sub,
+                            'description' => is_array($sub) ? ($sub['description'] ?? null) : null,
                             'est_md' => is_array($sub) ? ($sub['est_md'] ?? 0) : 0, 'sort' => $si,
                         ]);
                     }
