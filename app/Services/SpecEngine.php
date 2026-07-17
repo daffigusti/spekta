@@ -270,7 +270,7 @@ SYS;
         // merevisi dokumen yang isi lengkapnya ada di konteks (revisi buta = seksi hilang)
         $include = collect([$activeDoc])
             ->merge($docs->pluck('doc_key')->filter(fn ($k) => stripos($question, (string) $k) !== false))
-            ->filter()->unique()->take(3); // ponytail: cap 3 dokumen, hemat token
+            ->filter()->unique()->take(5); // ponytail: cap 5 dokumen (fix-all bisa multi-doc), hemat token
         foreach ($include as $key) {
             if ($d = $docs->firstWhere('doc_key', $key)) {
                 $ctx[] = "=== {$key}.md ===\n".$d->currentVersion?->content_md;

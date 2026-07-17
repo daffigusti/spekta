@@ -822,6 +822,25 @@ export default function ProjectPage({
                             ))}
                         </div>
 
+                        {!okFindings && findings.length > 1 && (
+                            <button
+                                type="button"
+                                className="mt-3 w-full rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-[12px] font-bold text-teal-700 hover:bg-teal-100"
+                                onClick={() => {
+                                    const docs = [...new Set(findings.map((f) => f.location?.split(' / ')[0] ?? activeKey))];
+                                    const list = findings
+                                        .map((f, i) => `${i + 1}. ${f.location?.split(' / ')[0] ?? activeKey}.md — ${f.message}.${f.suggestion ? ` ${f.suggestion}` : ''}`)
+                                        .join('\n');
+                                    setChatPrefill(
+                                        `Perbaiki SEMUA temuan spec health berikut sekaligus (revisi ${docs.map((d) => `${d}.md`).join(', ')}):\n${list}`,
+                                    );
+                                    setChatOpen(true);
+                                }}
+                            >
+                                ✦ Fix semua temuan di chat ({findings.length})
+                            </button>
+                        )}
+
                         {/* FR-09 subset: asisten chat spec — panel drawer kanan */}
                         <div className="mt-3.5 border-t border-gray-200 pt-3.5">
                             <AssistantButton busy={chatBusy} onOpen={() => setChatOpen(true)} />
