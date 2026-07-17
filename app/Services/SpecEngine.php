@@ -137,7 +137,9 @@ SYS, $ctx);
             $md = $this->text($class, <<<SYS
 Kamu technical writer software house Indonesia. Tulis dokumen $docKey.md lengkap dalam markdown untuk proyek berikut.
 Konsisten dengan dokumen upstream yang diberikan (penomoran FR/BR, istilah, entity).
-Gunakan INPUT ASLI USER dan HASIL INTERVIEW sebagai sumber kebenaran detail — jangan mengarang kebutuhan yang tidak disebut.
+Gunakan INPUT ASLI USER dan HASIL INTERVIEW sebagai sumber kebenaran detail.
+Boleh menambah kebutuhan yang wajar untuk domain ini, tapi WAJIB tandai "(asumsi)" di tempatnya DAN catat di section Assumptions —
+jangan pernah menampilkan tambahan sebagai fakta dari user.
 $template
 $depthLine
 $langLine Hanya markdown, tanpa pembuka/penutup.

@@ -3,7 +3,8 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { promptDialog, selectDialog } from '@/components/system-dialog';
+import { confirmDialog, promptDialog, selectDialog } from '@/components/system-dialog';
+import { Building2, CalendarCheck, ClipboardList, ShoppingBag, ShoppingCart, type LucideIcon } from 'lucide-react';
 import SpektaLayout from '@/layouts/spekta-layout';
 
 export type Node = {
@@ -157,6 +158,35 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
         { v: 'transcript', l: 'Transkrip / Notulen Meeting', ph: 'Tempel transkrip meeting di sini, atau tarik file rekaman/notulen ke area di bawah…' },
         { v: 'rfp', l: 'Dokumen RFP / Brief', ph: 'Tempel isi dokumen RFP / brief klien di sini…' },
     ];
+
+    // Starter ide — user klik lalu ganti bagian [dalam kurung] dengan konteks kliennya
+    const IDEA_TEMPLATES: { l: string; text: string }[] = [
+        {
+            l: '🛒 Kasir / POS',
+            text: 'Klien saya butuh aplikasi kasir untuk [jenis usaha, mis. toko retail] dengan [jumlah] cabang. Fitur utama: pencatatan transaksi penjualan, pembayaran [QRIS / tunai / kartu], manajemen stok, dan laporan penjualan [harian / bulanan]. Pengguna: [kasir, pemilik toko]. Kebutuhan lain: [integrasi printer struk, prediksi stok, dsb].',
+        },
+        {
+            l: '🛍️ Toko Online',
+            text: 'Klien ingin toko online untuk menjual [jenis produk]. Fitur: katalog produk, keranjang, checkout dengan pembayaran [QRIS / VA / COD], pelacakan pesanan, dan panel admin untuk kelola produk & pesanan. Target pasar [B2C / B2B], perkiraan [jumlah] produk. Kebutuhan lain: [integrasi ekspedisi, voucher / promo].',
+        },
+        {
+            l: '📅 Booking / Reservasi',
+            text: 'Klien butuh sistem booking online untuk [jenis layanan, mis. lapangan futsal / klinik / salon]. Pelanggan bisa lihat jadwal ketersediaan, booking slot, dan bayar [DP / lunas] via [payment gateway]. Admin mengelola jadwal, konfirmasi booking, dan laporan. Kebutuhan lain: [reminder WhatsApp, kalender staf].',
+        },
+        {
+            l: '🏢 Company Profile + CMS',
+            text: 'Klien butuh website company profile untuk [jenis perusahaan] dengan CMS agar tim bisa update konten sendiri. Halaman: beranda, tentang kami, layanan / produk, portofolio, blog / berita, dan kontak dengan form. Kebutuhan lain: [multi-bahasa, SEO, tombol WhatsApp].',
+        },
+        {
+            l: '📋 Sistem Internal',
+            text: 'Klien butuh sistem internal untuk mengelola [proses, mis. inventori / absensi & cuti / proyek]. Role: [admin, staf, manajer]. Alur utama: [input data → approval → laporan]. Fitur: dashboard ringkasan, notifikasi, dan export laporan [Excel / PDF]. Kebutuhan lain: [integrasi sistem yang sudah ada].',
+        },
+    ];
+
+    const applyTemplate = async (text: string) => {
+        if (data.raw_text.trim() && !(await confirmDialog('Ganti isi yang sudah diketik dengan template ini?'))) return;
+        setData('raw_text', text);
+    };
     const chip = (active: boolean) =>
         `rounded-full border px-3 py-1.5 text-[12px] font-bold ${active ? 'border-teal-600 bg-teal-50 text-teal-800' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`;
 
@@ -188,6 +218,17 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                         onChange={(e) => setData('raw_text', e.target.value)}
                     />
                     {errors.raw_text && <div className="mt-1 text-xs text-red-600">{errors.raw_text}</div>}
+
+                    {data.kind === 'idea' && (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                            <span className="text-[12px] font-semibold text-gray-400">Bingung mulai? Klik template lalu isi bagian [kurung]:</span>
+                            {IDEA_TEMPLATES.map((t) => (
+                                <button key={t.l} type="button" onClick={() => void applyTemplate(t.text)} className={chip(false)} title={t.text}>
+                                    {t.l}
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {/* FR-01: upload .txt/.md/.docx/.pdf — teks diekstrak lalu digabung dengan textarea */}
                     <input
@@ -1419,6 +1460,36 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
 
 export default function Wizard(props: Props) {
     const step = props.project.wizard_step;
+
+    // Draft kosong (step 1, belum ada input tersimpan): saat keluar, tawarkan hapus draft
+    const emptyDraft = step === 'input' && !props.input?.raw_text;
+    useEffect(() => {
+        if (!emptyDraft) return;
+        let bypass = false;
+        const off = router.on('before', (e) => {
+            const v = e.detail.visit;
+            // POST wizard.input = user lanjut wizard; visit ulang setelah dialog = bypass
+            if (bypass || v.method !== 'get' || v.url.pathname.includes(`/projects/${props.project.id}`)) return;
+            e.preventDefault();
+            (async () => {
+                bypass = true;
+                if (await confirmDialog('Draft proyek masih kosong. Hapus draft ini?\n\nBatal = draft tetap tersimpan.')) {
+                    router.delete(route('projects.destroy', props.project.id));
+                } else {
+                    router.visit(v.url.href);
+                }
+                bypass = false;
+            })();
+            return false;
+        });
+        // close/refresh tab: hanya bisa prompt native browser
+        const unload = (e: BeforeUnloadEvent) => e.preventDefault();
+        window.addEventListener('beforeunload', unload);
+        return () => {
+            off();
+            window.removeEventListener('beforeunload', unload);
+        };
+    }, [emptyDraft, props.project.id]);
 
     return (
         <SpektaLayout crumb={props.project.name} active="projects">
