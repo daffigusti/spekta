@@ -17,13 +17,17 @@ class GenerationPipeline
     public function start(Project $project): GenerationRun
     {
         $complexity = $project->understanding?->complexity ?? 3;
-        // Kedalaman dari pengaturan blueprint menimpa pilihan otomatis berbasis kompleksitas
+        // Set dokumen template perusahaan jadi default saat depth 'auto';
+        // kedalaman eksplisit (concise/full) tetap menimpa template & kompleksitas.
+        $tplKinds = $project->docTemplate?->doc_kinds;
         $docKeys = match ($project->blueprint['depth'] ?? 'auto') {
             'concise' => config('spekta.doc_sets.1'),
             'full' => config('spekta.doc_sets.3'),
-            default => config('spekta.doc_sets.'.$complexity),
+            default => $tplKinds ?: config('spekta.doc_sets.'.$complexity),
         };
         $graph = config('spekta.doc_pipeline');
+        // Buang doc key basi (mis. template menyimpan kind yang sudah tak ada di pipeline)
+        $docKeys = array_values(array_intersect($docKeys, array_keys($graph)));
 
         $run = $project->generationRuns()->create(['trigger' => 'full', 'status' => 'queued']);
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class ProjectController extends Controller
@@ -12,9 +13,11 @@ class ProjectController extends Controller
     {
         $workspace = $request->user()->currentWorkspace();
 
+        // FR-16: proyek baru mengikuti template perusahaan default
         $project = $workspace->projects()->create([
             'name' => 'Proyek '.now()->format('d M H:i'),
             'created_by' => $request->user()->id,
+            'doc_template_id' => $workspace->defaultDocTemplate()->id,
         ]);
 
         return to_route('projects.wizard', $project);
@@ -29,19 +32,19 @@ class ProjectController extends Controller
         // WIREFRAMES content JSON — tampil di canvas /wireframes, bukan daftar dokumen markdown
         $documents = $project->documents()->with('currentVersion')->where('doc_key', '!=', 'WIREFRAMES')->get()
             ->sortBy(fn ($d) => $order[$d->doc_key] ?? 99)->values()->map(fn ($d, $i) => [
-            'id' => $d->id,
-            'seq' => $i + 1,
-            'doc_key' => $d->doc_key,
-            'title' => $d->title,
-            'status' => $d->status,
-            'version_no' => $d->currentVersion?->version_no,
-            'content_md' => $d->currentVersion?->content_md,
-            'generated_meta' => $d->currentVersion?->generated_meta,
-            'versions' => $d->versions()->get(['id', 'version_no', 'source', 'created_at'])->map(fn ($v) => [
-                'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source,
-                'created_at' => $v->created_at->format('d M Y H:i'),
-            ]),
-        ]);
+                'id' => $d->id,
+                'seq' => $i + 1,
+                'doc_key' => $d->doc_key,
+                'title' => $d->title,
+                'status' => $d->status,
+                'version_no' => $d->currentVersion?->version_no,
+                'content_md' => $d->currentVersion?->content_md,
+                'generated_meta' => $d->currentVersion?->generated_meta,
+                'versions' => $d->versions()->get(['id', 'version_no', 'source', 'created_at'])->map(fn ($v) => [
+                    'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source,
+                    'created_at' => $v->created_at->format('d M Y H:i'),
+                ]),
+            ]);
 
         return Inertia::render('project', [
             'project' => $project->only(['id', 'name', 'client_name', 'status', 'health_score', 'scope_mode', 'complexity']),
@@ -60,7 +63,7 @@ class ProjectController extends Controller
             ]),
             'assistant_messages' => $project->assistantMessages()->latest()->limit(30)->get()->reverse()->values()
                 ->map(fn ($m) => ['id' => $m->id, 'role' => $m->role, 'body' => $m->body]),
-            'chat_stream' => \Illuminate\Support\Facades\Cache::get('chatstream:'.$project->id),
+            'chat_stream' => Cache::get('chatstream:'.$project->id),
             'chat_quota' => $project->workspace->chatQuota(),
             'change_requests' => $project->changeRequests()->orderByDesc('number')->get()->map(fn ($cr) => [
                 'id' => $cr->id,
@@ -104,7 +107,7 @@ class ProjectController extends Controller
             'run' => $project->generationRuns()->with('nodes')->latest()->first(),
             'assistant_messages' => $project->assistantMessages()->latest()->limit(30)->get()->reverse()->values()
                 ->map(fn ($m) => ['id' => $m->id, 'role' => $m->role, 'body' => $m->body]),
-            'chat_stream' => \Illuminate\Support\Facades\Cache::get('chatstream:'.$project->id),
+            'chat_stream' => Cache::get('chatstream:'.$project->id),
             'chat_quota' => $project->workspace->chatQuota(),
         ]);
     }

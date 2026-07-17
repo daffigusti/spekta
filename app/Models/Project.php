@@ -19,6 +19,11 @@ class Project extends Model
         return $this->belongsTo(Workspace::class);
     }
 
+    public function docTemplate()
+    {
+        return $this->belongsTo(DocTemplate::class);
+    }
+
     public function inputs()
     {
         return $this->hasMany(ProjectInput::class);

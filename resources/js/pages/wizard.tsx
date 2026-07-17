@@ -371,7 +371,7 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                             {[
                                 { v: 'concise', l: 'Ringkas (5 docs)' },
                                 { v: 'auto', l: 'Otomatis' },
-                                { v: 'full', l: 'Lengkap (12 docs)' },
+                                { v: 'full', l: 'Lengkap (13 docs)' },
                             ].map((o) => (
                                 <button key={o.v} type="button" className={chip(data.depth === o.v)} onClick={() => setData('depth', o.v)}>
                                     {o.l}
@@ -389,13 +389,13 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                             {data.depth === 'auto' && (
                                 <>
                                     <b className="text-gray-700">Otomatis</b> — AI menilai kompleksitas proyek (1–5) dari input Anda, lalu memilih
-                                    set dokumen: sederhana 5 docs, menengah 7 docs (+ Database, API), kompleks 12 docs lengkap.
+                                    set dokumen: sederhana 5 docs, menengah 7 docs (+ Database, API), kompleks 13 docs lengkap.
                                 </>
                             )}
                             {data.depth === 'full' && (
                                 <>
-                                    <b className="text-gray-700">Lengkap</b> — 12 dokumen: PRD, Requirements, User Flows, Wireframes, Business
-                                    Rules, Database, API, Architecture, Features, Testing, Design, Roadmap. Untuk spek siap-development.
+                                    <b className="text-gray-700">Lengkap</b> — 13 dokumen: PRD, Requirements, User Flows, Wireframes, Business
+                                    Rules, Database, API, Architecture, Security, Features, Testing, Design, Roadmap. Untuk spek siap-development.
                                 </>
                             )}{' '}
                             Dokumen yang belum digenerate bisa ditambah kapan saja lewat "Generate dokumen lanjutan" di halaman proyek.

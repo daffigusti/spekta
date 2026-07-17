@@ -1,263 +1,316 @@
-import { Head, router, useForm } from '@inertiajs/react';
-import { useRef, useState } from 'react';
+import { Head, router } from '@inertiajs/react';
+import { useState } from 'react';
 
 import SpektaLayout from '@/layouts/spekta-layout';
 
-type TemplateKind = 'proposal' | 'document' | 'portal';
-type Cfg = Record<string, string | number | boolean | null>;
-
 type TemplateData = {
     id: string;
-    kind: TemplateKind;
-    config: Cfg;
-    file_url: string | null;
+    name: string;
+    is_default: boolean;
+    doc_kinds: string[];
+    language: string;
+    tone: string;
+    config: { white_label?: boolean };
+    projects_count: number;
+    updated_at: string | null;
 };
 
-type FieldDef =
-    | { key: string; type: 'color'; label: string }
-    | { key: string; type: 'text'; label: string; placeholder?: string }
-    | { key: string; type: 'bool'; label: string }
-    | { key: string; type: 'select'; label: string; options: { value: string; label: string }[] };
+const LANG_LABEL: Record<string, string> = { id: 'Indonesia (ID)', en: 'English (EN)' };
+const TONE_LABEL: Record<string, string> = { formal: 'Formal', formal_rfc: 'Formal — RFC style', casual: 'Santai' };
+const proposalLabel = (whiteLabel?: boolean) => (whiteLabel ? 'White-label + logo' : 'Standar');
 
-// ponytail: skema field per kind display-only; kind & key tetap divalidasi server
-const CARD_META: Record<TemplateKind, { title: string; desc: string; fields: FieldDef[] }> = {
-    proposal: {
-        title: 'Proposal',
-        desc: 'Format proposal & RAB — warna, halaman sampul, footer.',
-        fields: [
-            { key: 'primary_color', type: 'color', label: 'Warna utama' },
-            { key: 'accent_color', type: 'color', label: 'Warna aksen' },
-            {
-                key: 'page_format',
-                type: 'select',
-                label: 'Format halaman',
-                options: [
-                    { value: 'A4', label: 'A4' },
-                    { value: 'Letter', label: 'Letter' },
-                ],
-            },
-            { key: 'footer_text', type: 'text', label: 'Teks footer', placeholder: 'mis. Rahasia — PT Contoh' },
-            { key: 'show_cover', type: 'bool', label: 'Tampilkan halaman sampul' },
-        ],
-    },
-    document: {
-        title: 'Dokumen',
-        desc: 'Dokumen spesifikasi — penomoran heading & daftar isi.',
-        fields: [
-            { key: 'heading_numbering', type: 'bool', label: 'Penomoran heading otomatis' },
-            { key: 'include_toc', type: 'bool', label: 'Sertakan daftar isi' },
-            {
-                key: 'language',
-                type: 'select',
-                label: 'Bahasa dokumen',
-                options: [
-                    { value: 'id', label: 'Indonesia' },
-                    { value: 'en', label: 'English' },
-                ],
-            },
-        ],
-    },
-    portal: {
-        title: 'Portal Klien',
-        desc: 'Tema portal & teks sambutan yang dilihat klien.',
-        fields: [
-            { key: 'theme_color', type: 'color', label: 'Warna tema' },
-            { key: 'welcome_text', type: 'text', label: 'Teks sambutan', placeholder: 'mis. Selamat datang di portal proyek Anda' },
-        ],
-    },
-};
+function formatDate(iso: string | null): string {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 const inputCls =
-    'w-full rounded-[10px] border-2 border-gray-200 bg-gray-50 px-[11px] py-[7px] text-[13px] font-semibold text-gray-700 focus:border-teal-400 focus:bg-white focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60';
+    'w-full rounded-[10px] border-2 border-gray-200 bg-gray-50 px-[11px] py-[9px] text-[13px] font-semibold text-gray-700 focus:border-teal-400 focus:bg-white focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none';
 
-function TemplateCard({ template, canManage }: { template: TemplateData; canManage: boolean }) {
-    const meta = CARD_META[template.kind];
-    const [config, setConfig] = useState<Cfg>(template.config ?? {});
-    const [processing, setProcessing] = useState(false);
-    const [saved, setSaved] = useState(false);
+// Micro-label abu-abu di atas grup field / chip
+const microLabel = 'text-[11px] font-bold tracking-[0.06em] text-gray-400 uppercase';
 
-    const set = (key: string, value: string | boolean | null) => setConfig((c) => ({ ...c, [key]: value }));
+type FormState = {
+    name: string;
+    doc_kinds: string[];
+    language: string;
+    tone: string;
+    white_label: boolean;
+    logo: File | null;
+};
 
-    const save = () => {
-        setProcessing(true);
-        router.post(
-            route('templates.update', template.kind),
-            { config },
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setSaved(true);
-                    window.setTimeout(() => setSaved(false), 2000);
-                },
-                onFinish: () => setProcessing(false),
-            },
-        );
-    };
+const EMPTY_FORM: FormState = { name: '', doc_kinds: [], language: 'id', tone: 'formal', white_label: false, logo: null };
+
+function MiniCol({ label, value }: { label: string; value: string }) {
+    return (
+        <div>
+            <div className="text-[11px] font-medium text-gray-400">{label}</div>
+            <div className="mt-0.5 text-[13px] font-semibold text-gray-700">{value}</div>
+        </div>
+    );
+}
+
+function TemplateCard({
+    template,
+    canManage,
+    onEdit,
+}: {
+    template: TemplateData;
+    canManage: boolean;
+    onEdit: (t: TemplateData) => void;
+}) {
+    const setDefault = () => router.post(route('templates.default', template.id), {}, { preserveScroll: true });
 
     return (
-        <div className="flex flex-col rounded-xl border border-gray-200 bg-white p-[18px]">
-            <div className="text-[15px] font-bold text-gray-800">{meta.title}</div>
-            <div className="mt-1 text-[11.5px] leading-relaxed font-medium text-gray-400">{meta.desc}</div>
+        <div
+            className={`flex flex-col rounded-xl bg-white p-5 ${
+                template.is_default ? 'border-2 border-teal-600' : 'border border-gray-200'
+            }`}
+        >
+            <div className="flex items-start justify-between gap-2">
+                <div className="text-[15px] font-bold text-gray-800">{template.name}</div>
+                {template.is_default && (
+                    <span className="flex-none rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold tracking-[0.04em] text-teal-700">
+                        ● DEFAULT
+                    </span>
+                )}
+            </div>
+            <div className="mt-1 text-[11.5px] font-medium text-gray-400">
+                Dipakai {template.projects_count} proyek · diperbarui {formatDate(template.updated_at)}
+            </div>
 
-            <div className="mt-4 flex flex-1 flex-col gap-3.5">
-                {meta.fields.map((f) => {
-                    if (f.type === 'color') {
-                        const val = (config[f.key] as string) ?? '#0D9488';
-                        return (
-                            <div key={f.key}>
-                                <label className="mb-1 block text-[11px] font-bold tracking-[0.04em] text-gray-500">{f.label}</label>
-                                <div className="flex items-center gap-2">
-                                    <input
-                                        type="color"
-                                        value={val}
-                                        disabled={!canManage}
-                                        onChange={(e) => set(f.key, e.target.value)}
-                                        className="h-9 w-11 flex-none cursor-pointer rounded-lg border-2 border-gray-200 bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={val}
-                                        disabled={!canManage}
-                                        onChange={(e) => set(f.key, e.target.value)}
-                                        className={inputCls}
-                                        style={{ fontFamily: 'ui-monospace,SFMono-Regular,Menlo,monospace' }}
-                                    />
-                                </div>
-                            </div>
-                        );
-                    }
-                    if (f.type === 'text') {
-                        return (
-                            <div key={f.key}>
-                                <label className="mb-1 block text-[11px] font-bold tracking-[0.04em] text-gray-500">{f.label}</label>
-                                <input
-                                    type="text"
-                                    value={(config[f.key] as string) ?? ''}
-                                    placeholder={f.placeholder}
-                                    disabled={!canManage}
-                                    onChange={(e) => set(f.key, e.target.value || null)}
-                                    className={inputCls}
-                                />
-                            </div>
-                        );
-                    }
-                    if (f.type === 'select') {
-                        return (
-                            <div key={f.key}>
-                                <label className="mb-1 block text-[11px] font-bold tracking-[0.04em] text-gray-500">{f.label}</label>
-                                <select
-                                    value={(config[f.key] as string) ?? f.options[0].value}
-                                    disabled={!canManage}
-                                    onChange={(e) => set(f.key, e.target.value)}
-                                    className={inputCls}
-                                >
-                                    {f.options.map((o) => (
-                                        <option key={o.value} value={o.value}>
-                                            {o.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        );
-                    }
-                    // bool
-                    return (
-                        <label key={f.key} className="flex cursor-pointer items-center gap-2.5 text-[13px] font-semibold text-gray-700">
-                            <input
-                                type="checkbox"
-                                checked={Boolean(config[f.key])}
-                                disabled={!canManage}
-                                onChange={(e) => set(f.key, e.target.checked)}
-                                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-400 disabled:cursor-not-allowed disabled:opacity-60"
-                            />
-                            {f.label}
-                        </label>
-                    );
-                })}
+            <div className="mt-4">
+                <div className={microLabel}>Set Dokumen</div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                    {template.doc_kinds.map((k) => (
+                        <span
+                            key={k}
+                            className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-600"
+                        >
+                            {k}
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-gray-100 pt-4">
+                <MiniCol label="Bahasa" value={LANG_LABEL[template.language] ?? template.language} />
+                <MiniCol label="Proposal" value={proposalLabel(template.config?.white_label)} />
+                <MiniCol label="Tone" value={TONE_LABEL[template.tone] ?? template.tone} />
             </div>
 
             {canManage && (
-                <div className="mt-4 flex items-center gap-3 border-t border-gray-100 pt-3.5">
+                <div className="mt-5 flex items-center gap-2.5">
+                    {!template.is_default && (
+                        <button
+                            onClick={setDefault}
+                            className="rounded-[10px] bg-teal-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-teal-700"
+                        >
+                            Jadikan default
+                        </button>
+                    )}
                     <button
-                        onClick={save}
-                        disabled={processing}
-                        className="rounded-[10px] bg-teal-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-teal-700 disabled:opacity-50"
+                        onClick={() => onEdit(template)}
+                        className="rounded-[10px] border-2 border-gray-200 px-4 py-2 text-[13px] font-bold text-gray-600 hover:border-teal-300 hover:text-teal-700"
                     >
-                        Simpan
+                        Edit template
                     </button>
-                    {saved && <span className="text-xs font-bold text-teal-600">Tersimpan ✓</span>}
                 </div>
             )}
         </div>
     );
 }
 
-function BrandingCard({ branding, canManage }: { branding: { logo_url: string | null; name: string }; canManage: boolean }) {
-    const { setData, post, processing, reset, recentlySuccessful } = useForm<{ logo: File | null }>({ logo: null });
-    const [preview, setPreview] = useState<string | null>(null);
-    const fileRef = useRef<HTMLInputElement>(null);
-    const [hasFile, setHasFile] = useState(false);
+function TemplateModal({
+    mode,
+    editing,
+    docKindOptions,
+    onClose,
+}: {
+    mode: 'create' | 'edit';
+    editing: TemplateData | null;
+    docKindOptions: string[];
+    onClose: () => void;
+}) {
+    const [form, setForm] = useState<FormState>(
+        editing
+            ? {
+                  name: editing.name,
+                  doc_kinds: editing.doc_kinds,
+                  language: editing.language,
+                  tone: editing.tone,
+                  white_label: Boolean(editing.config?.white_label),
+                  logo: null,
+              }
+            : EMPTY_FORM,
+    );
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [processing, setProcessing] = useState(false);
 
-    const initials = branding.name
-        .split(' ')
-        .map((w) => w[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase();
+    const toggleKind = (k: string) =>
+        setForm((f) => ({
+            ...f,
+            doc_kinds: f.doc_kinds.includes(k) ? f.doc_kinds.filter((x) => x !== k) : [...f.doc_kinds, k],
+        }));
 
-    const onPick = (file: File | null) => {
-        setData('logo', file);
-        setHasFile(Boolean(file));
-        setPreview(file ? URL.createObjectURL(file) : null);
-    };
+    const canSave = form.name.trim().length > 0 && form.doc_kinds.length > 0 && !processing;
 
-    const upload = () => {
-        post(route('templates.update', 'proposal'), {
-            forceFormData: true,
+    const save = () => {
+        setProcessing(true);
+        const payload: Record<string, unknown> = {
+            name: form.name,
+            doc_kinds: form.doc_kinds,
+            language: form.language,
+            tone: form.tone,
+            config: { white_label: form.white_label },
+        };
+        if (form.logo) payload.logo = form.logo;
+
+        const url = mode === 'edit' && editing ? route('templates.update', editing.id) : route('templates.store');
+        router.post(url, payload, {
             preserveScroll: true,
-            onSuccess: () => {
-                reset('logo');
-                setHasFile(false);
-                if (fileRef.current) fileRef.current.value = '';
-            },
+            forceFormData: Boolean(form.logo),
+            onSuccess: () => onClose(),
+            onError: (e) => setErrors(e as Record<string, string>),
+            onFinish: () => setProcessing(false),
         });
     };
 
-    const shown = preview ?? branding.logo_url;
+    const remove = () => {
+        if (!editing) return;
+        if (!window.confirm(`Hapus template "${editing.name}"?`)) return;
+        router.delete(route('templates.destroy', editing.id), {
+            preserveScroll: true,
+            onSuccess: () => onClose(),
+            onError: (e) => setErrors(e as Record<string, string>),
+        });
+    };
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white p-[18px]">
-            <div className="text-[15px] font-bold text-gray-800">Branding workspace</div>
-            <div className="mt-1 text-[11.5px] leading-relaxed font-medium text-gray-400">Logo dipakai di proposal &amp; portal klien (FR-16).</div>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-10">
+            <div className="w-full max-w-[560px] rounded-2xl bg-white p-6 shadow-xl">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-[18px] font-extrabold tracking-[-0.01em] text-gray-900">
+                        {mode === 'edit' ? 'Edit template' : 'Template baru'}
+                    </h2>
+                    <button onClick={onClose} className="text-lg font-bold text-gray-300 hover:text-gray-500" title="Tutup">
+                        ✕
+                    </button>
+                </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-4">
-                {shown ? (
-                    <img src={shown} alt="Logo" className="h-16 w-16 flex-none rounded-xl border border-gray-200 bg-white object-contain p-1.5" />
-                ) : (
-                    <div className="flex h-16 w-16 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-teal-600 to-teal-400 text-xl font-extrabold text-white">
-                        {initials || 'S'}
-                    </div>
-                )}
+                {errors.template && <div className="mt-3 text-[12px] font-bold text-red-500">{errors.template}</div>}
 
-                {canManage && (
-                    <div className="flex flex-wrap items-center gap-3">
+                <div className="mt-5 flex flex-col gap-5">
+                    <div>
+                        <label className={microLabel}>Nama template</label>
                         <input
-                            ref={fileRef}
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => onPick(e.target.files?.[0] ?? null)}
-                            className="text-[12.5px] font-medium text-gray-600 file:mr-3 file:rounded-[10px] file:border-2 file:border-gray-200 file:bg-gray-50 file:px-3 file:py-1.5 file:text-[12.5px] file:font-bold file:text-gray-600 hover:file:bg-gray-100"
+                            value={form.name}
+                            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                            placeholder="mis. Standar AmanahCorp"
+                            className={`mt-1.5 ${inputCls}`}
                         />
-                        <button
-                            onClick={upload}
-                            disabled={processing || !hasFile}
-                            className="rounded-[10px] bg-teal-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-teal-700 disabled:opacity-50"
-                        >
-                            Simpan logo
-                        </button>
-                        {recentlySuccessful && <span className="text-xs font-bold text-teal-600">Tersimpan ✓</span>}
+                        {errors.name && <div className="mt-1 text-[11.5px] font-bold text-red-500">{errors.name}</div>}
                     </div>
-                )}
+
+                    <div>
+                        <label className={microLabel}>Set Dokumen</label>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                            {docKindOptions.map((k) => {
+                                const on = form.doc_kinds.includes(k);
+                                return (
+                                    <button
+                                        key={k}
+                                        type="button"
+                                        onClick={() => toggleKind(k)}
+                                        className={`rounded border-[1.5px] px-1.5 py-0.5 font-mono text-[11px] font-semibold ${
+                                            on
+                                                ? 'border-teal-600 bg-teal-50 text-teal-800'
+                                                : 'border-gray-200 bg-gray-50 text-gray-400 hover:border-teal-300'
+                                        }`}
+                                    >
+                                        {k}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {form.doc_kinds.length === 0 && (
+                            <div className="mt-1.5 text-[11.5px] font-semibold text-gray-400">Pilih minimal satu dokumen.</div>
+                        )}
+                        {errors.doc_kinds && <div className="mt-1 text-[11.5px] font-bold text-red-500">{errors.doc_kinds}</div>}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className={microLabel}>Bahasa</label>
+                            <select
+                                value={form.language}
+                                onChange={(e) => setForm((f) => ({ ...f, language: e.target.value }))}
+                                className={`mt-1.5 ${inputCls}`}
+                            >
+                                <option value="id">Indonesia (ID)</option>
+                                <option value="en">English (EN)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className={microLabel}>Tone</label>
+                            <select
+                                value={form.tone}
+                                onChange={(e) => setForm((f) => ({ ...f, tone: e.target.value }))}
+                                className={`mt-1.5 ${inputCls}`}
+                            >
+                                <option value="formal">Formal</option>
+                                <option value="formal_rfc">Formal — RFC style</option>
+                                <option value="casual">Santai</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className={microLabel}>Proposal</label>
+                        <label className="mt-2 flex cursor-pointer items-center gap-2.5 text-[13px] font-semibold text-gray-700">
+                            <input
+                                type="checkbox"
+                                checked={form.white_label}
+                                onChange={(e) => setForm((f) => ({ ...f, white_label: e.target.checked }))}
+                                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-400"
+                            />
+                            White-label + logo
+                        </label>
+                        <input
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.webp"
+                            onChange={(e) => setForm((f) => ({ ...f, logo: e.target.files?.[0] ?? null }))}
+                            className="mt-2.5 text-[12.5px] font-medium text-gray-600 file:mr-3 file:rounded-[10px] file:border-2 file:border-gray-200 file:bg-gray-50 file:px-3 file:py-1.5 file:text-[12.5px] file:font-bold file:text-gray-600 hover:file:bg-gray-100"
+                        />
+                        <div className="mt-1.5 text-[11.5px] font-medium text-gray-400">Logo workspace — dipakai proposal &amp; portal.</div>
+                        {errors.logo && <div className="mt-1 text-[11.5px] font-bold text-red-500">{errors.logo}</div>}
+                    </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-between">
+                    <div>
+                        {mode === 'edit' && editing && !editing.is_default && (
+                            <button onClick={remove} className="text-[13px] font-bold text-red-500 hover:text-red-600">
+                                Hapus template
+                            </button>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                        <button
+                            onClick={onClose}
+                            className="rounded-[10px] border-2 border-gray-200 px-4 py-2 text-[13px] font-bold text-gray-600 hover:bg-gray-50"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            onClick={save}
+                            disabled={!canSave}
+                            className="rounded-[10px] bg-teal-600 px-5 py-2 text-[13px] font-bold text-white hover:bg-teal-700 disabled:opacity-50"
+                        >
+                            Simpan
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -265,13 +318,16 @@ function BrandingCard({ branding, canManage }: { branding: { logo_url: string | 
 
 export default function Templates({
     templates,
-    branding,
+    docKindOptions,
     canManage,
 }: {
     templates: TemplateData[];
-    branding: { logo_url: string | null; name: string };
+    docKindOptions: string[];
+    logoUrl: string | null;
     canManage: boolean;
 }) {
+    const [modal, setModal] = useState<{ mode: 'create' | 'edit'; editing: TemplateData | null } | null>(null);
+
     return (
         <SpektaLayout crumb="Template Perusahaan" active="templates">
             <Head title="Template Perusahaan — Spekta" />
@@ -279,20 +335,35 @@ export default function Templates({
             <div className="mb-[22px]">
                 <h1 className="text-[26px] font-extrabold tracking-[-0.02em] text-gray-900">Template Perusahaan</h1>
                 <div className="mt-1 text-sm font-medium tracking-[0.02em] text-gray-500">
-                    Proposal, dokumen &amp; portal klien mengikuti template ini otomatis
+                    Standar dokumen, bahasa, dan branding proposal — semua blueprint mengikuti template default
                     {!canManage && ' · hanya owner/admin yang dapat mengubah'}
                 </div>
             </div>
 
-            <div className="grid gap-[18px]">
-                <BrandingCard branding={branding} canManage={canManage} />
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {templates.map((t) => (
+                    <TemplateCard key={t.id} template={t} canManage={canManage} onEdit={(tpl) => setModal({ mode: 'edit', editing: tpl })} />
+                ))}
 
-                <div className="grid items-start gap-[18px]" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(300px,100%),1fr))' }}>
-                    {templates.map((t) => (
-                        <TemplateCard key={t.id} template={t} canManage={canManage} />
-                    ))}
-                </div>
+                {canManage && (
+                    <button
+                        onClick={() => setModal({ mode: 'create', editing: null })}
+                        className="flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white/50 text-gray-400 transition hover:border-teal-400 hover:text-teal-600"
+                    >
+                        <span className="text-3xl font-light leading-none">+</span>
+                        <span className="text-[13px] font-bold">Template baru</span>
+                    </button>
+                )}
             </div>
+
+            {modal && (
+                <TemplateModal
+                    mode={modal.mode}
+                    editing={modal.editing}
+                    docKindOptions={docKindOptions}
+                    onClose={() => setModal(null)}
+                />
+            )}
         </SpektaLayout>
     );
 }

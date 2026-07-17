@@ -38,6 +38,24 @@ class Workspace extends Model
         return $this->hasMany(DocTemplate::class);
     }
 
+    /**
+     * Template default workspace — dibuat sekali saat pertama diakses (onboarding).
+     * Set dokumen lengkap (complexity 3), bahasa ikut locale workspace, proposal white-label.
+     */
+    public function defaultDocTemplate(): DocTemplate
+    {
+        return $this->docTemplates()->firstOrCreate(
+            ['is_default' => true],
+            [
+                'name' => 'Standar '.$this->name,
+                'doc_kinds' => config('spekta.doc_sets.3'),
+                'language' => $this->locale ?? 'id',
+                'tone' => 'formal',
+                'config' => ['white_label' => true],
+            ],
+        );
+    }
+
     public function subscription()
     {
         return $this->hasOne(Subscription::class)->latestOfMany();

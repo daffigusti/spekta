@@ -129,10 +129,18 @@ SYS, $ctx);
         } else {
             $class = in_array($docKey, ['PRD', 'ARCHITECTURE', 'SECURITY']) ? 'reasoning' : 'standard';
             $ctx = $this->documentContext($project, $upstreamDocs);
-            $langLine = match ($project->blueprint['language'] ?? 'id') {
+            // Bahasa: blueprint proyek menang, lalu template perusahaan, lalu default id
+            $langLine = match ($project->blueprint['language'] ?? $project->docTemplate?->language ?? 'id') {
                 'en' => 'Write entirely in English.',
                 'bilingual' => 'Tulis bilingual: tiap section Bahasa Indonesia diikuti versi English-nya.',
                 default => 'Bahasa Indonesia, istilah teknis Inggris.',
+            };
+            // Tone dari template perusahaan (FR-16) — hanya bila proyek terikat template
+            $toneLine = match ($project->docTemplate?->tone) {
+                'formal' => 'Gunakan tone formal dan profesional.',
+                'formal_rfc' => 'Gunakan tone formal bergaya RFC (MUST/SHOULD/MAY untuk requirement).',
+                'casual' => 'Gunakan tone santai namun tetap presisi.',
+                default => '',
             };
             $template = self::DOC_TEMPLATES[$docKey] ?? '';
             $depthLine = ($project->blueprint['depth'] ?? 'auto') === 'concise'
@@ -146,7 +154,7 @@ Boleh menambah kebutuhan yang wajar untuk domain ini, tapi WAJIB tandai "(asumsi
 jangan pernah menampilkan tambahan sebagai fakta dari user.
 $template
 $depthLine
-$langLine Hanya markdown, tanpa pembuka/penutup.
+$langLine $toneLine Hanya markdown, tanpa pembuka/penutup.
 SYS, $ctx, $tokensIn, $tokensOut, $onDelta);
             $meta = ['model' => config('spekta.llm.models.'.$class), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
         }
@@ -779,6 +787,13 @@ SYS, "TEMUAN VALIDASI:\n$list\n\nKONTEKS PROYEK:\n".$this->documentContext($proj
                     $md .= "- **TS-$n**: verifikasi {$f['title']} — happy path + validasi input.\n";
                 }
             }
+            $md .= "\n## Security Testing\n\n- Authz bypass antar role, IDOR, injection, brute force login.\n";
+        } elseif ($docKey === 'SECURITY') {
+            $md .= "## Klasifikasi Data\n\n| Data | PII | Enkripsi |\n|---|---|---|\n| Data akun | ya | at-rest |\n\n## Matrix Akses\n\n| Role | Akses |\n|---|---|\n";
+            foreach ($u?->roles ?? [] as $r) {
+                $md .= "| {$r['name']} | sesuai peran: {$r['note']} |\n";
+            }
+            $md .= "\n## Threat Model\n\n- Akses tidak sah → mitigasi: authn + authz per role (referensi FR-01).\n\n## Hardening Deploy\n\n- HTTPS, secrets via env, backup harian, audit log.\n";
         } else {
             $md .= "## Ringkasan\n\nDokumen $docKey untuk {$project->name}.\n\n## Detail\n\n";
             foreach ($structure as $p) {

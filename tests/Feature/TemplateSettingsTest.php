@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\DocTemplate;
 use App\Models\User;
-use App\Models\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -24,38 +23,43 @@ class TemplateSettingsTest extends TestCase
         return User::firstOrFail();
     }
 
-    public function test_index_auto_creates_three_templates(): void
+    public function test_index_auto_creates_default_template(): void
     {
         $owner = $this->owner();
 
         $this->actingAs($owner)->get('/templates')->assertOk();
 
         $workspace = $owner->currentWorkspace();
-        $this->assertSame(3, DocTemplate::where('workspace_id', $workspace->id)->count());
-        $this->assertEqualsCanonicalizing(
-            ['proposal', 'document', 'portal'],
-            DocTemplate::where('workspace_id', $workspace->id)->pluck('kind')->all(),
-        );
+        $tpl = DocTemplate::where('workspace_id', $workspace->id)->firstOrFail();
+        $this->assertTrue($tpl->is_default);
+        $this->assertSame(config('spekta.doc_sets.3'), $tpl->doc_kinds);
     }
 
-    public function test_admin_updates_proposal_config(): void
+    public function test_admin_creates_and_updates_template(): void
     {
         $owner = $this->owner();
         $workspace = $owner->currentWorkspace();
 
-        // Buat admin di workspace yang sama
         $admin = User::create(['name' => 'Admin', 'email' => 'admin@amanah.co.id', 'password' => bcrypt('secret123')]);
         $workspace->members()->create(['user_id' => $admin->id, 'role' => 'admin']);
 
-        $this->actingAs($admin)->get('/templates'); // auto-create dulu
-        $this->actingAs($admin)->post('/templates/proposal', [
-            'config' => ['primary_color' => '#123456', 'show_cover' => false, 'page_format' => 'Letter'],
+        $this->actingAs($admin)->post('/templates', [
+            'name' => 'Proposal Ringkas', 'doc_kinds' => ['PRD', 'ROADMAP'], 'language' => 'id', 'tone' => 'formal',
         ])->assertSessionHasNoErrors();
 
-        $tpl = DocTemplate::where('workspace_id', $workspace->id)->where('kind', 'proposal')->firstOrFail();
-        $this->assertSame('#123456', $tpl->fresh()->config['primary_color']);
-        $this->assertFalse($tpl->fresh()->config['show_cover']);
-        $this->assertSame('Letter', $tpl->fresh()->config['page_format']);
+        $tpl = DocTemplate::where('workspace_id', $workspace->id)->where('name', 'Proposal Ringkas')->firstOrFail();
+        $this->assertFalse($tpl->is_default);
+
+        $this->actingAs($admin)->post("/templates/{$tpl->id}", [
+            'name' => 'Proposal Lengkap', 'config' => ['white_label' => '1'],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame('Proposal Lengkap', $tpl->fresh()->name);
+        $this->assertTrue($tpl->fresh()->config['white_label']);
+
+        // Jadikan default — default lama turun otomatis
+        $this->actingAs($admin)->post("/templates/{$tpl->id}/default")->assertSessionHasNoErrors();
+        $this->assertTrue($tpl->fresh()->is_default);
+        $this->assertSame(1, DocTemplate::where('workspace_id', $workspace->id)->where('is_default', true)->count());
     }
 
     public function test_member_cannot_update_template(): void
@@ -66,9 +70,19 @@ class TemplateSettingsTest extends TestCase
         $member = User::create(['name' => 'Member', 'email' => 'member@amanah.co.id', 'password' => bcrypt('secret123')]);
         $workspace->members()->create(['user_id' => $member->id, 'role' => 'member']);
 
-        $this->actingAs($owner)->get('/templates'); // pastikan template ada
-        $this->actingAs($member)->post('/templates/proposal', [
-            'config' => ['primary_color' => '#000000'],
-        ])->assertForbidden();
+        $this->actingAs($owner)->get('/templates'); // pastikan template default ada
+        $tpl = DocTemplate::where('workspace_id', $workspace->id)->firstOrFail();
+
+        $this->actingAs($member)->post("/templates/{$tpl->id}", ['name' => 'Hack'])->assertForbidden();
+    }
+
+    public function test_default_template_cannot_be_deleted(): void
+    {
+        $owner = $this->owner();
+        $this->actingAs($owner)->get('/templates');
+        $tpl = DocTemplate::where('workspace_id', $owner->currentWorkspace()->id)->firstOrFail();
+
+        $this->actingAs($owner)->delete("/templates/{$tpl->id}")->assertSessionHasErrors('template');
+        $this->assertNotNull($tpl->fresh());
     }
 }

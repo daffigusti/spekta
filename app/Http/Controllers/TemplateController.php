@@ -3,113 +3,212 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\DocTemplate;
 use App\Models\Workspace;
 use App\Models\WorkspaceMember;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
-/** FR-16 / FR-24: template proposal, dokumen & portal per workspace (logo, warna, format). */
+/**
+ * FR-16 / FR-24: template perusahaan sebagai preset bernama — set dokumen, bahasa,
+ * tone, & opsi proposal. Multi per workspace, tepat satu default; blueprint baru
+ * mengikuti template default.
+ */
 class TemplateController extends Controller
 {
-    /** ponytail: config default per kind — dipakai saat firstOrCreate index & update. */
-    private function defaults(string $kind): array
-    {
-        return match ($kind) {
-            'proposal' => ['primary_color' => '#0D9488', 'accent_color' => '#F59E0B', 'page_format' => 'A4', 'footer_text' => null, 'show_cover' => true],
-            'document' => ['heading_numbering' => true, 'include_toc' => true, 'language' => 'id'],
-            'portal' => ['theme_color' => '#0D9488', 'welcome_text' => null],
-            default => [],
-        };
-    }
-
     private function memberFor(Request $request, Workspace $workspace): ?WorkspaceMember
     {
         return $workspace->members()->where('user_id', $request->user()->id)->first();
     }
 
+    /** Doc key valid = kunci graph pipeline (satu sumber kebenaran, FR-07). */
+    private function docKindOptions(): array
+    {
+        return array_keys(config('spekta.doc_pipeline'));
+    }
+
     public function index(Request $request)
     {
         $workspace = $request->user()->currentWorkspace();
+        $workspace->defaultDocTemplate(); // pastikan default ada (onboarding)
 
-        $templates = collect(['proposal', 'document', 'portal'])->map(function ($kind) use ($workspace) {
-            $tpl = $workspace->docTemplates()->firstOrCreate(
-                ['kind' => $kind],
-                ['config' => $this->defaults($kind)],
-            );
-
-            return [
-                'id' => $tpl->id,
-                'kind' => $tpl->kind,
-                'config' => $tpl->config ?? [],
-                'file_url' => $tpl->file_url,
-            ];
-        })->values();
+        $templates = $workspace->docTemplates()
+            ->withCount('projects')
+            ->orderByDesc('is_default')
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn (DocTemplate $t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'is_default' => $t->is_default,
+                'doc_kinds' => $t->doc_kinds ?? [],
+                'language' => $t->language,
+                'tone' => $t->tone,
+                'config' => $t->config ?? [],
+                'projects_count' => $t->projects_count,
+                'updated_at' => $t->updated_at?->toIso8601String(),
+            ]);
 
         $member = $this->memberFor($request, $workspace);
 
         return Inertia::render('templates', [
             'templates' => $templates,
-            'branding' => ['logo_url' => $workspace->logo_url, 'name' => $workspace->name],
+            'docKindOptions' => $this->docKindOptions(),
+            'logoUrl' => $workspace->logo_url,
             'canManage' => in_array($member?->role, ['owner', 'admin']),
         ]);
     }
 
-    public function update(Request $request, string $kind)
+    public function store(Request $request)
     {
-        abort_unless(in_array($kind, ['proposal', 'document', 'portal']), 404);
-
         $workspace = $request->user()->currentWorkspace();
         $member = $this->memberFor($request, $workspace);
         abort_unless(in_array($member?->role, ['owner', 'admin']), 403);
 
-        $data = $request->validate([
-            'config' => 'sometimes|array',
-            'config.primary_color' => ['sometimes', 'nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'config.accent_color' => ['sometimes', 'nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'config.theme_color' => ['sometimes', 'nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
-            'config.page_format' => ['sometimes', 'in:A4,Letter'],
-            'config.language' => ['sometimes', 'in:id,en'],
-            'config.footer_text' => ['sometimes', 'nullable', 'string', 'max:500'],
-            'config.welcome_text' => ['sometimes', 'nullable', 'string', 'max:500'],
-            'config.show_cover' => ['sometimes', 'boolean'],
-            'config.heading_numbering' => ['sometimes', 'boolean'],
-            'config.include_toc' => ['sometimes', 'boolean'],
-            // SVG ditolak: bisa memuat <script> — stored XSS bila diserve dari origin app
-            'logo' => ['sometimes', 'nullable', 'image', 'max:2048', 'mimes:jpg,jpeg,png,webp'],
+        $data = $this->validated($request);
+
+        $template = $workspace->docTemplates()->create([
+            'name' => $data['name'],
+            'is_default' => false,
+            'doc_kinds' => $data['doc_kinds'],
+            'language' => $data['language'] ?? 'id',
+            'tone' => $data['tone'] ?? 'formal',
+            'config' => ['white_label' => $data['config']['white_label'] ?? false],
         ]);
 
-        $tpl = $workspace->docTemplates()->firstOrCreate(
-            ['kind' => $kind],
-            ['config' => $this->defaults($kind)],
-        );
+        $this->maybeUploadLogo($request, $workspace);
 
-        if (array_key_exists('config', $data)) {
-            $incoming = $data['config'];
+        AuditLog::create([
+            'workspace_id' => $workspace->id,
+            'actor_id' => $request->user()->id,
+            'action' => 'template.created',
+            'entity_type' => 'doc_template',
+            'entity_id' => $template->id,
+        ]);
+
+        return back();
+    }
+
+    public function update(Request $request, string $templateId)
+    {
+        $workspace = $request->user()->currentWorkspace();
+        $member = $this->memberFor($request, $workspace);
+        abort_unless(in_array($member?->role, ['owner', 'admin']), 403);
+
+        $template = $workspace->docTemplates()->findOrFail($templateId);
+        $data = $this->validated($request, partial: true);
+
+        if (array_key_exists('name', $data)) {
+            $template->name = $data['name'];
+        }
+        if (array_key_exists('doc_kinds', $data)) {
+            $template->doc_kinds = $data['doc_kinds'];
+        }
+        if (array_key_exists('language', $data)) {
+            $template->language = $data['language'];
+        }
+        if (array_key_exists('tone', $data)) {
+            $template->tone = $data['tone'];
+        }
+        if (array_key_exists('config', $data) && array_key_exists('white_label', $data['config'])) {
             // multipart mengirim boolean sebagai '1'/'0' — normalisasi supaya tersimpan sebagai bool
-            foreach (['show_cover', 'heading_numbering', 'include_toc'] as $boolKey) {
-                if (array_key_exists($boolKey, $incoming)) {
-                    $incoming[$boolKey] = filter_var($incoming[$boolKey], FILTER_VALIDATE_BOOLEAN);
-                }
-            }
-            $tpl->config = array_merge($tpl->config ?? [], $incoming);
-            $tpl->save();
+            $template->config = array_merge($template->config ?? [], [
+                'white_label' => filter_var($data['config']['white_label'], FILTER_VALIDATE_BOOLEAN),
+            ]);
         }
+        $template->save();
 
-        // Logo workspace (dipakai proposal & portal per FR-16)
-        if ($request->hasFile('logo')) {
-            $path = $request->file('logo')->store('logos', 'public');
-            $workspace->update(['logo_url' => Storage::url($path)]);
-        }
+        $this->maybeUploadLogo($request, $workspace);
 
         AuditLog::create([
             'workspace_id' => $workspace->id,
             'actor_id' => $request->user()->id,
             'action' => 'template.updated',
             'entity_type' => 'doc_template',
-            'entity_id' => $tpl->id,
+            'entity_id' => $template->id,
         ]);
 
         return back();
+    }
+
+    public function setDefault(Request $request, string $templateId)
+    {
+        $workspace = $request->user()->currentWorkspace();
+        $member = $this->memberFor($request, $workspace);
+        abort_unless(in_array($member?->role, ['owner', 'admin']), 403);
+
+        $template = $workspace->docTemplates()->findOrFail($templateId);
+
+        DB::transaction(function () use ($workspace, $template) {
+            $workspace->docTemplates()->where('is_default', true)->update(['is_default' => false]);
+            $template->update(['is_default' => true]);
+        });
+
+        AuditLog::create([
+            'workspace_id' => $workspace->id,
+            'actor_id' => $request->user()->id,
+            'action' => 'template.default_changed',
+            'entity_type' => 'doc_template',
+            'entity_id' => $template->id,
+        ]);
+
+        return back();
+    }
+
+    public function destroy(Request $request, string $templateId)
+    {
+        $workspace = $request->user()->currentWorkspace();
+        $member = $this->memberFor($request, $workspace);
+        abort_unless(in_array($member?->role, ['owner', 'admin']), 403);
+
+        $template = $workspace->docTemplates()->findOrFail($templateId);
+        if ($template->is_default) {
+            return back()->withErrors([
+                'template' => 'Template default tidak bisa dihapus — jadikan template lain default dulu.',
+            ]);
+        }
+
+        // Proyek yang memakai template ini otomatis doc_template_id-nya di-null-kan oleh FK
+        $template->delete();
+
+        AuditLog::create([
+            'workspace_id' => $workspace->id,
+            'actor_id' => $request->user()->id,
+            'action' => 'template.deleted',
+            'entity_type' => 'doc_template',
+            'entity_id' => $templateId,
+        ]);
+
+        return back();
+    }
+
+    /** Validasi field template — semua sometimes saat partial (update). */
+    private function validated(Request $request, bool $partial = false): array
+    {
+        $req = $partial ? 'sometimes' : 'required';
+
+        return $request->validate([
+            'name' => [$req, 'string', 'max:100'],
+            'doc_kinds' => [$req, 'array', 'min:1'],
+            'doc_kinds.*' => ['string', Rule::in($this->docKindOptions())],
+            'language' => ['sometimes', 'in:id,en'],
+            'tone' => ['sometimes', 'in:formal,formal_rfc,casual'],
+            'config' => ['sometimes', 'array'],
+            'config.white_label' => ['sometimes'],
+            // SVG ditolak: bisa memuat <script> — stored XSS bila diserve dari origin app
+            'logo' => ['sometimes', 'nullable', 'image', 'max:2048', 'mimes:jpg,jpeg,png,webp'],
+        ]);
+    }
+
+    /** Logo workspace (dipakai proposal & portal per FR-16). */
+    private function maybeUploadLogo(Request $request, Workspace $workspace): void
+    {
+        if ($request->hasFile('logo')) {
+            $path = $request->file('logo')->store('logos', 'public');
+            $workspace->update(['logo_url' => Storage::url($path)]);
+        }
     }
 }

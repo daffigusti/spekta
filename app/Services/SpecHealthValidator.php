@@ -12,6 +12,7 @@ use App\Models\Project;
  * (d) PRD punya section Assumptions (BR-13)
  * (e) WIREFRAMES JSON valid + coverage flow vs USER_FLOWS
  * (f) DATABASE punya erDiagram
+ * (g) SECURITY menyebut semua role (matrix akses lengkap)
  * Skor = 100 - Σ penalti (critical 15, warning 7, info 2), floor 0.
  */
 class SpecHealthValidator
@@ -75,6 +76,18 @@ class SpecHealthValidator
 
         foreach ($this->wireframeFindings($docs['WIREFRAMES'] ?? '', $docs['USER_FLOWS'] ?? '') as $f) {
             $findings[] = $f;
+        }
+
+        // SECURITY: matrix akses wajib mencakup semua role dari understanding
+        if (($security = $docs['SECURITY'] ?? '') !== '') {
+            foreach ($project->understanding?->roles ?? [] as $r) {
+                $name = $r['name'] ?? '';
+                if ($name !== '' && stripos($security, $name) === false) {
+                    $findings[] = ['rule_key' => 'security_role_coverage', 'severity' => 'warning', 'location' => "SECURITY / $name",
+                        'message' => "Role \"$name\" tidak disebut di SECURITY.md — matrix akses belum lengkap",
+                        'suggestion' => "Tambahkan role $name ke Matrix Akses beserta hak aksesnya."];
+                }
+            }
         }
 
         $penalty = ['critical' => 15, 'warning' => 7, 'info' => 2];
