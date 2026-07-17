@@ -46,4 +46,16 @@ class ImpactAnalysisTest extends TestCase
         $this->assertFalse($byKey['PRD']['manual_edit']);
         $this->assertTrue($byKey['REQUIREMENTS']['manual_edit']);
     }
+
+    public function test_impact_endpoint_returns_json(): void
+    {
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail();
+
+        $res = $this->actingAs($user)->postJson(route('projects.impact', $project), [
+            'change_text' => 'Tambah fitur notifikasi email',
+        ]);
+
+        $res->assertOk()->assertJsonStructure(['summary', 'delta_md', 'affected' => [['doc_key', 'reason', 'manual_edit']]]);
+    }
 }

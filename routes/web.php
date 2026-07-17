@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EstimateController;
 use App\Http\Controllers\ExportController;
+use App\Http\Controllers\ImpactController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\RateCardController;
@@ -83,6 +84,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Asisten AI (FR-09 subset chat)
     Route::post('projects/{project}/assistant', [AssistantController::class, 'chat'])->name('projects.assistant');
+
+    // FR-09/FR-10: impact analysis + selective regeneration
+    Route::post('projects/{project}/impact', [ImpactController::class, 'analyze'])->name('projects.impact');
 
     // Billing (FR-23)
     Route::get('billing', [BillingController::class, 'index'])->name('billing.index');
