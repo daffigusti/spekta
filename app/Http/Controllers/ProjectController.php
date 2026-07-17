@@ -61,6 +61,7 @@ class ProjectController extends Controller
             'assistant_messages' => $project->assistantMessages()->latest()->limit(30)->get()->reverse()->values()
                 ->map(fn ($m) => ['id' => $m->id, 'role' => $m->role, 'body' => $m->body]),
             'chat_stream' => \Illuminate\Support\Facades\Cache::get('chatstream:'.$project->id),
+            'chat_quota' => $project->workspace->chatQuota(),
             'change_requests' => $project->changeRequests()->orderByDesc('number')->get()->map(fn ($cr) => [
                 'id' => $cr->id,
                 'label' => $cr->label(),
@@ -104,6 +105,7 @@ class ProjectController extends Controller
             'assistant_messages' => $project->assistantMessages()->latest()->limit(30)->get()->reverse()->values()
                 ->map(fn ($m) => ['id' => $m->id, 'role' => $m->role, 'body' => $m->body]),
             'chat_stream' => \Illuminate\Support\Facades\Cache::get('chatstream:'.$project->id),
+            'chat_quota' => $project->workspace->chatQuota(),
         ]);
     }
 

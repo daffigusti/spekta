@@ -63,4 +63,15 @@ class Workspace extends Model
             ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->sum('delta'));
     }
+
+    /** BR-01: pemakaian chat AI bulan berjalan vs kuota paket (limit null = unlimited). */
+    public function chatQuota(): array
+    {
+        $plan = $this->subscription?->plan ?? 'free';
+        $limit = config("spekta.plans.{$plan}.ai_chats_per_month");
+        $used = AssistantMessage::whereIn('project_id', $this->projects()->pluck('id'))
+            ->where('role', 'user')->where('created_at', '>=', now()->startOfMonth())->count();
+
+        return ['used' => $used, 'limit' => $limit, 'plan' => config("spekta.plans.{$plan}.label", ucfirst($plan))];
+    }
 }

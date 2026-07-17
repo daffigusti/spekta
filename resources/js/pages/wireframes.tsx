@@ -44,6 +44,7 @@ type Props = {
     run: { id: string; status: string; nodes: { doc_key: string; status: string }[] } | null;
     assistant_messages: { id: string; role: string; body: string }[];
     chat_stream: string | null;
+    chat_quota?: { used: number; limit: number | null; plan: string } | null;
     errors: Record<string, string>;
 };
 
@@ -566,6 +567,7 @@ export default function WireframesPage({ project, document: doc, run, assistant_
                 applyTargets={doc ? [{ id: doc.id, doc_key: doc.doc_key, content_md: doc.content_md }] : []}
                 messages={assistant_messages}
                 stream={chat_stream}
+                quota={chat_quota}
                 error={errors.assistant}
                 reloadOnApply={['document', 'errors']}
                 placeholder={selected ? `Revisi layar "${selected.name}"… (Enter)` : 'Minta revisi wireframe… (Enter)'}

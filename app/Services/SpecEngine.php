@@ -127,7 +127,7 @@ SYS, $ctx);
             $md = preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md)); // buang code fence bila model membungkus
             $meta = ['model' => config('spekta.llm.models.standard'), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
         } else {
-            $class = in_array($docKey, ['PRD', 'ARCHITECTURE']) ? 'reasoning' : 'standard';
+            $class = in_array($docKey, ['PRD', 'ARCHITECTURE', 'SECURITY']) ? 'reasoning' : 'standard';
             $ctx = $this->documentContext($project, $upstreamDocs);
             $langLine = match ($project->blueprint['language'] ?? 'id') {
                 'en' => 'Write entirely in English.',
@@ -189,10 +189,11 @@ Struktur wajib DATABASE.md:
 2. Satu section per tabel: tabel kolom (nama, tipe, constraint, default), index, relasi/foreign key.
 3. "Mapping Entity → FR" — tabel entity mana melayani FR mana.
 Konvensi penamaan konsisten (snake_case), sertakan kolom audit (created_at, updated_at) dan soft delete bila relevan.
+Tandai kolom PII / data sensitif (mis. NIK, telepon, alamat) dan kebutuhan enkripsinya.
 TPL,
         'API' => <<<'TPL'
 Struktur wajib API.md:
-1. "Konvensi" — base URL, autentikasi, format error standar, pagination, versioning.
+1. "Konvensi" — base URL, autentikasi, otorisasi per endpoint (role mana boleh apa), rate limiting, validasi input, format error standar, pagination, versioning.
 2. Endpoint dikelompokkan per resource: method + path, deskripsi, auth/role, parameter, contoh request & response JSON, kode error.
 3. Tabel "Mapping Endpoint → FR".
 Cakup semua FR yang butuh API; skema konsisten dengan DATABASE.md.
@@ -204,6 +205,15 @@ Struktur wajib ARCHITECTURE.md:
 3. "Non-Functional" — target skala, keamanan (authn/authz, data sensitif), backup & recovery, observability.
 4. "Deployment" — topologi environment (dev/staging/prod), CI/CD ringkas.
 TPL,
+        'SECURITY' => <<<'TPL'
+Struktur wajib SECURITY.md:
+1. "Klasifikasi Data" — tabel data yang disimpan: jenis, PII/sensitif atau bukan, enkripsi & retensi, catatan kepatuhan UU PDP (dasar pemrosesan/consent, hak hapus).
+2. "Matrix Akses" — tabel role × fitur/FR: aksi yang diizinkan (create/read/update/delete). SEMUA role dari ROLES wajib muncul.
+3. "Threat Model" — per fitur berisiko (auth, pembayaran, upload, data pribadi): aset, ancaman (spoofing/tampering/info disclosure/DoS/elevation of privilege), mitigasi konkret, referensi FR.
+4. "Kontrol Aplikasi" — mapping OWASP Top 10 yang relevan ke mitigasi spesifik aplikasi ini (broken access control, injection, dst) — hanya yang relevan, jangan boilerplate.
+5. "Hardening Deploy" — checklist: HTTPS/TLS, manajemen secrets, backup & recovery, audit logging, rate limiting, update dependensi.
+Konsisten dengan STACK dan ARCHITECTURE — jangan menyebut kontrol yang tidak relevan dengan stack terpilih.
+TPL,
         'FEATURES' => <<<'TPL'
 Struktur wajib FEATURES.md: satu section per fitur mengikuti FITUR & STRUKTUR.
 Tiap fitur: user story ("Sebagai … saya ingin … agar …"), prioritas (P0 untuk mvp / P1 untuk full), dependency antar fitur, referensi FR dan Flow terkait, breakdown sub-fitur beserta deskripsinya.
@@ -211,7 +221,8 @@ TPL,
         'TESTING' => <<<'TPL'
 Struktur wajib TESTING.md: skenario uji per FR — SEMUA FR dari REQUIREMENTS wajib tercakup, tanpa kecuali.
 Tiap FR: heading "### TS-FR-xx: judul", lalu skenario happy path, skenario negatif (input invalid/unauthorized), dan edge case, format tabel (id, langkah, expected).
-Tutup dengan section "Integration & E2E" untuk alur lintas-fitur utama.
+Tutup dengan section "Integration & E2E" untuk alur lintas-fitur utama,
+lalu section "Security Testing": authz bypass antar role, IDOR, injection, brute force login, upload berbahaya (sesuai fitur yang ada).
 TPL,
         'DESIGN' => <<<'TPL'
 Struktur wajib DESIGN.md:

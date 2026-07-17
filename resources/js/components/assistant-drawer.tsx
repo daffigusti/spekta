@@ -47,6 +47,8 @@ type Props = {
     emptyHint?: string;
     /** prefill input saat drawer dibuka (mis. tombol "Fix di chat" pada temuan spec health) */
     initialMessage?: string | null;
+    /** BR-01: pemakaian chat bulan ini vs kuota paket (limit null = unlimited) */
+    quota?: { used: number; limit: number | null; plan: string } | null;
 };
 
 export default function AssistantDrawer({
@@ -65,6 +67,7 @@ export default function AssistantDrawer({
     placeholder = 'Tanya atau minta perubahan… (Enter)',
     emptyHint = 'Tanya apa pun soal spec — mis. "Apa dampak menambah e-wallet OVO ke FR-02?"',
     initialMessage = null,
+    quota = null,
 }: Props) {
     const [chat, setChat] = useState('');
     useEffect(() => {
@@ -162,6 +165,20 @@ export default function AssistantDrawer({
                             Konteks: {contextLabel} · {projectName}
                         </div>
                     </div>
+                    {quota && quota.limit != null && (
+                        <span
+                            title={`Kuota chat AI paket ${quota.plan}: ${quota.used} dari ${quota.limit} bulan ini`}
+                            className={`flex-none rounded-full border px-2.5 py-1 font-mono text-[10.5px] font-bold ${
+                                quota.used >= quota.limit
+                                    ? 'border-red-200 bg-red-50 text-red-600'
+                                    : quota.used >= quota.limit * 0.8
+                                      ? 'border-amber-200 bg-amber-50 text-amber-700'
+                                      : 'border-gray-200 bg-gray-50 text-gray-500'
+                            }`}
+                        >
+                            {quota.used}/{quota.limit}
+                        </span>
+                    )}
                     <button className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700" onClick={close}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18" />

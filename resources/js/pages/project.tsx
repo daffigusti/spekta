@@ -88,6 +88,7 @@ type Props = {
     missing_doc_keys: string[];
     assistant_messages: AssistantMsg[];
     chat_stream: string | null;
+    chat_quota?: { used: number; limit: number | null; plan: string } | null;
     errors: Record<string, string>;
 };
 
@@ -200,6 +201,7 @@ export default function ProjectPage({
     missing_doc_keys = [],
     assistant_messages = [],
     chat_stream = null,
+    chat_quota = null,
     errors = {},
 }: Props) {
     const [activeKey, setActiveKey] = useState(documents[0]?.doc_key ?? '');
@@ -912,6 +914,7 @@ export default function ProjectPage({
                 applyTargets={documents}
                 messages={assistant_messages}
                 stream={chat_stream}
+                quota={chat_quota}
                 error={errors.assistant}
             />
         </SpektaLayout>
