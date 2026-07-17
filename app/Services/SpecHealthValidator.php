@@ -25,14 +25,15 @@ class SpecHealthValidator
 
         $findings = [];
         $prd = $docs['PRD'] ?? '';
-        preg_match_all('/FR-\d{2}/', $prd, $m);
+        // Terima FR-01 maupun FR-1; "FR-1.1" otomatis tereduksi ke FR top-level FR-1
+        preg_match_all('/FR-\d+/', $prd, $m);
         $frs = array_unique($m[0]);
 
         // FR-xx → scope: penomoran FR mengikuti urutan fitur di struktur (template PRD)
         $scopeByFr = $this->scopeByFr($project);
 
         foreach ($frs as $fr) {
-            if (isset($docs['REQUIREMENTS']) && ! str_contains($docs['REQUIREMENTS'], $fr)) {
+            if (isset($docs['REQUIREMENTS']) && ! $this->mentions($docs['REQUIREMENTS'], $fr)) {
                 $findings[] = ['rule_key' => 'fr_has_ac', 'severity' => 'critical', 'location' => "REQUIREMENTS / $fr",
                     'message' => "$fr tidak memiliki acceptance criteria di REQUIREMENTS.md",
                     'suggestion' => "Tambahkan section $fr dengan acceptance criteria terukur."];
@@ -41,12 +42,12 @@ class SpecHealthValidator
                     'message' => "Section $fr di REQUIREMENTS.md tidak berisi butir acceptance criteria",
                     'suggestion' => "Isi section $fr dengan ≥3 acceptance criteria format Given/When/Then."];
             }
-            if (isset($docs['ROADMAP']) && ! str_contains($docs['ROADMAP'], $fr)) {
+            if (isset($docs['ROADMAP']) && ! $this->mentions($docs['ROADMAP'], $fr)) {
                 $findings[] = ['rule_key' => 'fr_in_roadmap', 'severity' => 'warning', 'location' => "ROADMAP / $fr",
                     'message' => "$fr tidak muncul di ROADMAP.md",
                     'suggestion' => "Petakan $fr ke fase & prioritas di ROADMAP."];
             }
-            if (isset($docs['TESTING']) && ! str_contains($docs['TESTING'], $fr)) {
+            if (isset($docs['TESTING']) && ! $this->mentions($docs['TESTING'], $fr)) {
                 $isP0 = ($scopeByFr[$fr] ?? null) === 'mvp';
                 $findings[] = ['rule_key' => 'fr_has_test', 'severity' => $isP0 ? 'critical' : 'warning', 'location' => "TESTING / $fr",
                     'message' => "$fr belum punya skenario uji di TESTING.md".($isP0 ? ' (scope MVP/P0)' : ''),
@@ -88,7 +89,13 @@ class SpecHealthValidator
         return $score;
     }
 
-    /** FR-01 = fitur pertama urutan struktur, dst — konsisten dengan template PRD. */
+    /** FR disebut sebagai token utuh — "FR-1" tidak boleh cocok dengan "FR-10" (sub "FR-1.x" tetap dihitung). */
+    private function mentions(string $md, string $fr): bool
+    {
+        return (bool) preg_match('/'.preg_quote($fr, '/').'(?!\d)/', $md);
+    }
+
+    /** FR-01 = fitur pertama urutan struktur, dst — konsisten dengan template PRD. Key padded & non-padded. */
     private function scopeByFr(Project $project): array
     {
         $nodes = $project->structureNodes;
@@ -96,7 +103,8 @@ class SpecHealthValidator
         $i = 1;
         foreach ($nodes->where('kind', 'phase') as $phase) {
             foreach ($nodes->where('parent_id', $phase->id) as $feature) {
-                $map[sprintf('FR-%02d', $i++)] = $feature->scope;
+                $map[sprintf('FR-%02d', $i)] = $feature->scope;
+                $map['FR-'.$i++] = $feature->scope;
             }
         }
 
@@ -106,7 +114,7 @@ class SpecHealthValidator
     /** Ada ≥1 bullet/baris tabel di bawah heading yang memuat $fr, sebelum heading berikutnya. */
     private function hasBulletsUnderHeading(string $md, string $fr): bool
     {
-        if (! preg_match('/^#{1,6}[^\n]*'.preg_quote($fr, '/').'[^\n]*\n(.*?)(?=^#{1,6}\s|\z)/ms', $md, $m)) {
+        if (! preg_match('/^#{1,6}[^\n]*'.preg_quote($fr, '/').'(?![\d.])[^\n]*\n(.*?)(?=^#{1,6}\s|\z)/ms', $md, $m)) {
             return true; // FR disebut tapi bukan heading — jangan false positive
         }
 

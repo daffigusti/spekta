@@ -4,7 +4,21 @@ import { marked } from 'marked';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { confirmDialog, promptDialog, selectDialog } from '@/components/system-dialog';
-import { Building2, CalendarCheck, ClipboardList, ShoppingBag, ShoppingCart, type LucideIcon } from 'lucide-react';
+import {
+    Building2,
+    CalendarCheck,
+    CarFront,
+    ClipboardList,
+    GraduationCap,
+    School,
+    ShoppingBag,
+    ShoppingCart,
+    Stethoscope,
+    Store,
+    Ticket,
+    Wallet,
+    type LucideIcon,
+} from 'lucide-react';
 import SpektaLayout from '@/layouts/spekta-layout';
 
 export type Node = {
@@ -160,32 +174,79 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
     ];
 
     // Starter ide — user klik lalu ganti bagian [dalam kurung] dengan konteks kliennya
-    const IDEA_TEMPLATES: { l: string; text: string }[] = [
+    const IDEA_TEMPLATES: { l: string; icon: LucideIcon; text: string }[] = [
         {
-            l: '🛒 Kasir / POS',
+            l: 'Kasir / POS',
+            icon: ShoppingCart,
             text: 'Klien saya butuh aplikasi kasir untuk [jenis usaha, mis. toko retail] dengan [jumlah] cabang. Fitur utama: pencatatan transaksi penjualan, pembayaran [QRIS / tunai / kartu], manajemen stok, dan laporan penjualan [harian / bulanan]. Pengguna: [kasir, pemilik toko]. Kebutuhan lain: [integrasi printer struk, prediksi stok, dsb].',
         },
         {
-            l: '🛍️ Toko Online',
+            l: 'Toko Online',
+            icon: ShoppingBag,
             text: 'Klien ingin toko online untuk menjual [jenis produk]. Fitur: katalog produk, keranjang, checkout dengan pembayaran [QRIS / VA / COD], pelacakan pesanan, dan panel admin untuk kelola produk & pesanan. Target pasar [B2C / B2B], perkiraan [jumlah] produk. Kebutuhan lain: [integrasi ekspedisi, voucher / promo].',
         },
         {
-            l: '📅 Booking / Reservasi',
+            l: 'Booking / Reservasi',
+            icon: CalendarCheck,
             text: 'Klien butuh sistem booking online untuk [jenis layanan, mis. lapangan futsal / klinik / salon]. Pelanggan bisa lihat jadwal ketersediaan, booking slot, dan bayar [DP / lunas] via [payment gateway]. Admin mengelola jadwal, konfirmasi booking, dan laporan. Kebutuhan lain: [reminder WhatsApp, kalender staf].',
         },
         {
-            l: '🏢 Company Profile + CMS',
+            l: 'Company Profile + CMS',
+            icon: Building2,
             text: 'Klien butuh website company profile untuk [jenis perusahaan] dengan CMS agar tim bisa update konten sendiri. Halaman: beranda, tentang kami, layanan / produk, portofolio, blog / berita, dan kontak dengan form. Kebutuhan lain: [multi-bahasa, SEO, tombol WhatsApp].',
         },
         {
-            l: '📋 Sistem Internal',
+            l: 'Sistem Internal',
+            icon: ClipboardList,
             text: 'Klien butuh sistem internal untuk mengelola [proses, mis. inventori / absensi & cuti / proyek]. Role: [admin, staf, manajer]. Alur utama: [input data → approval → laporan]. Fitur: dashboard ringkasan, notifikasi, dan export laporan [Excel / PDF]. Kebutuhan lain: [integrasi sistem yang sudah ada].',
+        },
+        {
+            l: 'Marketplace',
+            icon: Store,
+            text: 'Klien ingin marketplace multi-vendor untuk [jenis produk / jasa]. Penjual bisa buka toko, kelola produk, dan terima pesanan; pembeli checkout dengan [payment gateway] dan dana diteruskan ke penjual [otomatis / manual]. Fitur: komisi platform [persen], rating & ulasan, chat pembeli-penjual. Kebutuhan lain: [verifikasi penjual, ongkir otomatis].',
+        },
+        {
+            l: 'E-learning / LMS',
+            icon: GraduationCap,
+            text: 'Klien butuh platform e-learning untuk [target, mis. kursus online / pelatihan karyawan]. Fitur: katalog kelas, materi [video / PDF / kuis], progress belajar, sertifikat, dan pembayaran kelas [sekali beli / langganan]. Role: [siswa, instruktur, admin]. Kebutuhan lain: [live class, forum diskusi].',
+        },
+        {
+            l: 'Akademik Sekolah',
+            icon: School,
+            text: 'Klien butuh sistem informasi akademik untuk [jenjang, mis. SMP / SMA / kampus] dengan [jumlah] siswa. Fitur: data siswa & guru, jadwal pelajaran, absensi, nilai & rapor digital, dan pengumuman. Role: [admin, guru, siswa, orang tua]. Kebutuhan lain: [pembayaran SPP online, e-learning].',
+        },
+        {
+            l: 'Klinik / Kesehatan',
+            icon: Stethoscope,
+            text: 'Klien butuh sistem untuk [klinik / praktik dokter / apotek]. Fitur: pendaftaran & antrian pasien, rekam medis elektronik, jadwal dokter, resep & stok obat, dan kasir. Role: [admin, dokter, perawat, kasir]. Kebutuhan lain: [integrasi BPJS / Satu Sehat, reminder jadwal kontrol].',
+        },
+        {
+            l: 'Event & Tiket',
+            icon: Ticket,
+            text: 'Klien butuh platform penjualan tiket untuk [jenis event, mis. konser / seminar / workshop]. Fitur: halaman event, pembelian tiket via [payment gateway], e-ticket dengan QR code, dan check-in scan di lokasi. Role: [penyelenggara, pembeli]. Kebutuhan lain: [kategori tiket / early bird, laporan penjualan].',
+        },
+        {
+            l: 'Rental / Sewa',
+            icon: CarFront,
+            text: 'Klien punya usaha rental [kendaraan / alat berat / kamera] dan butuh sistem sewa online. Fitur: katalog unit dengan kalender ketersediaan, booking & pembayaran [DP / lunas], kontrak / bukti sewa, dan pengingat jatuh tempo pengembalian. Kebutuhan lain: [denda keterlambatan, tracking unit].',
+        },
+        {
+            l: 'Koperasi / Simpan Pinjam',
+            icon: Wallet,
+            text: 'Klien butuh sistem koperasi simpan pinjam untuk [jumlah] anggota. Fitur: pendaftaran anggota, simpanan [pokok / wajib / sukarela], pengajuan & angsuran pinjaman, perhitungan bunga [flat / menurun], dan laporan SHU. Role: [admin, bendahara, anggota]. Kebutuhan lain: [notifikasi jatuh tempo, aplikasi mobile anggota].',
         },
     ];
 
     const applyTemplate = async (text: string) => {
         if (data.raw_text.trim() && !(await confirmDialog('Ganti isi yang sudah diketik dengan template ini?'))) return;
         setData('raw_text', text);
+    };
+
+    // Guard template mentah: placeholder [kurung] belum diisi → konfirmasi, bukan hard block
+    const submitInput = async () => {
+        const holes = data.kind === 'idea' ? data.raw_text.match(/\[[^\]\n]{2,80}\]/g) : null;
+        if (holes && !(await confirmDialog(`Masih ada ${holes.length} bagian [kurung] yang belum diisi (mis. ${holes[0]}). Lanjut analisa saja?`))) return;
+        post(route('wizard.input', project.id));
     };
     const chip = (active: boolean) =>
         `rounded-full border px-3 py-1.5 text-[12px] font-bold ${active ? 'border-teal-600 bg-teal-50 text-teal-800' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'}`;
@@ -223,7 +284,14 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                             <span className="text-[12px] font-semibold text-gray-400">Bingung mulai? Klik template lalu isi bagian [kurung]:</span>
                             {IDEA_TEMPLATES.map((t) => (
-                                <button key={t.l} type="button" onClick={() => void applyTemplate(t.text)} className={chip(false)} title={t.text}>
+                                <button
+                                    key={t.l}
+                                    type="button"
+                                    onClick={() => void applyTemplate(t.text)}
+                                    className={`inline-flex items-center gap-1.5 ${chip(false)}`}
+                                    title={t.text}
+                                >
+                                    <t.icon size={13} strokeWidth={2.2} className="text-teal-600" />
                                     {t.l}
                                 </button>
                             ))}
@@ -363,7 +431,7 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
             </div>
 
             <div className="mt-5 flex justify-end">
-                <button className={btn} disabled={processing} onClick={() => post(route('wizard.input', project.id))}>
+                <button className={btn} disabled={processing} onClick={() => void submitInput()}>
                     {processing ? 'Menganalisa…' : '✦ Analisa dengan AI'}
                 </button>
             </div>

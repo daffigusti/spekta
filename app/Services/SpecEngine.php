@@ -36,6 +36,8 @@ class SpecEngine
 Kamu analis requirement software house. Dari input user (ide/transkrip/RFP), ekstrak pemahaman proyek.
 Balas JSON: {"project_name":"nama proyek singkat & deskriptif","roles":[{"name":"","note":""}],"features":[{"title":"","quote":""}],"domain":"","complexity":1-5,"assumptions":["..."]}
 "quote" = kutipan kalimat sumber bila ada (traceability FR-02). Bahasa Indonesia.
+Placeholder [dalam kurung siku] pada input = informasi yang BELUM diketahui — DILARANG mengarang nilainya;
+jangan masukkan ke nama proyek/fitur, catat sebagai asumsi bila perlu (gap ini akan ditanyakan di interview).
 SYS, $input);
     }
 
