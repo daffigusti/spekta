@@ -39,7 +39,6 @@ class HandleInertiaRequests extends Middleware
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
         return array_merge(parent::share($request), [
-            ...parent::share($request),
             'name' => config('app.name'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
@@ -60,6 +59,14 @@ class HandleInertiaRequests extends Middleware
                     'credits_quota' => config("spekta.plans.$plan.blueprints_per_month"),
                     'projects_count' => $ws->projects()->count(),
                 ];
+            },
+            // Semua membership user — untuk dropdown switcher di sidebar
+            'workspaces' => function () use ($request) {
+                return $request->user()?->workspaces()
+                    ->orderBy('workspace_members.created_at')
+                    ->get()
+                    ->map(fn ($w) => ['id' => $w->id, 'name' => $w->name, 'role' => $w->pivot->role])
+                    ->values() ?? [];
             },
         ]);
     }

@@ -88,6 +88,10 @@ class TeamController extends Controller
         $actor = $this->memberFor($request, $workspace);
         abort_unless(in_array($actor?->role, ['owner', 'admin']), 403);
 
+        // Normalisasi lowercase — register memvalidasi lowercase; tanpa ini email beda
+        // kapitalisasi bikin akun duplikat (unique users.email case-sensitive di Postgres)
+        $request->merge(['email' => strtolower((string) $request->input('email'))]);
+
         $data = $request->validate([
             'email' => 'required|email',
             'role' => 'required|in:admin,member',

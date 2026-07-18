@@ -3,13 +3,14 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -45,7 +46,19 @@ class User extends Authenticatable
 
     public function currentWorkspace(): ?Workspace
     {
-        return $this->workspaces()->first();
+        // Pointer eksplisit hanya berlaku selama masih member (stale setelah dikeluarkan dari workspace)
+        if ($this->current_workspace_id) {
+            $chosen = $this->workspaces()->whereKey($this->current_workspace_id)->first();
+            if ($chosen) {
+                return $chosen;
+            }
+        }
+
+        // Fallback deterministik: membership tertua
+        return $this->workspaces()
+            ->orderBy('workspace_members.created_at')
+            ->orderBy('workspace_members.id')
+            ->first();
     }
 
     protected function casts(): array

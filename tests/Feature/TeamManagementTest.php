@@ -44,6 +44,26 @@ class TeamManagementTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'member.invited', 'workspace_id' => $workspace->id]);
     }
 
+    public function test_invite_mixed_case_email_attaches_existing_user_without_duplicate(): void
+    {
+        $owner = $this->ownerOnPlan('pro');
+        $workspace = $owner->currentWorkspace();
+
+        $existing = User::create(['name' => 'Member', 'email' => 'member@amanah.co.id', 'password' => bcrypt('secret123')]);
+
+        $this->actingAs($owner)->post('/team/members', [
+            'email' => 'Member@Amanah.CO.ID',
+            'role' => 'member',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, User::count()); // tidak ada akun duplikat beda kapitalisasi
+        $this->assertDatabaseHas('workspace_members', [
+            'workspace_id' => $workspace->id,
+            'user_id' => $existing->id,
+            'role' => 'member',
+        ]);
+    }
+
     public function test_member_role_forbidden_to_invite(): void
     {
         $owner = $this->ownerOnPlan('pro');

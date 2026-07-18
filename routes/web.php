@@ -15,12 +15,16 @@ use App\Http\Controllers\ShareController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\WizardController;
+use App\Http\Controllers\WorkspaceController;
+use App\Http\Middleware\EnsureWorkspace;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'landing')->name('home');
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', EnsureWorkspace::class])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    Route::post('workspace/switch', [WorkspaceController::class, 'switch'])->name('workspace.switch');
 
     Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
     Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');

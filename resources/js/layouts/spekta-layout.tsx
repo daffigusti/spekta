@@ -1,6 +1,6 @@
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Link, router, usePage } from '@inertiajs/react';
-import { PropsWithChildren, ReactNode } from 'react';
+import { PropsWithChildren, ReactNode, useEffect, useRef, useState } from 'react';
 
 interface WorkspaceProps {
     id: string;
@@ -11,9 +11,16 @@ interface WorkspaceProps {
     projects_count: number;
 }
 
+interface WorkspaceItem {
+    id: string;
+    name: string;
+    role: string;
+}
+
 interface PageProps {
     auth: { user: { name: string } };
     workspace: WorkspaceProps | null;
+    workspaces: WorkspaceItem[];
     [key: string]: unknown;
 }
 
@@ -119,7 +126,17 @@ export default function SpektaLayout({
     crumb,
     active,
 }: PropsWithChildren<{ crumb: string; active?: 'projects' | 'templates' | 'ratecard' | 'team' | 'settings' }>) {
-    const { auth, workspace } = usePage<PageProps>().props;
+    const { auth, workspace, workspaces = [] } = usePage<PageProps>().props;
+    const [switcherOpen, setSwitcherOpen] = useState(false);
+    const switcherRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!switcherOpen) return;
+        const close = (e: MouseEvent) => {
+            if (!switcherRef.current?.contains(e.target as Node)) setSwitcherOpen(false);
+        };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [switcherOpen]);
     const initials = auth.user.name
         .split(' ')
         .map((w) => w[0])
@@ -145,39 +162,64 @@ export default function SpektaLayout({
                     </div>
                 </div>
 
-                {/* ponytail: workspace switcher visual-only, multi-workspace belum ada di MVP */}
-                <div className="mx-4 mb-3.5 flex cursor-default items-center justify-between rounded-[10px] border-2 border-gray-200 px-2.5 py-2">
-                    <div className="flex min-w-0 items-center gap-2 text-[13px] font-bold text-gray-800">
+                <div ref={switcherRef} className="relative mx-4 mb-3.5">
+                    <button
+                        type="button"
+                        onClick={() => setSwitcherOpen((o) => !o)}
+                        className="flex w-full cursor-pointer items-center justify-between rounded-[10px] border-2 border-gray-200 px-2.5 py-2 hover:border-teal-200"
+                    >
+                        <div className="flex min-w-0 items-center gap-2 text-[13px] font-bold text-gray-800">
+                            <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="#0D9488"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="flex-none"
+                            >
+                                <path d="M3 21h18" />
+                                <path d="M5 21V7l8-4v18" />
+                                <path d="M19 21V11l-6-4" />
+                            </svg>
+                            <span className="truncate">{workspace?.name ?? '—'}</span>
+                        </div>
                         <svg
-                            width="16"
-                            height="16"
+                            width="15"
+                            height="15"
                             viewBox="0 0 24 24"
                             fill="none"
-                            stroke="#0D9488"
+                            stroke="#9CA3AF"
                             strokeWidth="2.2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                             className="flex-none"
                         >
-                            <path d="M3 21h18" />
-                            <path d="M5 21V7l8-4v18" />
-                            <path d="M19 21V11l-6-4" />
+                            <polyline points="6 9 12 15 18 9" />
                         </svg>
-                        <span className="truncate">{workspace?.name ?? '—'}</span>
-                    </div>
-                    <svg
-                        width="15"
-                        height="15"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#9CA3AF"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="flex-none"
-                    >
-                        <polyline points="6 9 12 15 18 9" />
-                    </svg>
+                    </button>
+                    {switcherOpen && (
+                        <div className="absolute top-full right-0 left-0 z-30 mt-1 overflow-hidden rounded-[10px] border-2 border-gray-200 bg-white shadow-lg">
+                            {workspaces.map((w) => (
+                                <button
+                                    key={w.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setSwitcherOpen(false);
+                                        if (w.id !== workspace?.id) router.post(route('workspace.switch'), { workspace_id: w.id });
+                                    }}
+                                    className={`flex w-full items-center justify-between px-2.5 py-2 text-left text-[13px] hover:bg-teal-50 ${
+                                        w.id === workspace?.id ? 'bg-teal-50/60 font-bold text-teal-700' : 'font-medium text-gray-700'
+                                    }`}
+                                >
+                                    <span className="truncate">{w.name}</span>
+                                    <span className="ml-2 flex-none text-[10px] font-semibold tracking-wide text-gray-400 uppercase">{w.role}</span>
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <nav className="flex flex-1 flex-col gap-0.5 overflow-auto px-3">

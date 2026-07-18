@@ -9,9 +9,8 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
-        // User tanpa workspace (mis. dibuat via factory/OAuth) → provision otomatis
-        $workspace = $request->user()->currentWorkspace()
-            ?? app(\App\Services\WorkspaceProvisioner::class)->provision($request->user(), $request->user()->name);
+        // Null tidak mungkin: middleware EnsureWorkspace provision otomatis
+        $workspace = $request->user()->currentWorkspace();
 
         $projects = $workspace->projects()
             ->latest()
