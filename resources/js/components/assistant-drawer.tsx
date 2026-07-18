@@ -66,7 +66,7 @@ export default function AssistantDrawer({
     stream,
     error,
     reloadOnApply = ['documents', 'project', 'findings', 'errors'],
-    placeholder = 'Tanya atau minta perubahan… (Enter)',
+    placeholder = 'Tanya atau minta perubahan… (Enter kirim, Shift+Enter baris baru)',
     emptyHint = 'Tanya apa pun soal spec — mis. "Apa dampak menambah e-wallet OVO ke FR-02?"',
     initialMessage = null,
     quota = null,
@@ -140,10 +140,11 @@ export default function AssistantDrawer({
         return () => clearInterval(t);
     }, [busy, open]);
 
-    // auto-scroll chat ke bawah saat ada pesan/stream baru
+    // auto-scroll chat ke bawah saat drawer dibuka / ada pesan/stream baru
     useEffect(() => {
+        if (!open) return;
         chatEndRef.current?.scrollIntoView({ block: 'nearest' });
-    }, [messages.length, shown.length, busy]);
+    }, [open, messages.length, shown.length, busy]);
 
     if (!open) return null;
 
@@ -364,15 +365,16 @@ export default function AssistantDrawer({
                 </div>
 
                 <div className="flex flex-none gap-2 border-t border-gray-200 bg-white px-5 py-3.5">
-                    <input
+                    <textarea
                         autoFocus
-                        className="min-w-0 flex-1 rounded-[10px] border-2 border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-gray-700 focus:border-teal-400 focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none"
+                        rows={1}
+                        className="max-h-32 min-w-0 flex-1 resize-none rounded-[10px] border-2 border-gray-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-gray-700 field-sizing-content focus:border-teal-400 focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none"
                         placeholder={placeholder}
                         value={chat}
                         disabled={busy}
                         onChange={(e) => setChat(e.target.value)}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                            if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
                                 sendChat();
                             }
