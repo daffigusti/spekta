@@ -35,8 +35,11 @@ class SpecEngine
 
         return $this->json('reasoning', <<<'SYS'
 Kamu analis requirement software house. Dari input user (ide/transkrip/RFP), ekstrak pemahaman proyek.
-Balas JSON: {"project_name":"nama proyek singkat & deskriptif","roles":[{"name":"","note":""}],"features":[{"title":"","quote":""}],"domain":"","complexity":1-5,"assumptions":["..."]}
+Balas JSON: {"project_name":"nama proyek singkat & deskriptif","roles":[{"name":"","note":""}],"features":[{"title":"","quote":""}],"domain":"","complexity":1-5,"assumptions":["..."],"contradictions":["..."]}
 "quote" = kutipan kalimat sumber bila ada (traceability FR-02). Bahasa Indonesia.
+"contradictions" = pernyataan di input yang SALING BERTENTANGAN — dua klaim yang tidak mungkin
+sama-sama benar (angka beda untuk hal sama, aturan vs aturan, scope vs budget/waktu yang mustahil).
+Satu entri = satu kalimat yang mengutip kedua sisi. Kosongkan bila tidak ada; jangan mengada-ada.
 "roles" = aktor/pengguna PRODUK yang memakai aplikasi (end user, admin, operator, approver) — BUKAN tim delivery/pelaksana proyek
 (PM, developer, engineer, QA, trainer, sales/AE); bila input memuat susunan tim proyek, abaikan untuk roles.
 Placeholder [dalam kurung siku] pada input = informasi yang BELUM diketahui — DILARANG mengarang nilainya;
@@ -48,7 +51,8 @@ SYS, $input);
     public function interviewQuestions(Project $project): array
     {
         $u = $project->understanding;
-        $ctx = json_encode(['roles' => $u->roles, 'features' => $u->features, 'domain' => $u->domain], JSON_UNESCAPED_UNICODE)
+        $ctx = json_encode(['roles' => $u->roles, 'features' => $u->features, 'domain' => $u->domain,
+            'kontradiksi_input' => $u->contradictions ?? []], JSON_UNESCAPED_UNICODE)
             ."\n\nINPUT ASLI USER (cuplikan):\n".$this->rawInput($project, 3000);
 
         if ($this->driver() === 'stub') {
@@ -57,6 +61,7 @@ SYS, $input);
 
         $out = $this->json('standard', <<<'SYS'
 Kamu analis requirement. Berdasarkan pemahaman proyek, buat maksimal 10 pertanyaan klarifikasi HANYA untuk gap informasi.
+Bila "kontradiksi_input" tidak kosong, WAJIB buat satu pertanyaan klarifikasi untuk tiap kontradiksi (prioritas tertinggi).
 Balas JSON: {"questions":[{"question":"","reason":"ditanya karena…","options":["opsi a","opsi b"]}]}
 Sertakan opsi multiple-choice bila memungkinkan. Bahasa Indonesia.
 SYS, $ctx);
@@ -821,6 +826,7 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
             'domain' => 'Aplikasi bisnis',
             'complexity' => min(5, max(1, (int) ceil(count($features) / 2))),
             'assumptions' => ['Bahasa antarmuka Indonesia', 'Deploy cloud single-region'],
+            'contradictions' => [],
         ];
     }
 

@@ -15,6 +15,7 @@ class Understanding extends Model
         'roles' => 'array',
         'features' => 'array',
         'assumptions' => 'array',
+        'contradictions' => 'array',
         'confirmed' => 'boolean',
     ];
 
