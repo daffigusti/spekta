@@ -1,4 +1,5 @@
 import AppLogoIcon from '@/components/app-logo-icon';
+import ThemeToggle from '@/components/theme-toggle';
 import { Link, router, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useEffect, useRef, useState } from 'react';
 
@@ -280,6 +281,7 @@ export default function SpektaLayout({
                         <span className="text-[13px] font-medium">Cari proyek, dokumen…</span>
                         <span className="ml-auto rounded-[5px] border border-gray-200 bg-white px-1.5 font-mono text-[10px] font-semibold">⌘K</span>
                     </div>
+                    <ThemeToggle />
                     <div className="relative flex h-9 w-9 flex-none items-center justify-center rounded-[10px] border-2 border-gray-200 text-gray-600">
                         <svg
                             width="18"

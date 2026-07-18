@@ -7,6 +7,7 @@ import AssistantDrawer, { AssistantButton } from '@/components/assistant-drawer'
 import ImpactDialog from '@/components/impact-dialog';
 import MarkdownPreview from '@/components/markdown-preview';
 import { confirmDialog, promptDialog } from '@/components/system-dialog';
+import ThemeToggle from '@/components/theme-toggle';
 import WorkspaceLayout from '@/layouts/workspace-layout';
 
 type DocVersion = {
@@ -432,6 +433,7 @@ export default function ProjectPage({
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5">
+                    <ThemeToggle className="!border" />
                     <Link
                         href={route('projects.structure', project.id)}
                         className="inline-flex items-center gap-1.5 rounded-[10px] border border-gray-200 bg-white px-4 py-2 text-[13px] font-bold text-gray-700 hover:bg-gray-50"
@@ -1294,9 +1296,7 @@ export default function ProjectPage({
                         {/* Open questions: interview skip + asumsi + kontradiksi input — dijawab klien via portal */}
                         {openQuestionGroups.length > 0 && (
                             <div className="mt-3.5 border-t border-gray-200 pt-3.5">
-                                <div className="text-[11px] font-bold tracking-[0.08em] text-gray-500">
-                                    OPEN QUESTIONS ({oqOpenCount} terbuka)
-                                </div>
+                                <div className="text-[11px] font-bold tracking-[0.08em] text-gray-500">OPEN QUESTIONS ({oqOpenCount} terbuka)</div>
                                 <div className="mt-2 flex max-h-[150px] flex-col gap-2 overflow-auto">
                                     {openQuestionGroups.map((g) => (
                                         <div key={g.name} className="flex flex-col gap-1.5">

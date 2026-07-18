@@ -1,7 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { promptDialog } from '@/components/system-dialog';
 
@@ -175,6 +175,14 @@ function Gate({ mode, token, workspace_name, project_name, errors }: Props) {
 }
 
 export default function Portal(props: Props) {
+    // Portal klien selalu light — dark mode hanya untuk halaman member (internal)
+    useEffect(() => {
+        const wasDark = document.documentElement.classList.contains('dark');
+        document.documentElement.classList.remove('dark');
+        return () => {
+            if (wasDark) document.documentElement.classList.add('dark');
+        };
+    }, []);
     const {
         token,
         workspace_name,

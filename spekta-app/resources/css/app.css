@@ -114,39 +114,138 @@
     --sidebar-ring: hsl(217.2, 91.2%, 59.8%);
 }
 
+/* Dark mode "CetakBiru App Dark" (desain claude.ai/design) — teal gelap, bukan abu-abu netral */
 .dark {
-    --background: hsl(0, 0%, 3.9%);
-    --foreground: hsl(0, 0%, 98%);
-    --card: hsl(0, 0%, 3.9%);
-    --card-foreground: hsl(0, 0%, 98%);
-    --popover: hsl(0, 0%, 3.9%);
-    --popover-foreground: hsl(0, 0%, 98%);
-    --primary: hsl(0, 0%, 98%);
-    --primary-foreground: hsl(0, 0%, 9%);
-    --secondary: hsl(0, 0%, 14.9%);
-    --secondary-foreground: hsl(0, 0%, 98%);
-    --muted: hsl(0, 0%, 6.9%);
-    --muted-foreground: hsl(0, 0%, 63.9%);
-    --accent: hsl(0, 0%, 14.9%);
-    --accent-foreground: hsl(0, 0%, 98%);
+    --background: #031716;
+    --foreground: #d1faf5;
+    --card: #04211f;
+    --card-foreground: #d1faf5;
+    --popover: #04211f;
+    --popover-foreground: #d1faf5;
+    --primary: #2dd4bf;
+    --primary-foreground: #042f2e;
+    --secondary: rgba(45, 212, 191, 0.12);
+    --secondary-foreground: #99f6e4;
+    --muted: rgba(255, 255, 255, 0.05);
+    --muted-foreground: rgba(153, 246, 228, 0.65);
+    --accent: rgba(45, 212, 191, 0.12);
+    --accent-foreground: #5eead4;
     --destructive: hsl(0, 84%, 60%);
     --destructive-foreground: hsl(0, 0%, 98%);
-    --border: hsl(0, 0%, 14.9%);
-    --input: hsl(0, 0%, 14.9%);
-    --ring: hsl(0, 0%, 83.1%);
+    --border: rgba(94, 234, 212, 0.18);
+    --input: rgba(94, 234, 212, 0.25);
+    --ring: #2dd4bf;
     --chart-1: hsl(220, 70%, 50%);
     --chart-2: hsl(160, 60%, 45%);
     --chart-3: hsl(30, 80%, 55%);
     --chart-4: hsl(280, 65%, 60%);
     --chart-5: hsl(340, 75%, 55%);
-    --sidebar-background: hsl(0, 0%, 7%);
-    --sidebar-foreground: hsl(0, 0%, 80%);
-    --sidebar-primary: hsl(360, 100%, 100%);
-    --sidebar-primary-foreground: hsl(0, 0%, 100%);
-    --sidebar-accent: hsl(0, 0%, 15.9%);
-    --sidebar-accent-foreground: hsl(240, 4.8%, 95.9%);
-    --sidebar-border: hsl(0, 0%, 15.9%);
-    --sidebar-ring: hsl(217.2, 91.2%, 59.8%);
+    --sidebar-background: #04211f;
+    --sidebar-foreground: rgba(153, 246, 228, 0.75);
+    --sidebar-primary: #2dd4bf;
+    --sidebar-primary-foreground: #042f2e;
+    --sidebar-accent: rgba(45, 212, 191, 0.12);
+    --sidebar-accent-foreground: #5eead4;
+    --sidebar-border: rgba(94, 234, 212, 0.18);
+    --sidebar-ring: #2dd4bf;
+}
+
+/*
+  Remap skala warna Tailwind di dark mode. Halaman member memakai kelas literal
+  (bg-white, text-gray-700, dst) — utility Tailwind v4 dikompilasi ke var(--color-*),
+  jadi satu blok ini men-skin semua halaman tanpa menyentuh ribuan className.
+  Nilai diambil dari desain "CetakBiru App Dark".
+*/
+.dark {
+    --color-white: #04211f; /* panel/kartu; text-white di tombol teal jadi gelap — sesuai desain */
+    --color-gray-50: #031716; /* latar halaman */
+    --color-gray-100: rgba(255, 255, 255, 0.05);
+    --color-gray-200: rgba(94, 234, 212, 0.18); /* border utama */
+    --color-gray-300: rgba(153, 246, 228, 0.28);
+    --color-gray-400: rgba(153, 246, 228, 0.5);
+    --color-gray-500: rgba(153, 246, 228, 0.62);
+    --color-gray-600: rgba(153, 246, 228, 0.75);
+    --color-gray-700: #d1faf5;
+    --color-gray-800: #e4fbf6;
+    --color-gray-900: #f0fdfa;
+
+    --color-teal-50: rgba(45, 212, 191, 0.12);
+    --color-teal-100: rgba(45, 212, 191, 0.2);
+    --color-teal-200: rgba(94, 234, 212, 0.35);
+    --color-teal-300: rgba(94, 234, 212, 0.45);
+    --color-teal-600: #2dd4bf;
+    --color-teal-700: #5eead4; /* teks aksen; hover:bg-teal-700 di tombol = hover terang sesuai desain */
+    --color-teal-800: #99f6e4;
+    --color-teal-900: #ccfbf1;
+
+    --color-amber-50: rgba(245, 158, 11, 0.1);
+    --color-amber-100: rgba(245, 158, 11, 0.16);
+    --color-amber-200: rgba(245, 158, 11, 0.4);
+    --color-amber-300: rgba(245, 158, 11, 0.5);
+    --color-amber-600: #fbbf24;
+    --color-amber-700: #fcd34d;
+    --color-amber-800: #fde68a;
+
+    --color-red-50: rgba(239, 68, 68, 0.12);
+    --color-red-100: rgba(239, 68, 68, 0.2);
+    --color-red-200: rgba(239, 68, 68, 0.35);
+    --color-red-500: #f87171;
+    --color-red-600: #f87171;
+    --color-red-700: #fca5a5;
+    --color-red-800: #fecaca;
+
+    --color-green-50: rgba(22, 163, 74, 0.15);
+    --color-green-200: rgba(34, 197, 94, 0.4);
+    --color-green-600: #4ade80;
+    --color-green-700: #86efac;
+    --color-green-800: #bbf7d0;
+
+    --color-emerald-50: rgba(22, 163, 74, 0.12);
+    --color-emerald-100: rgba(22, 163, 74, 0.18);
+    --color-emerald-200: rgba(34, 197, 94, 0.4);
+    --color-emerald-600: #34d399;
+    --color-emerald-700: #6ee7b7;
+    --color-emerald-800: #a7f3d0;
+
+    --color-blue-50: rgba(59, 130, 246, 0.12);
+    --color-blue-100: rgba(59, 130, 246, 0.2);
+    --color-blue-200: rgba(59, 130, 246, 0.4);
+    --color-blue-600: #60a5fa;
+    --color-blue-700: #93c5fd;
+}
+
+/* Preview markdown: plugin typography pakai var --tw-prose-* sendiri (bukan --color-*) */
+.dark .prose {
+    --tw-prose-body: #d1faf5;
+    --tw-prose-headings: #f0fdfa;
+    --tw-prose-lead: rgba(153, 246, 228, 0.75);
+    --tw-prose-links: #5eead4;
+    --tw-prose-bold: #f0fdfa;
+    --tw-prose-counters: rgba(153, 246, 228, 0.55);
+    --tw-prose-bullets: rgba(153, 246, 228, 0.45);
+    --tw-prose-hr: rgba(94, 234, 212, 0.18);
+    --tw-prose-quotes: #d1faf5;
+    --tw-prose-quote-borders: rgba(94, 234, 212, 0.35);
+    --tw-prose-captions: rgba(153, 246, 228, 0.55);
+    --tw-prose-code: #99f6e4;
+    --tw-prose-pre-code: #d1faf5;
+    --tw-prose-pre-bg: rgba(255, 255, 255, 0.06);
+    --tw-prose-th-borders: rgba(94, 234, 212, 0.35);
+    --tw-prose-td-borders: rgba(94, 234, 212, 0.18);
+}
+
+/* Pengecualian: pemakaian minoritas yang rusak oleh remap var di atas */
+.dark .bg-gray-900\/30 {
+    background-color: rgb(0 0 0 / 0.55); /* overlay modal tetap redup */
+}
+.dark .bg-gray-700 {
+    background-color: rgba(255, 255, 255, 0.12); /* tombol dummy di preview wireframe */
+}
+.dark .bg-teal-800 {
+    background-color: rgba(45, 212, 191, 0.25); /* bubble chat user */
+}
+.dark .text-teal-50 {
+    color: #f0fdfa; /* teks bubble chat user */
 }
 
 @layer base {
