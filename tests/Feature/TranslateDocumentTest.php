@@ -15,8 +15,10 @@ class TranslateDocumentTest extends TestCase
 {
     use RefreshDatabase;
 
-    // Project::factory() belum ada (lihat ImpactAnalysisTest) — tiru pola register + POST /projects,
-    // lalu set language='id' manual karena tidak terisi lewat form store().
+    // Project::factory() belum ada (lihat ImpactAnalysisTest) — tiru pola register + POST /projects.
+    // BUGFIX FR-12: projects.language TIDAK PERNAH ditulis aplikasi (selalu default 'id') — bahasa
+    // primer proyek ditentukan via blueprint['language'] (Project::primaryLanguage()), bukan kolom
+    // itu. Tanpa blueprint sama sekali, rantai fallback sudah jatuh ke 'id' — tidak perlu di-set.
     private function docProject(): Project
     {
         config(['spekta.llm.driver' => 'stub']);
@@ -27,7 +29,6 @@ class TranslateDocumentTest extends TestCase
         $user = User::firstOrFail();
         $this->actingAs($user)->post('/projects');
         $project = Project::firstOrFail();
-        $project->update(['language' => 'id']);
 
         $doc = $project->documents()->create(['doc_key' => 'PRD', 'title' => 'PRD.md']);
         $v = $doc->versions()->create(['version_no' => 1, 'content_md' => '# PRD', 'source' => 'ai']);
@@ -38,10 +39,12 @@ class TranslateDocumentTest extends TestCase
 
     // Varian docProject() berbahasa primer EN — dipakai untuk uji gate storeVersion/restoreVersion
     // (default kolom document_versions.language = 'id', salah untuk proyek berbahasa EN).
+    // Bahasa primer di-set lewat blueprint (sumber nyata Project::primaryLanguage()), BUKAN kolom
+    // projects.language yang mati — lihat ProjectLanguageTest utk jalur writer ASLI (wizard input).
     private function docProjectEn(): Project
     {
         $project = $this->docProject();
-        $project->update(['language' => 'en']);
+        $project->update(['blueprint' => ['language' => 'en']]);
         $project->documents()->first()->versions()->first()->update(['language' => 'en']);
 
         return $project->fresh();

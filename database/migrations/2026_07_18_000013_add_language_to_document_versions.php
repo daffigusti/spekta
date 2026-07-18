@@ -12,9 +12,22 @@ return new class extends Migration
         Schema::table('document_versions', function (Blueprint $table) {
             $table->string('language', 5)->default('id');
         });
-        // Backfill: proyek berbahasa EN → versi existing dianggap EN
-        DB::statement("update document_versions set language = 'en' where document_id in (
-            select d.id from documents d join projects p on p.id = d.project_id where p.language = 'en')");
+        // Backfill: proyek berbahasa EN → versi existing dianggap EN.
+        // BUGFIX FR-12: projects.language TIDAK PERNAH ditulis aplikasi (selalu default 'id') —
+        // bahasa nyata proyek ada di blueprint['language'] (JSON). Loop PHP dipakai (bukan JSON
+        // path SQL semacam json_extract) supaya portable tanpa asumsi driver DB (sqlite/mysql).
+        DB::table('projects')->whereNotNull('blueprint')->select('id', 'blueprint')->orderBy('id')
+            ->get()
+            ->each(function ($project) {
+                $blueprint = json_decode((string) $project->blueprint, true);
+                if (($blueprint['language'] ?? null) !== 'en') {
+                    return;
+                }
+                $docIds = DB::table('documents')->where('project_id', $project->id)->pluck('id');
+                if ($docIds->isNotEmpty()) {
+                    DB::table('document_versions')->whereIn('document_id', $docIds)->update(['language' => 'en']);
+                }
+            });
         Schema::table('document_versions', function (Blueprint $table) {
             $table->dropUnique(['document_id', 'version_no']);
             $table->unique(['document_id', 'version_no', 'language']);

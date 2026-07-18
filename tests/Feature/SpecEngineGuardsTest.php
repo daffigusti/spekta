@@ -150,6 +150,9 @@ class SpecEngineGuardsTest extends TestCase
         $doc = $project->documents()->firstWhere('doc_key', 'PRD');
         $this->assertSame(2, $doc->versions()->count());
         $this->assertSame('ai-repair', $doc->currentVersion->generated_meta['generated_by'] ?? null);
+        // FR-12 coverage: versi hasil RepairRunJob wajib tertag primaryLanguage() proyek, bukan
+        // default kolom 'id' (lihat bugfix Project::primaryLanguage() — kolom projects.language mati).
+        $this->assertSame($project->primaryLanguage(), $doc->currentVersion->language);
         // validator jalan ulang setelah repair — temuan prd_has_fr hilang
         $this->assertFalse($project->healthFindings()->where('rule_key', 'prd_has_fr')->exists());
     }

@@ -97,10 +97,15 @@ class Project extends Model
         return array_values(array_filter(array_merge($fromUnderstanding, $fromInterview)));
     }
 
-    /** FR-12: bahasa utama dokumen ('bilingual' dianggap id). */
+    /**
+     * FR-12: bahasa utama dokumen ('bilingual' dianggap id).
+     * BUGFIX: kolom projects.language TIDAK PERNAH ditulis aplikasi (selalu default 'id') —
+     * bahasa nyata proyek ada di blueprint['language'] (ditulis WizardController::saveInput),
+     * fallback ke bahasa template perusahaan (FR-16). Rantai sama dengan SpecEngine::generateDocument.
+     */
     public function primaryLanguage(): string
     {
-        return $this->language === 'en' ? 'en' : 'id';
+        return ($this->blueprint['language'] ?? $this->docTemplate?->language ?? 'id') === 'en' ? 'en' : 'id';
     }
 
     public function variantLanguage(): string
