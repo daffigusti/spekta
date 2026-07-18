@@ -96,8 +96,8 @@ class MvpFlowTest extends TestCase
         $this->assertSame('ready', $project->status);
         $this->assertSame('done', $project->generationRuns()->first()->status);
 
-        // 13 dokumen untuk kompleksitas 3 (FR-07 scale-adaptive, termasuk WIREFRAMES + SECURITY)
-        $this->assertSame(13, $project->documents()->count());
+        // 14 dokumen untuk kompleksitas 3 (FR-07 scale-adaptive, termasuk PROJECT_BRIEF + WIREFRAMES + SECURITY)
+        $this->assertSame(14, $project->documents()->count());
         $prd = $project->documents()->where('doc_key', 'PRD')->first();
         $this->assertStringContainsString('Assumptions', $prd->currentVersion->content_md); // BR-13
         $this->assertSame('ai', $prd->currentVersion->generated_meta['generated_by']); // BR-53

@@ -181,6 +181,16 @@ SYS, $ctx, $tokensIn, $tokensOut, $onDelta);
 
     /** Outline wajib per tipe dokumen — tanpa ini model menebak sendiri isi tiap dokumen. */
     private const DOC_TEMPLATES = [
+        'PROJECT_BRIEF' => <<<'TPL'
+Struktur wajib PROJECT_BRIEF.md — ringkasan presales 1-2 halaman untuk approval awal klien, BUKAN spesifikasi teknis:
+1. "Latar Belakang" — konteks bisnis klien dan masalah yang mau diselesaikan.
+2. "Tujuan Proyek" — 3-5 tujuan terukur dari sisi bisnis klien.
+3. "Ruang Lingkup Garis Besar" — fitur utama per fase (nama + 1 kalimat), tandai mvp vs full; TANPA nomor FR.
+4. "Stakeholder" — tabel: pihak, peran, keterlibatan.
+5. "Batasan & Asumsi Awal" — batasan budget/timeline/teknologi yang diketahui, asumsi ditandai "(asumsi)".
+6. "Kriteria Sukses" — bagaimana klien menilai proyek berhasil.
+Bahasa non-teknis, dibaca pengambil keputusan klien.
+TPL,
         'PRD' => <<<'TPL'
 Struktur wajib PRD.md:
 1. "Visi Produk" — masalah, solusi, nilai bisnis untuk klien.

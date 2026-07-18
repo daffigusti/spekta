@@ -80,6 +80,7 @@ HTML;
                 $zip->addFromString($doc->doc_key.'.md', $doc->currentVersion->content_md);
             }
         }
+        $zip->addFromString('README.md', $this->readme($project, $docs));
 
         if ($kind === 'agent_pack') {
             foreach ($this->agentPack($project) as $file => $content) {
@@ -90,6 +91,52 @@ HTML;
         $zip->close();
 
         return $path;
+    }
+
+    /** Branding di bundle, bukan di nama file — nama dokumen tetap vocabulary standar industri. */
+    private function readme(Project $project, $docs): string
+    {
+        $pipeline = config('spekta.doc_pipeline');
+        $order = array_flip(array_keys($pipeline));
+        $groupByKey = collect(config('spekta.doc_groups'))
+            ->flatMap(fn ($keys, $g) => array_fill_keys($keys, $g));
+
+        $rows = $docs->filter(fn ($d) => $d->currentVersion)
+            ->sortBy(fn ($d) => $order[$d->doc_key] ?? 99)->values()
+            ->map(fn ($d, $i) => sprintf(
+                '| %02d | `%s.md` | %s | %s | v%d |',
+                $i + 1,
+                $d->doc_key,
+                $groupByKey[$d->doc_key] ?? 'Lainnya',
+                collect($pipeline[$d->doc_key] ?? [])->map(fn ($k) => "`$k`")->implode(', ') ?: '—',
+                $d->currentVersion->version_no,
+            ))->implode("\n");
+
+        $health = $project->health_score !== null ? "{$project->health_score}/100" : 'belum dihitung';
+        $date = now()->format('d M Y');
+        $client = $project->client_name ?? '-';
+
+        return <<<MD
+# {$project->name} — Spekta Blueprint
+
+Digenerate oleh Spekta · {$date} · klien: {$client} · Spec Health: {$health}
+
+Paket spesifikasi lengkap proyek — dokumen saling terhubung dan tervalidasi konsistensinya.
+Urutan nomor = urutan baca yang disarankan; kolom "Diturunkan dari" = dokumen upstream
+yang menjadi sumber konten (mengubah upstream berarti dokumen turunannya perlu ditinjau ulang).
+
+| # | File | Grup | Diturunkan dari | Versi |
+|---|------|------|-----------------|-------|
+$rows
+
+## Cara pakai
+
+- **Presales/klien**: mulai dari `PROJECT_BRIEF.md`, lalu `PRD.md`.
+- **Engineering**: `REQUIREMENTS.md` adalah sumber kebenaran acceptance criteria; skenario uji di `TESTING.md`.
+- **AI coding agent**: gunakan export "Agent pack" dari Spekta — berisi `CLAUDE.md`, `AGENTS.md`, `.cursorrules`.
+
+Perubahan scope dikelola lewat Change Request di Spekta — jangan edit langsung tanpa CR bila proyek sudah baseline.
+MD;
     }
 
     private function agentPack(Project $project): array

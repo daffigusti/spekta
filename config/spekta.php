@@ -63,7 +63,9 @@ return [
 
     // FR-07: set dokumen scale-adaptive + dependency graph (ARCHITECTURE.md pipeline)
     'doc_pipeline' => [
-        'PRD' => [],
+        // Ringkasan presales untuk approval awal klien — akar pipeline, PRD diturunkan darinya
+        'PROJECT_BRIEF' => [],
+        'PRD' => ['PROJECT_BRIEF'],
         'REQUIREMENTS' => ['PRD'],
         'USER_FLOWS' => ['PRD'],
         'WIREFRAMES' => ['USER_FLOWS'],
@@ -81,11 +83,11 @@ return [
 
     // Kompleksitas → subset dokumen (FR-07)
     'doc_sets' => [
-        1 => ['PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'ROADMAP'],
-        2 => ['PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'DATABASE', 'API', 'ROADMAP'],
-        3 => ['PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
-        4 => ['PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
-        5 => ['PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
+        1 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'ROADMAP'],
+        2 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'DATABASE', 'API', 'ROADMAP'],
+        3 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
+        4 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
+        5 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
     ],
 
     // Grup dokumen — presentasi (sidebar + README export), bukan pipeline.
