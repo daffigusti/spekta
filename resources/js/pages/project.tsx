@@ -1001,6 +1001,13 @@ export default function ProjectPage({
                                 {okFindings ? 'Spec konsisten — tidak ada temuan.' : `${findings.length} temuan lintas dokumen`}
                             </div>
                         </div>
+                        <button
+                            type="button"
+                            className="mt-2.5 w-full rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-[12px] font-bold text-teal-700 hover:bg-teal-100"
+                            onClick={() => router.post(route('projects.health.contradictions', project.id), {}, { preserveScroll: true })}
+                        >
+                            Cek kontradiksi
+                        </button>
                         <div className="mt-3.5 flex max-h-[180px] flex-col gap-2 overflow-auto border-t border-gray-200 pt-3.5">
                             {okFindings && (
                                 <div className="flex items-start gap-1.5 text-[11.5px] font-semibold text-gray-600">
