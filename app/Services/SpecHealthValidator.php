@@ -233,7 +233,9 @@ class SpecHealthValidator
                 }
                 $seen["$key|$kw"] = true;
                 $valid = implode('/', array_keys($canon[$kw]));
-                $findings[] = ['rule_key' => 'fact_drift', 'severity' => 'warning', 'location' => "$key / $kw",
+                // severity info, bukan warning: pairing keyword-window heuristik — klaim beda jenis
+                // dengan satuan sama (kapasitas vs volume konten) tak terbedakan, false positive nyata
+                $findings[] = ['rule_key' => 'fact_drift', 'severity' => 'info', 'location' => "$key / $kw",
                     'message' => "Angka \"$num $kw\" di $key.md menyimpang dari fakta kanonik REQUIREMENTS ($valid $kw)",
                     'suggestion' => "Samakan angka $kw di $key.md dengan REQUIREMENTS, atau perbarui REQUIREMENTS bila memang berubah."];
                 if (count($findings) >= 8) {
@@ -254,7 +256,8 @@ class SpecHealthValidator
             'lebih', 'kurang', 'maksimal', 'maksimum', 'minimal', 'minimum', 'maks', 'min', 'hingga', 'sampai',
             'adalah', 'harus', 'wajib', 'bila', 'jika', 'the', 'and', 'max', 'most', 'least', 'atas', 'bawah'];
         $codePrefix = ['fr', 'br', 'adr', 'v', 'versi', 'version', 'fase', 'phase', 'sprint', 'p',
-            'bagian', 'section', 'bab', 'nomor', 'no'];
+            'bagian', 'section', 'bab', 'nomor', 'no',
+            'error', 'status', 'http', 'https', 'kode', 'code']; // "error 404", "status 500" = kode, bukan jumlah
 
         $pairs = [];
         foreach ($tokens as $i => $t) {
