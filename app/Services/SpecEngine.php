@@ -337,7 +337,7 @@ SYS, 'DAFTAR DOKUMEN: '.$docs->pluck('doc_key')->implode(', ')
 
     // ---------- FR-09 (subset): asisten chat spec ----------
     /** ponytail: tanya-jawab read-only atas spec — impact analysis + apply perubahan = Fase 4. */
-    public function chat(Project $project, string $question, ?string $activeDoc = null, ?callable $onDelta = null, ?string $screen = null): string
+    public function chat(Project $project, string $question, ?string $activeDoc = null, ?callable $onDelta = null, ?string $screen = null, string $scope = 'doc'): string
     {
         if ($this->driver() === 'stub') {
             return 'Berdasarkan spec saat ini: '.$question.' — lihat PRD bagian terkait. (stub)';
@@ -354,9 +354,13 @@ SYS, 'DAFTAR DOKUMEN: '.$docs->pluck('doc_key')->implode(', ')
         // Balasan asisten terakhir ikut dipindai: alur "ketik lanjut" menyebut dokumen tersisa di sana.
         $lastReply = (string) $project->assistantMessages()->where('role', 'assistant')->latest()->first()?->body;
         $scan = $question."\n".preg_replace('/<<<DOC.*?(DOC>>>|$)/s', '', $lastReply);
-        $include = collect([$activeDoc])
-            ->merge($docs->pluck('doc_key')->filter(fn ($k) => stripos($scan, (string) $k) !== false))
-            ->filter()->unique()->take(5); // ponytail: cap 5 dokumen, hemat token
+        // scope 'project' = seluruh dokumen masuk konteks (mahal token, pilihan sadar user);
+        // default 'doc' = dokumen aktif + yang disebut, cap 5 — hemat token
+        $include = $scope === 'project'
+            ? $docs->pluck('doc_key')
+            : collect([$activeDoc])
+                ->merge($docs->pluck('doc_key')->filter(fn ($k) => stripos($scan, (string) $k) !== false))
+                ->filter()->unique()->take(5);
         foreach ($include as $key) {
             if ($d = $docs->firstWhere('doc_key', $key)) {
                 $ctx[] = "=== {$key}.md ===\n".$d->currentVersion?->content_md;

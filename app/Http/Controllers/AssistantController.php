@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\AssistantChatJob;
+use App\Models\AssistantMessage;
 use App\Models\Project;
 use Illuminate\Http\Request;
 
@@ -15,6 +17,7 @@ class AssistantController extends Controller
             'message' => 'required|string|max:2000',
             'doc_key' => 'nullable|string|max:40',
             'screen' => 'nullable|string|max:120', // layar wireframe terpilih di canvas
+            'scope' => 'nullable|in:doc,project', // konteks chat: dokumen aktif (default) / seluruh proyek
         ]);
 
         // BR-01: kuota chat per bulan sesuai paket (null = unlimited)
@@ -22,7 +25,7 @@ class AssistantController extends Controller
         $plan = $workspace->subscription?->plan ?? 'free';
         $quota = config("spekta.plans.{$plan}.ai_chats_per_month");
         if ($quota !== null) {
-            $used = \App\Models\AssistantMessage::whereIn('project_id', $workspace->projects()->pluck('id'))
+            $used = AssistantMessage::whereIn('project_id', $workspace->projects()->pluck('id'))
                 ->where('role', 'user')->where('created_at', '>=', now()->startOfMonth())->count();
             if ($used >= $quota) {
                 return back()->withErrors(['assistant' => "Kuota AI chat bulan ini habis ({$quota}/bln paket ".ucfirst($plan).'). Upgrade untuk lanjut.']);
@@ -30,7 +33,7 @@ class AssistantController extends Controller
         }
 
         $project->assistantMessages()->create(['role' => 'user', 'body' => $data['message']]);
-        \App\Jobs\AssistantChatJob::dispatch($project, $data['message'], $data['doc_key'] ?? null, $data['screen'] ?? null);
+        AssistantChatJob::dispatch($project, $data['message'], $data['doc_key'] ?? null, $data['screen'] ?? null, $data['scope'] ?? 'doc');
 
         return back();
     }

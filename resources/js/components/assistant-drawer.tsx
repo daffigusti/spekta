@@ -72,6 +72,8 @@ export default function AssistantDrawer({
     quota = null,
 }: Props) {
     const [chat, setChat] = useState('');
+    // scope konteks AI: dokumen aktif (default, cap 5 dokumen) vs seluruh proyek (semua dokumen, boros token)
+    const [scope, setScope] = useState<'doc' | 'project'>('doc');
     useEffect(() => {
         if (open && initialMessage) setChat(initialMessage);
     }, [open, initialMessage]);
@@ -120,7 +122,7 @@ export default function AssistantDrawer({
         setChatSending(true);
         router.post(
             route('projects.assistant', projectId),
-            { message: chat, doc_key: docKey, screen },
+            { message: chat, doc_key: docKey, screen, scope },
             {
                 preserveScroll: true,
                 preserveState: true, // tanpa ini POST me-reset state komponen — drawer tertutup, terasa seperti refresh
@@ -157,13 +159,42 @@ export default function AssistantDrawer({
                 }`}
             >
                 <div className="flex flex-none items-center gap-2.5 border-b border-gray-200 bg-white px-5 py-4">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#0D9488"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
                         <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z" />
                     </svg>
                     <div className="min-w-0 flex-1">
                         <div className="text-[14px] font-extrabold text-gray-900">Asisten AI</div>
-                        <div className="truncate text-[11.5px] font-medium text-gray-400">
-                            Konteks: {contextLabel} · {projectName}
+                        <div className="flex items-center gap-1 truncate text-[11.5px] font-medium text-gray-400">
+                            Konteks:
+                            <button
+                                type="button"
+                                onClick={() => setScope('doc')}
+                                className={`truncate rounded-md px-1.5 py-px font-semibold ${
+                                    scope === 'doc' ? 'bg-teal-50 text-teal-700' : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                            >
+                                {contextLabel}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setScope('project')}
+                                title="Semua dokumen proyek ikut masuk konteks — jawaban lintas dokumen, pemakaian token lebih besar"
+                                className={`flex-none rounded-md px-1.5 py-px font-semibold ${
+                                    scope === 'project' ? 'bg-teal-50 text-teal-700' : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                            >
+                                seluruh proyek
+                            </button>
+                            <span className="flex-none">· {projectName}</span>
                         </div>
                     </div>
                     {quota && quota.limit != null && (
@@ -181,7 +212,16 @@ export default function AssistantDrawer({
                         </span>
                     )}
                     <button className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700" onClick={close}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
                             <line x1="18" y1="6" x2="6" y2="18" />
                             <line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
@@ -202,7 +242,7 @@ export default function AssistantDrawer({
                             <div key={m.id} className="rounded-xl border border-gray-200 bg-white px-3.5 py-3">
                                 <MarkdownPreview
                                     html={mdHtml(text)}
-                                    className="prose prose-sm max-w-none text-[13px] leading-relaxed text-gray-700 prose-headings:my-2 prose-headings:text-[13.5px] prose-p:my-1.5 prose-table:text-[12px] prose-li:my-0.5"
+                                    className="prose prose-sm prose-headings:my-2 prose-headings:text-[13.5px] prose-p:my-1.5 prose-table:text-[12px] prose-li:my-0.5 max-w-none text-[13px] leading-relaxed text-gray-700"
                                 />
                                 {proposals.map((proposal, pi) => {
                                     const target = applyTargets.find((d) => d.doc_key === proposal.docKey);
@@ -215,7 +255,10 @@ export default function AssistantDrawer({
                                         (d) => d.doc_key !== proposal.docKey && new RegExp(`^#\\s+.*\\b${d.doc_key}(\\.md)?\\b`, 'mi').test(head),
                                     );
                                     return (
-                                        <div key={key} className="mt-2.5 flex items-center justify-between gap-2 rounded-[10px] border border-teal-200 bg-teal-50 px-3 py-2.5">
+                                        <div
+                                            key={key}
+                                            className="mt-2.5 flex items-center justify-between gap-2 rounded-[10px] border border-teal-200 bg-teal-50 px-3 py-2.5"
+                                        >
                                             <div className="min-w-0">
                                                 <div className="text-[12px] font-extrabold text-teal-900">✦ Usulan revisi {proposal.docKey}.md</div>
                                                 <div className="text-[11px] font-medium text-teal-700">
@@ -258,8 +301,8 @@ export default function AssistantDrawer({
                                 })}
                                 {truncatedKey && (
                                     <div className="mt-2.5 rounded-[10px] border border-amber-300 bg-amber-50 px-3 py-2.5 text-[12px] font-semibold text-amber-700">
-                                        ⚠ Usulan revisi {truncatedKey}.md terpotong — jawaban kena batas panjang output. Minta AI kirim ulang
-                                        dokumen itu saja, mis. "kirim ulang revisi {truncatedKey}.md".
+                                        ⚠ Usulan revisi {truncatedKey}.md terpotong — jawaban kena batas panjang output. Minta AI kirim ulang dokumen
+                                        itu saja, mis. "kirim ulang revisi {truncatedKey}.md".
                                     </div>
                                 )}
                             </div>
@@ -275,11 +318,21 @@ export default function AssistantDrawer({
                                     <MarkdownPreview
                                         html={mdHtml(streamText) + '<span class="animate-pulse text-teal-600">▌</span>'}
                                         skipLastMermaid={(streamText.match(/```/g)?.length ?? 0) % 2 === 1}
-                                        className="prose prose-sm max-w-none text-[13px] leading-relaxed text-gray-700 prose-headings:my-2 prose-headings:text-[13.5px] prose-p:my-1.5 prose-table:text-[12px] prose-li:my-0.5"
+                                        className="prose prose-sm prose-headings:my-2 prose-headings:text-[13.5px] prose-p:my-1.5 prose-table:text-[12px] prose-li:my-0.5 max-w-none text-[13px] leading-relaxed text-gray-700"
                                     />
                                     {cut !== -1 && (
                                         <div className="mt-2 flex items-center gap-2 text-[11.5px] font-bold text-teal-700">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="animate-spin">
+                                            <svg
+                                                width="12"
+                                                height="12"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="#0D9488"
+                                                strokeWidth="2.4"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                className="animate-spin"
+                                            >
                                                 <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                             </svg>
                                             Menulis usulan revisi dokumen…
@@ -290,7 +343,17 @@ export default function AssistantDrawer({
                         })()}
                     {busy && !stream && (
                         <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3.5 py-3 text-[12.5px] font-semibold text-teal-800">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="animate-spin">
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="#0D9488"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="animate-spin"
+                            >
                                 <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                             </svg>
                             Menganalisis spec…
@@ -322,7 +385,16 @@ export default function AssistantDrawer({
                         onClick={sendChat}
                         className="flex-none rounded-[10px] bg-teal-600 px-3.5 text-white hover:bg-teal-700 disabled:opacity-40"
                     >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
                             <path d="m22 2-7 20-4-9-9-4Z" />
                             <path d="M22 2 11 13" />
                         </svg>
@@ -340,12 +412,31 @@ export function AssistantButton({ busy, onOpen }: { busy: boolean; onOpen: () =>
             onClick={onOpen}
             className="flex w-full items-center justify-center gap-2 rounded-[10px] border-2 border-teal-200 bg-teal-50 px-3 py-2.5 text-[12.5px] font-bold text-teal-800 hover:bg-teal-100"
         >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#0D9488"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            >
                 <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z" />
             </svg>
             Chat dengan Asisten AI
             {busy && (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="animate-spin">
+                <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#0D9488"
+                    strokeWidth="2.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="animate-spin"
+                >
                     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                 </svg>
             )}

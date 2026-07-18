@@ -43,4 +43,22 @@ class AssistantChatTest extends TestCase
             ->assertSessionHasErrors('assistant');
         $this->assertSame(10, AssistantMessage::where('role', 'user')->count()); // tetap 10, tidak nambah
     }
+
+    public function test_scope_param_validated(): void
+    {
+        config(['spekta.llm.driver' => 'stub']);
+        $this->post('/register', [
+            'name' => 'M', 'company' => 'AC', 'email' => 'o@a.co',
+            'password' => 'password123', 'password_confirmation' => 'password123',
+        ]);
+        $this->actingAs(User::firstOrFail())->post('/projects');
+        $project = Project::firstOrFail();
+
+        // scope 'project' valid — konteks seluruh proyek
+        $this->post("/projects/{$project->id}/assistant", ['message' => 'Risiko terbesar?', 'scope' => 'project'])
+            ->assertSessionHasNoErrors();
+        // scope tak dikenal ditolak validasi
+        $this->post("/projects/{$project->id}/assistant", ['message' => 'x', 'scope' => 'galaxy'])
+            ->assertSessionHasErrors('scope');
+    }
 }

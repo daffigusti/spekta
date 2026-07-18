@@ -18,9 +18,7 @@ class AssistantChatJob implements ShouldQueue
 
     public int $timeout = 300;
 
-    public function __construct(public Project $project, public string $question, public ?string $docKey, public ?string $screen = null)
-    {
-    }
+    public function __construct(public Project $project, public string $question, public ?string $docKey, public ?string $screen = null, public string $scope = 'doc') {}
 
     public function handle(SpecEngine $engine): void
     {
@@ -34,7 +32,7 @@ class AssistantChatJob implements ShouldQueue
                 }
                 $last = microtime(true);
                 Cache::put($key, $acc, 300);
-            }, $this->screen);
+            }, $this->screen, $this->scope);
         } catch (\Throwable $e) {
             $reply = 'Maaf, asisten gagal menjawab: '.$e->getMessage();
         }
