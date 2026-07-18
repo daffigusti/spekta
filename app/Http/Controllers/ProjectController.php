@@ -136,10 +136,11 @@ class ProjectController extends Controller
         return to_route('dashboard');
     }
 
-    /** FR-11(f): trigger manual cek kontradiksi. */
+    /** FR-11(f): trigger manual cek kontradiksi — dispatch job LLM, wajib guard billing (BR-05/BR-02). */
     public function checkContradictions(Request $request, Project $project)
     {
-        self::authorizeProject($request, $project);
+        $this->authorizeProject($request, $project);
+        $project->workspace->assertAiAllowed();
         \App\Jobs\ContradictionCheckJob::dispatch($project->id);
 
         return back();

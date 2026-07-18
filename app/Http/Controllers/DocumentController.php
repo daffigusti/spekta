@@ -62,13 +62,7 @@ class DocumentController extends Controller
      */
     private function guardTranslateBilling(Project $project): void
     {
-        $workspace = $project->workspace;
-        if ($workspace->subscription?->effectiveStatus() === 'readonly') {
-            abort(403, 'Langganan berakhir — workspace read-only (BR-05).');
-        }
-        if ($workspace->creditBalance() < 1) {
-            abort(402, 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).');
-        }
+        $project->workspace->assertAiAllowed();
     }
 
     // FR-08: edit manual → versi baru dengan atribusi

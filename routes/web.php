@@ -94,8 +94,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('projects/{project}/regenerate', [ImpactController::class, 'regenerate'])->name('projects.regenerate');
     Route::post('projects/{project}/change-requests/{crId}/impact-ai', [ImpactController::class, 'forChangeRequest'])->middleware('throttle:12,1')->name('projects.cr.impact-ai');
 
-    // FR-11(f): trigger manual cek kontradiksi antar-requirement
-    Route::post('projects/{project}/health/contradictions', [ProjectController::class, 'checkContradictions'])->name('projects.health.contradictions');
+    // FR-11(f): trigger manual cek kontradiksi antar-requirement — job LLM termahal, throttle sama dgn impact/translate
+    Route::post('projects/{project}/health/contradictions', [ProjectController::class, 'checkContradictions'])->middleware('throttle:12,1')->name('projects.health.contradictions');
 
     // Billing (FR-23)
     Route::get('billing', [BillingController::class, 'index'])->name('billing.index');

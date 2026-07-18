@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\ContradictionCheckJob;
+use App\Models\CreditLedger;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\SpecEngine;
@@ -76,5 +77,45 @@ class ContradictionCheckTest extends TestCase
         $this->actingAs($user)->post(route('projects.health.contradictions', $project))->assertRedirect();
 
         Queue::assertPushed(ContradictionCheckJob::class);
+    }
+
+    public function test_manual_endpoint_blocked_when_credits_exhausted(): void
+    {
+        // BR-02/BR-05: cek kontradiksi dispatch job LLM (termahal) — wajib guard billing yang sama
+        // dengan ImpactController::analyze/forChangeRequest & DocumentController::guardTranslateBilling.
+        Queue::fake();
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail();
+        $workspace = $project->workspace;
+
+        CreditLedger::create([
+            'workspace_id' => $workspace->id,
+            'delta' => -$workspace->creditBalance(),
+            'kind' => 'consume',
+            'ref_type' => 'project',
+            'ref_id' => $project->id,
+            'idempotency_key' => 'test-zero-'.$project->id,
+        ]);
+        $this->assertSame(0.0, $workspace->fresh()->creditBalance());
+
+        $this->actingAs($user)->post(route('projects.health.contradictions', $project))->assertStatus(402);
+
+        Queue::assertNotPushed(ContradictionCheckJob::class);
+    }
+
+    public function test_manual_endpoint_blocked_when_readonly(): void
+    {
+        // BR-05: workspace read-only setelah grace period habis — cek kontradiksi (panggilan LLM) diblok.
+        Queue::fake();
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail();
+        $project->workspace->subscription->update([
+            'plan' => 'starter',
+            'period_end' => now()->subDays(10)->toDateString(),
+        ]);
+
+        $this->actingAs($user)->post(route('projects.health.contradictions', $project))->assertForbidden();
+
+        Queue::assertNotPushed(ContradictionCheckJob::class);
     }
 }

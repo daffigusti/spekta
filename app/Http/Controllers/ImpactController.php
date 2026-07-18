@@ -17,18 +17,9 @@ class ImpactController extends Controller
         ProjectController::authorizeProject($request, $project);
         $data = $request->validate(['change_text' => 'required|string|max:5000']);
 
-        $workspace = $project->workspace;
-
-        // BR-05: mode read-only setelah grace period habis — analisa (panggilan LLM) diblok
-        if ($workspace->subscription?->effectiveStatus() === 'readonly') {
-            abort(403, 'Langganan berakhir — workspace read-only (BR-05).');
-        }
-
-        // BR-02: analisa perlu kredit tersedia, tapi TIDAK mengkonsumsi — hanya preview;
-        // konsumsi baru terjadi saat regenerate() sukses.
-        if ($workspace->creditBalance() < 1) {
-            abort(402, 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).');
-        }
+        // BR-05/BR-02: analisa (panggilan LLM) diblok saat read-only / kredit habis — TIDAK
+        // mengkonsumsi, hanya preview; konsumsi baru terjadi saat regenerate() sukses.
+        $project->workspace->assertAiAllowed();
 
         return response()->json($engine->impact($project, $data['change_text']));
     }
@@ -94,18 +85,9 @@ class ImpactController extends Controller
         ProjectController::authorizeProject($request, $project);
         $cr = $project->changeRequests()->where('status', 'proposed')->findOrFail($crId);
 
-        $workspace = $project->workspace;
-
-        // BR-05: mode read-only setelah grace period habis — analisa (panggilan LLM) diblok
-        if ($workspace->subscription?->effectiveStatus() === 'readonly') {
-            abort(403, 'Langganan berakhir — workspace read-only (BR-05).');
-        }
-
-        // BR-02: analisa perlu kredit tersedia, tapi TIDAK mengkonsumsi — hanya preview;
-        // konsumsi baru terjadi saat regenerate() sukses.
-        if ($workspace->creditBalance() < 1) {
-            abort(402, 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).');
-        }
+        // BR-05/BR-02: analisa (panggilan LLM) diblok saat read-only / kredit habis — TIDAK
+        // mengkonsumsi, hanya preview; konsumsi baru terjadi saat regenerate() sukses.
+        $project->workspace->assertAiAllowed();
 
         $impact = $engine->impact($project, trim($cr->title."\n".(string) $cr->description));
         $service->setImpact($cr, (float) $impact['delta_md'], array_column($impact['affected'], 'doc_key'));

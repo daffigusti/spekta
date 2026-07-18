@@ -82,6 +82,24 @@ class Workspace extends Model
             ->sum('delta'));
     }
 
+    /**
+     * BR-05/BR-02: guard bersama untuk endpoint yang memanggil LLM (analisa dampak, terjemahan,
+     * cek kontradiksi, dst). Dulu diduplikasi di ImpactController::analyze/forChangeRequest &
+     * DocumentController::guardTranslateBilling — disatukan di sini supaya titik guard baru
+     * (mis. ProjectController::checkContradictions) tidak lupa menerapkannya.
+     */
+    public function assertAiAllowed(): void
+    {
+        // BR-05: mode read-only setelah grace period habis — panggilan LLM diblok.
+        if ($this->subscription?->effectiveStatus() === 'readonly') {
+            abort(403, 'Langganan berakhir — workspace read-only (BR-05).');
+        }
+        // BR-02: butuh kredit tersedia (analisa/terjemahan/cek TIDAK mengkonsumsi, hanya preview/gate).
+        if ($this->creditBalance() < 1) {
+            abort(402, 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).');
+        }
+    }
+
     /** BR-01: pemakaian chat AI bulan berjalan vs kuota paket (limit null = unlimited). */
     public function chatQuota(): array
     {
