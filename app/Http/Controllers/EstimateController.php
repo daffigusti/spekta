@@ -25,9 +25,13 @@ class EstimateController extends Controller
             'id' => $e->id,
             'scope' => $e->scope,
             'total_md' => $e->total_md,
+            'baseline_md' => $e->baseline_md,
+            'work_mode' => $e->work_mode,
             'range_pct' => $e->range_pct,
             'total_cost' => $e->total_cost,
             'currency' => $e->currency,
+            // MD-only bila rate card kosong/semua tarif 0 — UI sembunyikan kolom biaya
+            'md_only' => collect($e->rate_card_snapshot['roles'] ?? [])->every(fn ($r) => ($r['daily_rate'] ?? 0) <= 0),
             'team_composition' => $e->team_composition,
             'duration_weeks' => $e->duration_weeks,
             'timeline' => $e->timeline,
@@ -36,6 +40,7 @@ class EstimateController extends Controller
                 'feature' => $l->structureNode?->title,
                 'scope' => $l->structureNode?->scope,
                 'md' => $l->md,
+                'ai_md' => $l->ai_md,
                 'cost' => $l->cost,
                 'overridden' => $l->overridden,
                 'override_reason' => $l->override_reason,
@@ -45,12 +50,21 @@ class EstimateController extends Controller
         return Inertia::render('estimate', [
             'project' => $project->only(['id', 'name', 'client_name', 'status', 'scope_mode']),
             'estimates' => $estimates,
+            'workModes' => collect(config('spekta.estimate.work_modes'))->map(fn ($m) => $m['label']),
         ]);
     }
 
     public function recompute(Request $request, Project $project, Estimator $estimator)
     {
         ProjectController::authorizeProject($request, $project);
+
+        // FR-14: switcher mode pengerjaan — persist ke blueprint supaya konsisten dengan wizard
+        $data = $request->validate(['work_mode' => 'sometimes|in:conservative,ai_assisted,vibe']);
+        if (isset($data['work_mode'])) {
+            $project->update(['blueprint' => array_merge($project->blueprint ?? [], ['work_mode' => $data['work_mode']])]);
+            $project->refresh();
+        }
+
         foreach (['mvp', 'full'] as $scope) {
             $estimator->compute($project, $scope);
         }

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\ProposalGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -78,5 +79,61 @@ class PresalesExportTest extends TestCase
 
         // Scope tidak valid ditolak
         $this->get("/projects/{$project->id}/export/proposal?scope=bogus")->assertNotFound();
+    }
+
+    private function docXml(string $path): string
+    {
+        $zip = new \ZipArchive;
+        $zip->open($path);
+        $xml = $zip->getFromName('word/document.xml');
+        $zip->close();
+        unlink($path);
+
+        return $xml;
+    }
+
+    /** FR-16: payment scheme/warranty dari config, override per-template menang, white_label atur footer. */
+    public function test_proposal_mengikuti_konfigurasi_payment_warranty_dan_branding(): void
+    {
+        [, $project] = $this->buildProject();
+        config(['spekta.proposal.warranty_days' => 45]);
+        $project->workspace->update(['brand_colors' => ['primary' => '#FF5733']]);
+
+        $this->get("/projects/{$project->id}/estimate")->assertOk();
+        $estimate = $project->estimates()->where('scope', 'full')->firstOrFail();
+
+        $xml = $this->docXml(app(ProposalGenerator::class)->generate($project->fresh(), $estimate));
+        $this->assertStringContainsString('Down payment (mulai kerja)', $xml); // default config
+        $this->assertStringContainsString('45 hari', $xml); // warranty_days configurable
+        $this->assertStringContainsString('FF5733', $xml); // warna aksen workspace
+        // Template default white_label=true → tanpa footer Spekta
+        $this->assertStringNotContainsString('Dokumen dibuat dengan Spekta', $xml);
+
+        // Override per-template menang atas config; non white-label memunculkan footer
+        $project->docTemplate->update(['config' => [
+            'white_label' => false,
+            'payment_scheme' => [['label' => 'Sekali bayar', 'pct' => 100]],
+            'warranty_days' => 90,
+        ]]);
+        $xml = $this->docXml(app(ProposalGenerator::class)->generate($project->fresh(), $estimate));
+        $this->assertStringContainsString('Sekali bayar', $xml);
+        $this->assertStringContainsString('90 hari', $xml);
+        $this->assertStringNotContainsString('Down payment', $xml);
+        $this->assertStringContainsString('Dokumen dibuat dengan Spekta', $xml);
+    }
+
+    /** Currency rate card (USD) mengalir ke proposal — tidak lagi hardcode Rp. */
+    public function test_currency_usd_mengalir_ke_proposal(): void
+    {
+        [, $project] = $this->buildProject();
+        $project->workspace->rateCards()->where('is_default', true)->firstOrFail()->update(['currency' => 'USD']);
+
+        $this->get("/projects/{$project->id}/estimate")->assertOk();
+        $estimate = $project->estimates()->where('scope', 'full')->firstOrFail();
+        $this->assertSame('USD', $estimate->currency);
+
+        $xml = $this->docXml(app(ProposalGenerator::class)->generate($project->fresh(), $estimate));
+        $this->assertStringContainsString('$', $xml);
+        $this->assertStringNotContainsString('Rp ', $xml);
     }
 }

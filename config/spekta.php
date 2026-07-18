@@ -90,6 +90,10 @@ return [
         'buffer_pct' => 15,
         'confidence_range_pct' => 15,
 
+        // Kapasitas paralel untuk durasi (FR-15): 3 track × 5 hari kerja/minggu
+        'parallel_tracks' => 3,
+        'days_per_week' => 5,
+
         // Distribusi MD per peran — satu-satunya sumber untuk Estimator, RabExporter,
         // ChangeRequestService, dan tampilan alokasi di halaman rate card. Total harus 1.0.
         'role_split' => ['FE' => 0.33, 'BE' => 0.38, 'QA' => 0.14, 'PM' => 0.10, 'DevOps' => 0.05],
@@ -102,6 +106,16 @@ return [
             'ai_assisted' => ['label' => 'AI-assisted', 'impl_multiplier' => 0.6, 'range_pct' => 20],
             'vibe' => ['label' => 'Vibe / AI-first', 'impl_multiplier' => 0.4, 'range_pct' => 25],
         ],
+    ],
+
+    // FR-16: default isi proposal — bisa dioverride per template via doc_templates.config
+    'proposal' => [
+        'payment_scheme' => [
+            ['label' => 'Down payment (mulai kerja)', 'pct' => 30],
+            ['label' => 'Progress (selesai fase inti)', 'pct' => 40],
+            ['label' => 'Pelunasan (UAT & serah terima)', 'pct' => 30],
+        ],
+        'warranty_days' => 30,
     ],
 
     'llm' => [

@@ -58,7 +58,9 @@ class Workspace extends Model
 
     public function subscription()
     {
-        return $this->hasOne(Subscription::class)->latestOfMany();
+        // ponytail: plain ordering, not latestOfMany() — that builds MAX(id) subqueries
+        // and Postgres has no max(uuid). Safe because nothing eager-loads this relation.
+        return $this->hasOne(Subscription::class)->orderByDesc('created_at')->orderByDesc('id');
     }
 
     public function creditLedger()

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Estimate;
 use App\Models\Project;
+use App\Support\Money;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -28,9 +29,10 @@ class RabExporter
 
         $sheet->setCellValue('A3', 'Parameter');
         $sheet->getStyle('A3')->getFont()->setBold(true);
+        $currency = $estimate->currency ?? 'IDR';
         $row = 4;
         foreach ($roleSplit as $role => $pct) {
-            $sheet->setCellValue("A{$row}", "Rate {$role} /MD");
+            $sheet->setCellValue("A{$row}", "Rate {$role} /MD ({$currency})");
             $sheet->setCellValue("B{$row}", (float) ($rates[$role]['daily_rate'] ?? 0));
             $sheet->setCellValue("C{$row}", $pct);
             $sheet->getStyle("C{$row}")->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_PERCENTAGE);
@@ -80,7 +82,7 @@ class RabExporter
 
         $sheet->getStyle("B4:B{$rateEnd}")->getNumberFormat()->setFormatCode('#,##0');
         $sheet->getStyle("B{$blendedRow}")->getNumberFormat()->setFormatCode('#,##0');
-        $sheet->getStyle("C{$firstLine}:C{$totalRow}")->getNumberFormat()->setFormatCode('"Rp" #,##0');
+        $sheet->getStyle("C{$firstLine}:C{$totalRow}")->getNumberFormat()->setFormatCode(Money::excelFormat($currency));
         $sheet->getColumnDimension('A')->setWidth(42);
         $sheet->getColumnDimension('B')->setWidth(16);
         $sheet->getColumnDimension('C')->setWidth(20);

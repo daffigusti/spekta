@@ -1,11 +1,12 @@
 import { Head, useForm } from '@inertiajs/react';
 
 import SpektaLayout from '@/layouts/spekta-layout';
+import { fmtMoneyCompact } from '@/lib/currency';
 
 type RoleRate = {
     role: string;
     daily_rate: number;
-}
+};
 
 type RateCardData = {
     id: string;
@@ -14,7 +15,7 @@ type RateCardData = {
     is_default: boolean;
     roles: RoleRate[];
     margin_pct: number;
-}
+};
 
 // ponytail: level/orang display-only per design, tidak disimpan di DB.
 // Persentase alokasi datang dari prop roleSplit (config spekta.estimate.role_split) — sumber sama dengan Estimator.
@@ -44,7 +45,7 @@ export default function RateCards({ rateCards, roleSplit }: { rateCards: RateCar
     // Weighted sesuai role_split engine — cocok dengan Estimator::costOf; role di luar split tidak dihitung
     const rateOf = Object.fromEntries(data.roles.map((r) => [r.role, r.daily_rate]));
     const blended = Object.entries(roleSplit).reduce((sum, [role, pct]) => sum + pct * (rateOf[role] ?? 0), 0);
-    const sampleRab = Math.round((blended * 124 * (1 + data.margin_pct / 100)) / 1e6);
+    const sampleRab = blended * 124 * (1 + data.margin_pct / 100);
     const marginChips = [20, 30, 40].includes(data.margin_pct) ? [20, 30, 40] : [20, 30, 40, data.margin_pct];
 
     return (
@@ -85,7 +86,7 @@ export default function RateCards({ rateCards, roleSplit }: { rateCards: RateCar
                                             {h}
                                         </th>
                                     ))}
-                                    <th className="border-b border-gray-200 bg-gray-50 w-10" />
+                                    <th className="w-10 border-b border-gray-200 bg-gray-50" />
                                 </tr>
                             </thead>
                             <tbody>
@@ -95,7 +96,12 @@ export default function RateCards({ rateCards, roleSplit }: { rateCards: RateCar
                                             <input
                                                 className="w-full border-0 bg-transparent font-bold text-gray-800 focus:outline-none"
                                                 value={r.role}
-                                                onChange={(e) => setData('roles', data.roles.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)))}
+                                                onChange={(e) =>
+                                                    setData(
+                                                        'roles',
+                                                        data.roles.map((x, j) => (j === i ? { ...x, role: e.target.value } : x)),
+                                                    )
+                                                }
                                             />
                                         </td>
                                         <td className="px-4 py-3 font-semibold text-gray-500">{ROLE_META[r.role]?.level ?? 'Mid'}</td>
@@ -108,7 +114,10 @@ export default function RateCards({ rateCards, roleSplit }: { rateCards: RateCar
                                                 value={r.daily_rate.toLocaleString('id-ID')}
                                                 onChange={(e) => {
                                                     const num = Number(e.target.value.replace(/\D/g, ''));
-                                                    setData('roles', data.roles.map((x, j) => (j === i ? { ...x, daily_rate: num } : x)));
+                                                    setData(
+                                                        'roles',
+                                                        data.roles.map((x, j) => (j === i ? { ...x, daily_rate: num } : x)),
+                                                    );
                                                 }}
                                             />
                                         </td>
@@ -116,7 +125,12 @@ export default function RateCards({ rateCards, roleSplit }: { rateCards: RateCar
                                         <td className="pr-3 text-right">
                                             <button
                                                 className="text-sm font-bold text-gray-300 hover:text-red-500"
-                                                onClick={() => setData('roles', data.roles.filter((_, j) => j !== i))}
+                                                onClick={() =>
+                                                    setData(
+                                                        'roles',
+                                                        data.roles.filter((_, j) => j !== i),
+                                                    )
+                                                }
                                             >
                                                 ✕
                                             </button>
@@ -164,11 +178,11 @@ export default function RateCards({ rateCards, roleSplit }: { rateCards: RateCar
                             <div className="text-[11px] font-bold tracking-[0.08em] text-gray-500">PREVIEW DAMPAK</div>
                             <div className="mt-3 flex items-baseline justify-between text-[13px] font-semibold text-gray-600">
                                 Blended rate
-                                <span className="font-mono font-bold text-gray-900">Rp {Math.round(blended / 1000).toLocaleString('id-ID')} rb / MD</span>
+                                <span className="font-mono font-bold text-gray-900">{fmtMoneyCompact(blended, card.currency)} / MD</span>
                             </div>
                             <div className="mt-2 flex items-baseline justify-between text-[13px] font-semibold text-gray-600">
                                 Contoh proyek 124 MD
-                                <span className="font-mono text-base font-extrabold text-teal-800">Rp {sampleRab} jt</span>
+                                <span className="font-mono text-base font-extrabold text-teal-800">{fmtMoneyCompact(sampleRab, card.currency)}</span>
                             </div>
                             <div className="mt-2.5 text-[11.5px] leading-relaxed font-medium text-gray-400">
                                 Angka RAB di semua blueprint mengikuti rate card ini secara otomatis.

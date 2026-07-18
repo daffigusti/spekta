@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Estimate;
+use App\Models\EstimateLine;
 use App\Models\Project;
 use App\Models\RateCard;
+use Illuminate\Support\Collection;
 
 /**
  * FR-14 + BR-20/BR-21/BR-22.
@@ -45,8 +47,9 @@ class Estimator
         $mult = self::effectiveMultiplier($mode);
 
         $nodes = $project->structureNodes;
+        // Parked selalu keluar — timeline & proposal juga mengecualikannya, total harus rekonsiliasi
         $features = $nodes->where('kind', 'feature')->filter(
-            fn ($f) => $scope === 'full' || $f->scope === 'mvp'
+            fn ($f) => $f->scope !== 'parked' && ($scope === 'full' || $f->scope === 'mvp')
         );
 
         $estimate = Estimate::updateOrCreate(
@@ -61,94 +64,32 @@ class Estimator
         );
         $estimate->lines()->delete();
 
-        $totalMd = 0.0;
         $baselineMd = 0.0;
-        $totalCost = 0.0;
 
         foreach ($features as $feature) {
             $subMd = $nodes->where('parent_id', $feature->id)->sum('est_md');
             $mdBase = ($subMd > 0 ? $subMd : $feature->est_md) * (1 + $cfg['integration_overhead_pct'] / 100);
             $baselineMd += $mdBase;
-            $md = $mdBase * $mult;
+            $md = round($mdBase * $mult, 2);
 
-            $existing = $estimate->lines()->where('structure_node_id', $feature->id)->first();
             [$roleBreakdown, $cost] = $this->costOf($md, $rates, $margin);
 
             $estimate->lines()->create([
                 'structure_node_id' => $feature->id,
-                'md' => round($md, 1),
+                'md' => $md,
+                'ai_md' => $md, // pembanding warning override <50%
                 'role_breakdown' => $roleBreakdown,
                 'cost' => $cost,
             ]);
-            $totalMd += $md;
-            $totalCost += $cost;
         }
 
-        // BR-20: baris buffer
-        $bufferMd = $totalMd * $cfg['buffer_pct'] / 100;
-        [, $bufferCost] = $this->costOf($bufferMd, $rates, $margin);
-        $totalMd += $bufferMd;
+        // baseline_md = estimasi konvensional AI (invarian terhadap override manual)
         $baselineMd *= 1 + $cfg['buffer_pct'] / 100;
-        $totalCost += $bufferCost;
+        $estimate->update(['baseline_md' => round($baselineMd, 1)]);
 
-        // Komposisi tim & durasi kasar: paralel 3 track, 5 hari/minggu
-        $teamComposition = collect(self::roleSplit())
-            ->map(fn ($pct, $role) => ['role' => $role, 'md' => round($totalMd * $pct, 1)])
-            ->values()->all();
-        $durationWeeks = round($totalMd / (3 * 5), 1);
-
-        $estimate->update([
-            'total_md' => round($totalMd, 1),
-            'baseline_md' => round($baselineMd, 1),
-            'total_cost' => round($totalCost),
-            'team_composition' => $teamComposition,
-            'duration_weeks' => $durationWeeks,
-            'timeline' => $this->timeline($project, $scope, $cfg, $bufferMd, $mult),
-        ]);
+        $this->refreshTotals($estimate);
 
         return $estimate->fresh('lines');
-    }
-
-    /**
-     * FR-15: gantt sederhana — fase berurutan (dependensi antar fase), slot UAT & buffer 15% di akhir.
-     * ponytail: fase strictly sequential; overlap antar fase nanti kalau perlu.
-     *
-     * @return array<int, array{label: string, start_week: float, weeks: float, md: float, kind: string}>
-     */
-    private function timeline(Project $project, string $scope, array $cfg, float $bufferMd, float $mult = 1.0): array
-    {
-        $nodes = $project->structureNodes;
-        $phases = $nodes->where('kind', 'phase')->sortBy('phase_no')->values();
-        $weeksOf = fn (float $md) => max(round($md / 15, 1), 0.5); // 3 track paralel × 5 hari
-
-        $timeline = [];
-        $cursor = 0.0;
-        foreach ($phases as $phase) {
-            $md = $nodes->where('parent_id', $phase->id)->where('kind', 'feature')
-                ->filter(fn ($f) => $f->scope !== 'parked' && ($scope === 'full' || $f->scope === 'mvp'))
-                ->sum(function ($f) use ($nodes) {
-                    $sub = $nodes->where('parent_id', $f->id)->sum('est_md');
-
-                    return $sub > 0 ? $sub : $f->est_md;
-                });
-            $md *= (1 + $cfg['integration_overhead_pct'] / 100) * $mult;
-            if ($md <= 0) {
-                continue;
-            }
-            $weeks = $weeksOf($md);
-            $timeline[] = ['label' => $phase->title, 'start_week' => $cursor, 'weeks' => $weeks, 'md' => round($md, 1), 'kind' => 'phase'];
-            $cursor += $weeks;
-        }
-
-        $timeline[] = [
-            'label' => 'Setup, deploy, UAT & buffer',
-            'start_week' => $cursor,
-            'weeks' => $weeksOf($bufferMd),
-            'md' => round($bufferMd, 1),
-            'kind' => 'buffer',
-        ];
-
-        return $timeline;
     }
 
     public function applyOverride(Estimate $estimate, string $lineId, float $md, string $reason): void
@@ -166,25 +107,76 @@ class Estimator
             'override_reason' => $reason,
         ]);
 
-        $this->retotal($estimate);
+        $this->refreshTotals($estimate);
     }
 
-    private function retotal(Estimate $estimate): void
+    /**
+     * FR-15: satu jalur untuk compute & override — total, komposisi tim, durasi,
+     * dan timeline semua diturunkan dari estimate lines, jadi override manual
+     * otomatis mengalir ke Gantt.
+     */
+    private function refreshTotals(Estimate $estimate): void
     {
         $cfg = config('spekta.estimate');
         $rates = collect($estimate->rate_card_snapshot['roles'] ?? [])->keyBy('role');
         $margin = ($estimate->rate_card_snapshot['margin_pct'] ?? 0) / 100;
+        $capacity = $cfg['parallel_tracks'] * $cfg['days_per_week']; // MD per minggu
 
-        $linesMd = (float) $estimate->lines()->sum('md');
-        $linesCost = (float) $estimate->lines()->sum('cost');
+        $lines = $estimate->lines()->with('structureNode')->get();
+        $linesMd = (float) $lines->sum('md');
+        $linesCost = (float) $lines->sum('cost');
+
+        // BR-20: baris buffer
         $bufferMd = $linesMd * $cfg['buffer_pct'] / 100;
         [, $bufferCost] = $this->costOf($bufferMd, $rates, $margin);
+        $totalMd = $linesMd + $bufferMd;
 
         $estimate->update([
-            'total_md' => round($linesMd + $bufferMd, 1),
+            'total_md' => round($totalMd, 1),
             'total_cost' => round($linesCost + $bufferCost),
-            'duration_weeks' => round(($linesMd + $bufferMd) / 15, 1),
+            'team_composition' => collect(self::roleSplit())
+                ->map(fn ($pct, $role) => ['role' => $role, 'md' => round($totalMd * $pct, 1)])
+                ->values()->all(),
+            'duration_weeks' => round($totalMd / $capacity, 1),
+            'timeline' => $this->timeline($estimate->project, $lines, $bufferMd, $capacity),
         ]);
+    }
+
+    /**
+     * FR-15: gantt sederhana — MD per fase dari estimate lines (bukan structure nodes,
+     * supaya override ikut terbaca), fase berurutan, slot UAT & buffer 15% di akhir.
+     * ponytail: fase strictly sequential; overlap antar fase nanti kalau perlu.
+     *
+     * @param  Collection<int, EstimateLine>  $lines
+     * @return array<int, array{label: string, start_week: float, weeks: float, md: float, kind: string}>
+     */
+    private function timeline(Project $project, $lines, float $bufferMd, int $capacity): array
+    {
+        $phases = $project->structureNodes->where('kind', 'phase')->sortBy('phase_no')->values();
+        $mdByPhase = $lines->groupBy(fn ($l) => $l->structureNode?->parent_id)->map(fn ($g) => $g->sum('md'));
+        $weeksOf = fn (float $md) => max(round($md / $capacity, 1), 0.5);
+
+        $timeline = [];
+        $cursor = 0.0;
+        foreach ($phases as $phase) {
+            $md = (float) ($mdByPhase[$phase->id] ?? 0);
+            if ($md <= 0) {
+                continue;
+            }
+            $weeks = $weeksOf($md);
+            $timeline[] = ['label' => $phase->title, 'start_week' => $cursor, 'weeks' => $weeks, 'md' => round($md, 1), 'kind' => 'phase'];
+            $cursor += $weeks;
+        }
+
+        $timeline[] = [
+            'label' => 'Setup, deploy, UAT & buffer',
+            'start_week' => $cursor,
+            'weeks' => $weeksOf($bufferMd),
+            'md' => round($bufferMd, 1),
+            'kind' => 'buffer',
+        ];
+
+        return $timeline;
     }
 
     /** @return array{0: array, 1: float} */

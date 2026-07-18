@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\CreditLedger;
 use App\Models\Project;
 use App\Services\GenerationPipeline;
+use App\Services\InputExtractor;
 use App\Services\SpecEngine;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -27,7 +30,7 @@ class WizardController extends Controller
             'credits' => $project->workspace->creditBalance(),
             // FR-07 streaming: buffer dokumen yang sedang ditulis (diisi GenerateDocumentJob)
             'stream' => $run && $run->status === 'running'
-                ? \Illuminate\Support\Facades\Cache::get('genstream:'.$run->id)
+                ? Cache::get('genstream:'.$run->id)
                 : null,
         ]);
     }
@@ -75,7 +78,7 @@ class WizardController extends Controller
         $rawText = $data['raw_text'] ?? '';
         if ($request->hasFile('file')) {
             try {
-                $extracted = app(\App\Services\InputExtractor::class)->extract($request->file('file'));
+                $extracted = app(InputExtractor::class)->extract($request->file('file'));
             } catch (\InvalidArgumentException $e) {
                 return back()->withErrors(['file' => $e->getMessage()]);
             }
@@ -113,7 +116,7 @@ class WizardController extends Controller
 
         // Nama proyek auto dari AI — hanya bila user belum memberi nama sendiri
         if (! empty($result['project_name']) && preg_match('/^Proyek \d{2} /', $project->name)) {
-            $project->update(['name' => \Illuminate\Support\Str::limit($result['project_name'], 80, '')]);
+            $project->update(['name' => Str::limit($result['project_name'], 80, '')]);
         }
 
         return back();
@@ -191,30 +194,40 @@ class WizardController extends Controller
                 ]));
         }
 
-        // FR-04: bangun struktur awal dari AI
-        if (! $project->structureNodes()->exists()) {
-            $root = $project->structureNodes()->create(['kind' => 'root', 'title' => $project->name, 'sort' => 0]);
-            foreach ($engine->buildStructure($project) as $pi => $phase) {
-                $phaseNode = $project->structureNodes()->create([
-                    'kind' => 'phase', 'parent_id' => $root->id, 'title' => $phase['title'],
-                    'phase_no' => $pi + 1, 'sort' => $pi,
-                ]);
-                foreach ($phase['features'] ?? [] as $fi => $f) {
-                    $featureNode = $project->structureNodes()->create([
-                        'kind' => 'feature', 'parent_id' => $phaseNode->id, 'title' => $f['title'],
-                        'description' => $f['description'] ?? null, 'scope' => $f['scope'] ?? 'mvp',
-                        'est_md' => $f['est_md'] ?? 0, 'sort' => $fi,
+        // FR-04: bangun struktur awal dari AI. Guard cek node non-root: node root sisa
+        // kegagalan lama tidak boleh memblokir rebuild (struktur kosong = estimasi kosong).
+        if (! $project->structureNodes()->where('kind', '!=', 'root')->exists()) {
+            // AI dipanggil SEBELUM tulis apa pun — gagal di sini = tidak ada state parsial
+            $phases = $engine->buildStructure($project);
+            if (! $phases) {
+                return back()->withErrors(['structure' => 'AI gagal menyusun struktur — coba lagi.']);
+            }
+
+            DB::transaction(function () use ($project, $phases) {
+                $project->structureNodes()->delete(); // bersihkan sisa parsial (root yatim)
+                $root = $project->structureNodes()->create(['kind' => 'root', 'title' => $project->name, 'sort' => 0]);
+                foreach ($phases as $pi => $phase) {
+                    $phaseNode = $project->structureNodes()->create([
+                        'kind' => 'phase', 'parent_id' => $root->id, 'title' => $phase['title'],
+                        'phase_no' => $pi + 1, 'sort' => $pi,
                     ]);
-                    foreach ($f['subfeatures'] ?? [] as $si => $sub) {
-                        $project->structureNodes()->create([
-                            'kind' => 'subfeature', 'parent_id' => $featureNode->id,
-                            'title' => is_array($sub) ? $sub['title'] : $sub,
-                            'description' => is_array($sub) ? ($sub['description'] ?? null) : null,
-                            'est_md' => is_array($sub) ? ($sub['est_md'] ?? 0) : 0, 'sort' => $si,
+                    foreach ($phase['features'] ?? [] as $fi => $f) {
+                        $featureNode = $project->structureNodes()->create([
+                            'kind' => 'feature', 'parent_id' => $phaseNode->id, 'title' => $f['title'],
+                            'description' => $f['description'] ?? null, 'scope' => $f['scope'] ?? 'mvp',
+                            'est_md' => $f['est_md'] ?? 0, 'sort' => $fi,
                         ]);
+                        foreach ($f['subfeatures'] ?? [] as $si => $sub) {
+                            $project->structureNodes()->create([
+                                'kind' => 'subfeature', 'parent_id' => $featureNode->id,
+                                'title' => is_array($sub) ? $sub['title'] : $sub,
+                                'description' => is_array($sub) ? ($sub['description'] ?? null) : null,
+                                'est_md' => is_array($sub) ? ($sub['est_md'] ?? 0) : 0, 'sort' => $si,
+                            ]);
+                        }
                     }
                 }
-            }
+            });
         }
         $project->update(['wizard_step' => 'structure']);
 

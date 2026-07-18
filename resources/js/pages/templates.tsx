@@ -37,9 +37,20 @@ type FormState = {
     tone: string;
     white_label: boolean;
     logo: File | null;
+    brand_primary: string;
 };
 
-const EMPTY_FORM: FormState = { name: '', doc_kinds: [], language: 'id', tone: 'formal', white_label: false, logo: null };
+const DEFAULT_ACCENT = '#0D9488'; // teal default proposal
+
+const EMPTY_FORM: FormState = {
+    name: '',
+    doc_kinds: [],
+    language: 'id',
+    tone: 'formal',
+    white_label: false,
+    logo: null,
+    brand_primary: DEFAULT_ACCENT,
+};
 
 function MiniCol({ label, value }: { label: string; value: string }) {
     return (
@@ -50,23 +61,11 @@ function MiniCol({ label, value }: { label: string; value: string }) {
     );
 }
 
-function TemplateCard({
-    template,
-    canManage,
-    onEdit,
-}: {
-    template: TemplateData;
-    canManage: boolean;
-    onEdit: (t: TemplateData) => void;
-}) {
+function TemplateCard({ template, canManage, onEdit }: { template: TemplateData; canManage: boolean; onEdit: (t: TemplateData) => void }) {
     const setDefault = () => router.post(route('templates.default', template.id), {}, { preserveScroll: true });
 
     return (
-        <div
-            className={`flex flex-col rounded-xl bg-white p-5 ${
-                template.is_default ? 'border-2 border-teal-600' : 'border border-gray-200'
-            }`}
-        >
+        <div className={`flex flex-col rounded-xl bg-white p-5 ${template.is_default ? 'border-2 border-teal-600' : 'border border-gray-200'}`}>
             <div className="flex items-start justify-between gap-2">
                 <div className="text-[15px] font-bold text-gray-800">{template.name}</div>
                 {template.is_default && (
@@ -126,12 +125,14 @@ function TemplateModal({
     editing,
     docKindOptions,
     logoUrl,
+    brandPrimary,
     onClose,
 }: {
     mode: 'create' | 'edit';
     editing: TemplateData | null;
     docKindOptions: string[];
     logoUrl: string | null;
+    brandPrimary: string | null;
     onClose: () => void;
 }) {
     const [form, setForm] = useState<FormState>(
@@ -143,8 +144,9 @@ function TemplateModal({
                   tone: editing.tone,
                   white_label: Boolean(editing.config?.white_label),
                   logo: null,
+                  brand_primary: brandPrimary ?? DEFAULT_ACCENT,
               }
-            : EMPTY_FORM,
+            : { ...EMPTY_FORM, brand_primary: brandPrimary ?? DEFAULT_ACCENT },
     );
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [processing, setProcessing] = useState(false);
@@ -168,6 +170,7 @@ function TemplateModal({
             language: form.language,
             tone: form.tone,
             config: { white_label: form.white_label },
+            brand_primary: form.brand_primary,
             ...(form.logo ? { logo: form.logo } : {}),
         };
 
@@ -300,6 +303,20 @@ function TemplateModal({
                             {form.logo ? 'Logo baru — tersimpan saat klik Simpan.' : 'Logo workspace — dipakai proposal & portal.'}
                         </div>
                         {errors.logo && <div className="mt-1 text-[11.5px] font-bold text-red-500">{errors.logo}</div>}
+                        <div className="mt-3 flex items-center gap-3">
+                            <input
+                                type="color"
+                                value={form.brand_primary}
+                                onChange={(e) => setForm((f) => ({ ...f, brand_primary: e.target.value }))}
+                                className="h-9 w-14 flex-none cursor-pointer rounded-lg border border-gray-200 bg-white p-1"
+                                title="Warna aksen proposal"
+                            />
+                            <div className="text-[12.5px] font-semibold text-gray-600">
+                                Warna aksen proposal
+                                <div className="text-[11.5px] font-medium text-gray-400">Judul & tabel di proposal DOCX ikut warna ini.</div>
+                            </div>
+                        </div>
+                        {errors.brand_primary && <div className="mt-1 text-[11.5px] font-bold text-red-500">{errors.brand_primary}</div>}
                     </div>
                 </div>
 
@@ -336,11 +353,13 @@ export default function Templates({
     templates,
     docKindOptions,
     logoUrl,
+    brandPrimary,
     canManage,
 }: {
     templates: TemplateData[];
     docKindOptions: string[];
     logoUrl: string | null;
+    brandPrimary: string | null;
     canManage: boolean;
 }) {
     const [modal, setModal] = useState<{ mode: 'create' | 'edit'; editing: TemplateData | null } | null>(null);
@@ -367,7 +386,7 @@ export default function Templates({
                         onClick={() => setModal({ mode: 'create', editing: null })}
                         className="flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white/50 text-gray-400 transition hover:border-teal-400 hover:text-teal-600"
                     >
-                        <span className="text-3xl font-light leading-none">+</span>
+                        <span className="text-3xl leading-none font-light">+</span>
                         <span className="text-[13px] font-bold">Template baru</span>
                     </button>
                 )}
@@ -379,6 +398,7 @@ export default function Templates({
                     editing={modal.editing}
                     docKindOptions={docKindOptions}
                     logoUrl={logoUrl}
+                    brandPrimary={brandPrimary}
                     onClose={() => setModal(null)}
                 />
             )}

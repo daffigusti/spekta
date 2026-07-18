@@ -11,7 +11,7 @@ class EstimateLine extends Model
 
     protected $guarded = [];
 
-    protected $casts = ['role_breakdown' => 'array', 'md' => 'float', 'cost' => 'float', 'overridden' => 'boolean'];
+    protected $casts = ['role_breakdown' => 'array', 'md' => 'float', 'ai_md' => 'float', 'cost' => 'float', 'overridden' => 'boolean'];
 
     public function estimate()
     {

@@ -2,6 +2,7 @@ import { Head, router } from '@inertiajs/react';
 
 import { promptDialog } from '@/components/system-dialog';
 import SpektaLayout from '@/layouts/spekta-layout';
+import { fmtMoneyCompact } from '@/lib/currency';
 
 type PlanCard = {
     key: string;
@@ -38,7 +39,7 @@ type Props = {
     payments: PaymentRow[];
 };
 
-const fmt = (n: number) => 'Rp ' + Math.round(n / 1000).toLocaleString('id-ID') + 'rb';
+const fmt = (n: number) => fmtMoneyCompact(n);
 
 const statusCls: Record<string, string> = {
     paid: 'bg-emerald-100 text-emerald-800',
@@ -60,10 +61,14 @@ export default function Billing({ plan, plan_status, period_end, credits, plans,
                     Paket <b className="font-bold text-gray-800 capitalize">{plan}</b>
                     {period_end && <> · aktif s/d {period_end}</>} · sisa kredit <span className="font-mono font-bold">{credits}</span>
                     {plan_status === 'grace' && (
-                        <span className="ml-2 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-800">GRACE PERIOD 7 HARI (BR-05)</span>
+                        <span className="ml-2 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-800">
+                            GRACE PERIOD 7 HARI (BR-05)
+                        </span>
                     )}
                     {plan_status === 'readonly' && (
-                        <span className="ml-2 rounded-full bg-red-100 px-2.5 py-0.5 text-[10px] font-extrabold text-red-700">READ-ONLY — perbarui pembayaran</span>
+                        <span className="ml-2 rounded-full bg-red-100 px-2.5 py-0.5 text-[10px] font-extrabold text-red-700">
+                            READ-ONLY — perbarui pembayaran
+                        </span>
                     )}
                 </div>
 
@@ -72,10 +77,15 @@ export default function Billing({ plan, plan_status, period_end, credits, plans,
                     {plans.map((p) => {
                         const current = p.key === plan;
                         return (
-                            <div key={p.key} className={`rounded-xl border bg-white p-[18px] ${current ? 'border-2 border-teal-600' : 'border-gray-200'}`}>
+                            <div
+                                key={p.key}
+                                className={`rounded-xl border bg-white p-[18px] ${current ? 'border-2 border-teal-600' : 'border-gray-200'}`}
+                            >
                                 <div className="flex items-center justify-between">
                                     <div className="text-[15px] font-extrabold text-gray-900">{p.label}</div>
-                                    {current && <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[9px] font-extrabold text-teal-800">AKTIF</span>}
+                                    {current && (
+                                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[9px] font-extrabold text-teal-800">AKTIF</span>
+                                    )}
                                 </div>
                                 <div className="mt-1.5 font-mono text-xl font-extrabold text-gray-900">
                                     {p.price_idr === 0 ? 'Rp 0' : fmt(p.price_idr)}
@@ -95,7 +105,10 @@ export default function Billing({ plan, plan_status, period_end, credits, plans,
                                                 kind: 'subscription',
                                                 plan: p.key,
                                                 seats: p.per_seat
-                                                    ? Number((await promptDialog(`Jumlah seat (min ${p.min_seats}):`, String(p.min_seats))) ?? p.min_seats)
+                                                    ? Number(
+                                                          (await promptDialog(`Jumlah seat (min ${p.min_seats}):`, String(p.min_seats))) ??
+                                                              p.min_seats,
+                                                      )
                                                     : 1,
                                             })
                                         }
@@ -134,7 +147,10 @@ export default function Billing({ plan, plan_status, period_end, credits, plans,
                             <thead>
                                 <tr>
                                     {['Order', 'Item', 'Jumlah', 'Status', 'Tanggal', ''].map((h) => (
-                                        <th key={h} className="border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-bold tracking-[0.08em] text-gray-500 uppercase">
+                                        <th
+                                            key={h}
+                                            className="border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-bold tracking-[0.08em] text-gray-500 uppercase"
+                                        >
                                             {h}
                                         </th>
                                     ))}
@@ -149,7 +165,11 @@ export default function Billing({ plan, plan_status, period_end, credits, plans,
                                         </td>
                                         <td className="px-4 py-2.5 font-mono font-semibold text-gray-700">{fmt(p.amount)}</td>
                                         <td className="px-4 py-2.5">
-                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${statusCls[p.status] ?? ''}`}>{p.status}</span>
+                                            <span
+                                                className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${statusCls[p.status] ?? ''}`}
+                                            >
+                                                {p.status}
+                                            </span>
                                         </td>
                                         <td className="px-4 py-2.5 text-xs text-gray-400">{p.created_at}</td>
                                         <td className="px-4 py-2.5">

@@ -2,9 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\DocTemplate;
 use App\Models\Estimate;
 use App\Models\Project;
+use App\Support\Money;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use PhpOffice\PhpWord\Element\Section;
+use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
 use PhpOffice\PhpWord\Shared\Converter;
 use PhpOffice\PhpWord\SimpleType\Jc;
@@ -12,30 +17,41 @@ use PhpOffice\PhpWord\SimpleType\Jc;
 /**
  * FR-16: proposal DOCX — ringkasan eksekutif, scope, deliverables, timeline, RAB,
  * skema pembayaran, asumsi & eksklusi, syarat garansi.
- * ponytail: template default satu gaya (teal). Logo/warna per-workspace = fitur Template Perusahaan, nanti.
+ * Branding per-workspace: logo (workspaces.logo_url) + warna aksen (workspaces.brand_colors.primary);
+ * skema pembayaran/garansi dari doc_templates.config, fallback config spekta.proposal.
  */
 class ProposalGenerator
 {
     private const TEAL = '0D9488';
+
     private const DARK = '111827';
+
     private const GRAY = '6B7280';
+
+    private string $accent = self::TEAL;
+
+    private ?DocTemplate $tpl = null;
 
     public function generate(Project $project, Estimate $estimate): string
     {
+        $workspace = $project->workspace;
+        $this->tpl = $project->docTemplate ?: $workspace->defaultDocTemplate();
+        $this->accent = $this->resolveAccent($workspace->brand_colors['primary'] ?? null);
+
         $word = new PhpWord;
         $word->setDefaultFontName('Calibri');
         $word->setDefaultFontSize(10.5);
 
         $word->addTitleStyle(1, ['size' => 22, 'bold' => true, 'color' => self::DARK], ['spaceAfter' => 120]);
-        $word->addTitleStyle(2, ['size' => 14, 'bold' => true, 'color' => self::TEAL], ['spaceBefore' => 360, 'spaceAfter' => 120]);
+        $word->addTitleStyle(2, ['size' => 14, 'bold' => true, 'color' => $this->accent], ['spaceBefore' => 360, 'spaceAfter' => 120]);
 
         $section = $word->addSection(['marginLeft' => Converter::cmToTwip(2.2), 'marginRight' => Converter::cmToTwip(2.2)]);
 
-        $workspace = $project->workspace;
-        $fmt = fn (float $n) => 'Rp '.number_format($n, 0, ',', '.');
+        $fmt = fn (float $n) => Money::format($n, $estimate->currency ?? 'IDR');
 
         // Sampul ringkas
-        $section->addText($workspace->name, ['size' => 11, 'bold' => true, 'color' => self::TEAL]);
+        $this->maybeAddLogo($section, $workspace->logo_url);
+        $section->addText($workspace->name, ['size' => 11, 'bold' => true, 'color' => $this->accent]);
         $section->addTitle('Proposal: '.$project->name, 1);
         $section->addText(
             'Untuk: '.($project->client_name ?: 'Klien').' · '.now()->translatedFormat('d F Y'),
@@ -51,10 +67,44 @@ class ProposalGenerator
         $this->assumptions($section, $project);
         $this->warranty($section);
 
+        if (! ($this->tpl->config['white_label'] ?? false)) {
+            $section->addText('Dokumen dibuat dengan Spekta', ['size' => 8, 'color' => self::GRAY, 'italic' => true], ['spaceBefore' => 360]);
+        }
+
         $path = tempnam(sys_get_temp_dir(), 'proposal').'.docx';
-        \PhpOffice\PhpWord\IOFactory::createWriter($word, 'Word2007')->save($path);
+        IOFactory::createWriter($word, 'Word2007')->save($path);
 
         return $path;
+    }
+
+    /** Warna aksen workspace — hanya hex 6 digit valid; selain itu fallback teal. */
+    private function resolveAccent(?string $primary): string
+    {
+        $hex = ltrim((string) $primary, '#');
+
+        return preg_match('/^[0-9A-Fa-f]{6}$/', $hex) ? strtoupper($hex) : self::TEAL;
+    }
+
+    /** Bg header tabel: tint teal hanya untuk aksen default; aksen custom pakai netral. */
+    private function headerBg(): string
+    {
+        return $this->accent === self::TEAL ? 'F0FDFA' : 'F3F4F6';
+    }
+
+    private function maybeAddLogo(Section $s, ?string $logoUrl): void
+    {
+        if (! $logoUrl) {
+            return;
+        }
+        $path = Storage::disk('public')->path(Str::after($logoUrl, '/storage/'));
+        if (! is_file($path)) {
+            return;
+        }
+        try {
+            $s->addImage($path, ['height' => 30]);
+        } catch (\Throwable) {
+            // file logo korup/format tak didukung PhpWord — proposal tetap jalan tanpa logo
+        }
     }
 
     private function executiveSummary(Section $s, Project $project, Estimate $estimate, callable $fmt): void
@@ -108,7 +158,7 @@ class ProposalGenerator
         $table = $s->addTable(['borderSize' => 4, 'borderColor' => 'E5E7EB', 'cellMargin' => 90, 'width' => 100 * 50, 'unit' => 'pct']);
         $table->addRow();
         foreach (['Tahap', 'Mulai (minggu)', 'Durasi (minggu)', 'Effort (MD)'] as $h) {
-            $table->addCell(null, ['bgColor' => 'F0FDFA'])->addText($h, ['bold' => true, 'size' => 9, 'color' => self::TEAL]);
+            $table->addCell(null, ['bgColor' => $this->headerBg()])->addText($h, ['bold' => true, 'size' => 9, 'color' => $this->accent]);
         }
         foreach ($estimate->timeline ?? [] as $t) {
             $table->addRow();
@@ -125,7 +175,7 @@ class ProposalGenerator
         $table = $s->addTable(['borderSize' => 4, 'borderColor' => 'E5E7EB', 'cellMargin' => 90, 'width' => 100 * 50, 'unit' => 'pct']);
         $table->addRow();
         foreach (['Modul / Fitur', 'Effort (MD)', 'Biaya'] as $h) {
-            $table->addCell(null, ['bgColor' => 'F0FDFA'])->addText($h, ['bold' => true, 'size' => 9, 'color' => self::TEAL]);
+            $table->addCell(null, ['bgColor' => $this->headerBg()])->addText($h, ['bold' => true, 'size' => 9, 'color' => $this->accent]);
         }
         foreach ($estimate->lines as $line) {
             $table->addRow();
@@ -140,9 +190,9 @@ class ProposalGenerator
         $table->addCell()->addText((string) $bufferMd, ['size' => 9.5], ['alignment' => Jc::CENTER]);
         $table->addCell()->addText($fmt($bufferCost), ['size' => 9.5], ['alignment' => Jc::END]);
         $table->addRow();
-        $table->addCell(null, ['bgColor' => 'F0FDFA'])->addText('TOTAL', ['bold' => true, 'size' => 10]);
-        $table->addCell(null, ['bgColor' => 'F0FDFA'])->addText((string) $estimate->total_md, ['bold' => true, 'size' => 10], ['alignment' => Jc::CENTER]);
-        $table->addCell(null, ['bgColor' => 'F0FDFA'])->addText($fmt($estimate->total_cost), ['bold' => true, 'size' => 10, 'color' => self::TEAL], ['alignment' => Jc::END]);
+        $table->addCell(null, ['bgColor' => $this->headerBg()])->addText('TOTAL', ['bold' => true, 'size' => 10]);
+        $table->addCell(null, ['bgColor' => $this->headerBg()])->addText((string) $estimate->total_md, ['bold' => true, 'size' => 10], ['alignment' => Jc::CENTER]);
+        $table->addCell(null, ['bgColor' => $this->headerBg()])->addText($fmt($estimate->total_cost), ['bold' => true, 'size' => 10, 'color' => $this->accent], ['alignment' => Jc::END]);
 
         $s->addText('Rentang estimasi ±'.$estimate->range_pct.'% mengikuti tingkat kepastian requirement saat ini.', ['size' => 9, 'color' => self::GRAY, 'italic' => true]);
     }
@@ -150,9 +200,10 @@ class ProposalGenerator
     private function paymentScheme(Section $s, Estimate $estimate, callable $fmt): void
     {
         $s->addTitle('6. Skema Pembayaran', 2);
-        // ponytail: skema default 30/40/30 — konfigurasi per-workspace nanti
-        foreach ([['Down payment (mulai kerja)', 0.30], ['Progress (selesai fase inti)', 0.40], ['Pelunasan (UAT & serah terima)', 0.30]] as [$label, $pct]) {
-            $s->addListItem($label.': '.($pct * 100).'% — '.$fmt($estimate->total_cost * $pct), 0);
+        // Override per-template (doc_templates.config.payment_scheme), fallback default config
+        $scheme = $this->tpl->config['payment_scheme'] ?? config('spekta.proposal.payment_scheme');
+        foreach ($scheme as $row) {
+            $s->addListItem($row['label'].': '.$row['pct'].'% — '.$fmt($estimate->total_cost * $row['pct'] / 100), 0);
         }
     }
 
@@ -176,9 +227,10 @@ class ProposalGenerator
 
     private function warranty(Section $s): void
     {
+        $days = (int) ($this->tpl->config['warranty_days'] ?? config('spekta.proposal.warranty_days'));
         $s->addTitle('8. Syarat Garansi', 2);
         $s->addText(
-            'Garansi perbaikan bug 30 hari kalender sejak serah terima, mencakup defect terhadap acceptance criteria '
+            "Garansi perbaikan bug {$days} hari kalender sejak serah terima, mencakup defect terhadap acceptance criteria "
             .'yang disepakati. Tidak termasuk permintaan fitur baru atau perubahan requirement.',
             [],
             ['lineHeight' => 1.4]

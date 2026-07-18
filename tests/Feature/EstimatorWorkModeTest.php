@@ -84,4 +84,22 @@ class EstimatorWorkModeTest extends TestCase
         $this->assertEqualsWithDelta(12.65, $est->total_md, 0.06); // angka lama tidak berubah
         $this->assertSame(15, (int) $est->range_pct);
     }
+
+    /** Bug lama: fitur parked ikut masuk estimate full tapi tidak masuk timeline/proposal. */
+    public function test_parked_tidak_masuk_full_scope_dan_timeline_rekonsiliasi(): void
+    {
+        $project = $this->projectWithStructure(null);
+        $phase = $project->structureNodes()->where('kind', 'phase')->firstOrFail();
+        $project->structureNodes()->create([
+            'kind' => 'feature', 'parent_id' => $phase->id, 'title' => 'Fitur Parkir',
+            'scope' => 'parked', 'est_md' => 100, 'sort' => 2,
+        ]);
+
+        $est = app(Estimator::class)->compute($project->fresh(), 'full');
+
+        // 100 MD parked tidak boleh terhitung — total tetap ≈ 12.65 (10 × 1.1 × 1.15)
+        $this->assertEqualsWithDelta(12.65, $est->total_md, 0.06);
+        // Σ timeline md == total_md (rekonsiliasi RAB vs Gantt)
+        $this->assertEqualsWithDelta($est->total_md, array_sum(array_column($est->timeline, 'md')), 0.2);
+    }
 }

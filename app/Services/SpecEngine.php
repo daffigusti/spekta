@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\LlmTruncated;
 use App\Models\DocumentVersion;
 use App\Models\Project;
 use Illuminate\Http\Client\PendingRequest;
@@ -37,6 +38,8 @@ class SpecEngine
 Kamu analis requirement software house. Dari input user (ide/transkrip/RFP), ekstrak pemahaman proyek.
 Balas JSON: {"project_name":"nama proyek singkat & deskriptif","roles":[{"name":"","note":""}],"features":[{"title":"","quote":""}],"domain":"","complexity":1-5,"assumptions":["..."]}
 "quote" = kutipan kalimat sumber bila ada (traceability FR-02). Bahasa Indonesia.
+"roles" = aktor/pengguna PRODUK yang memakai aplikasi (end user, admin, operator, approver) — BUKAN tim delivery/pelaksana proyek
+(PM, developer, engineer, QA, trainer, sales/AE); bila input memuat susunan tim proyek, abaikan untuk roles.
 Placeholder [dalam kurung siku] pada input = informasi yang BELUM diketahui — DILARANG mengarang nilainya;
 jangan masukkan ke nama proyek/fitur, catat sebagai asumsi bila perlu (gap ini akan ditanyakan di interview).
 SYS, $input);
@@ -192,6 +195,8 @@ TPL,
 Struktur wajib USER_FLOWS.md: flow bernomor per role ("## Flow 1: nama (role)").
 Tiap flow: tujuan user, precondition, langkah bernomor (aksi user → respons sistem), jalur error/alternatif, dan satu diagram ```mermaid flowchart TD```.
 Cakup minimal satu flow per role dan semua fitur mvp.
+Role = pengguna produk. JANGAN buat flow untuk aktivitas internal tim delivery proyek
+(rapat evaluasi, menjalankan test suite rilis, pelatihan tim, pengajuan penawaran) meski disebut di dokumen upstream.
 TPL,
         'BUSINESS_RULES' => <<<'TPL'
 Struktur wajib BUSINESS_RULES.md: aturan bernomor ("### BR-01: judul"), dikelompokkan per area.
@@ -737,7 +742,7 @@ SYS, $ctx);
     private function guardTruncation(bool $truncated, string $out): void
     {
         if ($truncated) {
-            throw new \App\Exceptions\LlmTruncated(sprintf(
+            throw new LlmTruncated(sprintf(
                 'Output LLM terpotong di batas max_tokens (%d) — naikkan SPEKTA_LLM_MAX_TOKENS. Akhir output: …%s',
                 (int) config('spekta.llm.max_tokens', 16000),
                 mb_substr($out, -120)

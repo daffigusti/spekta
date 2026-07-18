@@ -827,7 +827,7 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
     const contentW = useMemo(() => {
         const xs = [...Object.values(layout.pos), ...Object.values(dragged)].map((p) => p.x);
         return Math.max(xs.length ? Math.max(...xs) + CARD_W + 80 : 0, 880);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [layout, dragged]);
 
     const zoomAt = (cx: number, cy: number, nz: number) => {

@@ -58,6 +58,7 @@ class TemplateController extends Controller
             'templates' => $templates,
             'docKindOptions' => $this->docKindOptions(),
             'logoUrl' => $workspace->logo_url,
+            'brandPrimary' => $workspace->brand_colors['primary'] ?? null,
             'canManage' => in_array($member?->role, ['owner', 'admin']),
         ]);
     }
@@ -80,6 +81,7 @@ class TemplateController extends Controller
         ]);
 
         $this->maybeUploadLogo($request, $workspace);
+        $this->maybeSaveBrandPrimary($data, $workspace);
 
         AuditLog::create([
             'workspace_id' => $workspace->id,
@@ -122,6 +124,7 @@ class TemplateController extends Controller
         $template->save();
 
         $this->maybeUploadLogo($request, $workspace);
+        $this->maybeSaveBrandPrimary($data, $workspace);
 
         AuditLog::create([
             'workspace_id' => $workspace->id,
@@ -200,6 +203,8 @@ class TemplateController extends Controller
             'config.white_label' => ['sometimes'],
             // SVG ditolak: bisa memuat <script> — stored XSS bila diserve dari origin app
             'logo' => ['sometimes', 'nullable', 'image', 'max:2048', 'mimes:jpg,jpeg,png,webp'],
+            // Warna aksen proposal (workspaces.brand_colors.primary) — hex 6 digit
+            'brand_primary' => ['sometimes', 'nullable', 'regex:/^#?[0-9A-Fa-f]{6}$/'],
         ]);
     }
 
@@ -210,5 +215,15 @@ class TemplateController extends Controller
             $path = $request->file('logo')->store('logos', 'public');
             $workspace->update(['logo_url' => Storage::url($path)]);
         }
+    }
+
+    /** Warna aksen proposal — disimpan di workspace (branding lintas template). */
+    private function maybeSaveBrandPrimary(array $data, Workspace $workspace): void
+    {
+        if (! array_key_exists('brand_primary', $data)) {
+            return;
+        }
+        $hex = $data['brand_primary'] ? '#'.strtoupper(ltrim($data['brand_primary'], '#')) : null;
+        $workspace->update(['brand_colors' => array_merge($workspace->brand_colors ?? [], ['primary' => $hex])]);
     }
 }
