@@ -124,4 +124,43 @@ class RegenerationTest extends TestCase
             'doc_keys' => ['REQUIREMENTS'],
         ])->assertForbidden();
     }
+
+    public function test_regen_does_not_clobber_approved_project_status(): void
+    {
+        // CRITICAL: run trigger='regen' TIDAK BOLEH menyentuh projects.status/wizard_step.
+        // Kalau ikut diubah ke 'ready', guard BR-25 (ChangeRequestService::editAllowed hanya
+        // aktif saat status==='approved') gugur PERMANEN untuk proyek yang sudah approved/shared.
+        $project = $this->projectWithDocs();
+        $project->update(['status' => 'approved', 'wizard_step' => 'done']);
+        $user = User::firstOrFail();
+
+        // CR proposed yang mencakup REQUIREMENTS supaya lolos guard BR-25 (pola ChangeRequestTest).
+        $project->changeRequests()->create([
+            'number' => 1,
+            'title' => 'Tambah FR notifikasi',
+            'source' => 'team',
+            'requested_by' => $user->email,
+            'status' => 'proposed',
+            'affected_doc_keys' => ['REQUIREMENTS'],
+        ]);
+
+        $this->actingAs($user)->post(route('projects.regenerate', $project), [
+            'change_text' => 'Tambah FR notifikasi',
+            'doc_keys' => ['REQUIREMENTS'],
+        ])->assertRedirect();
+
+        $run = $project->generationRuns()->latest()->first();
+        $this->assertSame('regen', $run->trigger);
+        // queue sync di testing: job (termasuk finalisasi run) sudah selesai jalan.
+        $this->assertSame('done', $run->fresh()->status);
+
+        // Status & wizard_step proyek TIDAK berubah — guard BR-25 tetap aktif setelahnya.
+        $this->assertSame('approved', $project->fresh()->status);
+        $this->assertSame('done', $project->fresh()->wizard_step);
+
+        // Bukti guard masih hidup: doc di luar cakupan CR tetap ditolak.
+        $prd = $project->documents()->where('doc_key', 'PRD')->first();
+        $this->post("/documents/{$prd->id}/versions", ['content_md' => 'Edit liar'])
+            ->assertForbidden();
+    }
 }

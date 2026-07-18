@@ -36,7 +36,12 @@ class GenerateDocumentJob implements ShouldQueue
         $node->update(['status' => 'running', 'attempt' => $node->attempt + 1]);
         if ($run->status !== 'running') {
             $run->update(['status' => 'running', 'started_at' => $run->started_at ?? now()]);
-            $project->update(['status' => 'generating']);
+            // CRITICAL: regen TIDAK BOLEH mengubah status proyek — proyek approved/shared yang
+            // diregen lewat CR harus tetap approved/shared, kalau tidak guard BR-25
+            // (ChangeRequestService::editAllowed hanya aktif saat status==='approved') gugur permanen.
+            if ($run->trigger !== 'regen') {
+                $project->update(['status' => 'generating']);
+            }
         }
 
         // Konteks upstream (BR-52 area — prompt caching di driver nyata)
@@ -97,7 +102,10 @@ class GenerateDocumentJob implements ShouldQueue
         // Node terakhir → finalisasi run + Spec Health (FR-11)
         if (! $run->nodes()->where('status', '!=', 'done')->exists()) {
             $run->update(['status' => 'done', 'finished_at' => now()]);
-            $project->update(['status' => 'ready', 'wizard_step' => 'done']);
+            // Sama seperti start di atas: regen menjaga status/wizard_step proyek apa adanya.
+            if ($run->trigger !== 'regen') {
+                $project->update(['status' => 'ready', 'wizard_step' => 'done']);
+            }
             app(SpecHealthValidator::class)->run($project);
             ContradictionCheckJob::dispatch($project->id); // FR-11(f) — async, stub no-op
 
