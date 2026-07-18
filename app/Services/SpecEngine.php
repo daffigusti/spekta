@@ -499,6 +499,31 @@ SYS, $version->content_md, $ti, $to);
         ]];
     }
 
+    // ---------- FR-11(f): kontradiksi antar-requirement ----------
+
+    /** Deteksi kontradiksi nyata antar dokumen — async (terlalu lambat untuk jalur sync validator). */
+    public function findContradictions(Project $project): array
+    {
+        if ($this->driver() === 'stub') {
+            return [];
+        }
+
+        $ctx = $project->documents()->with('currentVersion')->get()
+            ->filter(fn ($d) => $d->doc_key !== 'WIREFRAMES')
+            ->map(fn ($d) => "=== {$d->doc_key}.md ===\n".Str::limit((string) $d->currentVersion?->content_md, 15000, '… [dipotong]'))
+            ->implode("\n\n");
+
+        $out = $this->json('reasoning', <<<'SYS'
+Kamu auditor spesifikasi software. Temukan KONTRADIKSI NYATA antar requirement/dokumen:
+dua pernyataan yang tidak mungkin sama-sama benar (angka berbeda, aturan bertentangan, alur mustahil).
+Bukan soal gaya bahasa atau kelengkapan. Balas JSON:
+{"contradictions":[{"location":"DOC-A / DOC-B","message":"…","suggestion":"…"}]}
+Bila tidak ada: {"contradictions":[]}.
+SYS, $ctx);
+
+        return array_values(array_filter($out['contradictions'] ?? [], 'is_array'));
+    }
+
     private function documentContext(Project $project, array $upstreamDocs): string
     {
         $u = $project->understanding;

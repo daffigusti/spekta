@@ -136,6 +136,15 @@ class ProjectController extends Controller
         return to_route('dashboard');
     }
 
+    /** FR-11(f): trigger manual cek kontradiksi. */
+    public function checkContradictions(Request $request, Project $project)
+    {
+        self::authorizeProject($request, $project);
+        \App\Jobs\ContradictionCheckJob::dispatch($project->id);
+
+        return back();
+    }
+
     public static function authorizeProject(Request $request, Project $project): void
     {
         $workspace = $request->user()->currentWorkspace();

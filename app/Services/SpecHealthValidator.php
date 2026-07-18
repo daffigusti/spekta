@@ -19,7 +19,7 @@ class SpecHealthValidator
 {
     public function run(Project $project): int
     {
-        $project->healthFindings()->delete();
+        $project->healthFindings()->where('rule_key', '!=', 'contradiction')->delete();
 
         $docs = $project->documents()->with('currentVersion')->get()
             ->mapWithKeys(fn ($d) => [$d->doc_key => $d->currentVersion?->content_md ?? '']);
@@ -98,11 +98,20 @@ class SpecHealthValidator
             $findings[] = $f;
         }
 
+        foreach ($findings as $f) {
+            $project->healthFindings()->create($f);
+        }
+
+        return $this->recomputeScore($project);
+    }
+
+    /** Skor dari seluruh findings tersimpan — termasuk kontradiksi yang diisi async. */
+    public function recomputeScore(Project $project): int
+    {
         $penalty = ['critical' => 15, 'warning' => 7, 'info' => 2];
         $score = 100;
-        foreach ($findings as $f) {
-            $score -= $penalty[$f['severity']];
-            $project->healthFindings()->create($f);
+        foreach ($project->healthFindings()->where('resolved', false)->get() as $f) {
+            $score -= $penalty[$f->severity] ?? 0;
         }
         $score = max(0, $score);
         $project->update(['health_score' => $score]);

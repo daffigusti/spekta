@@ -99,6 +99,7 @@ class GenerateDocumentJob implements ShouldQueue
             $run->update(['status' => 'done', 'finished_at' => now()]);
             $project->update(['status' => 'ready', 'wizard_step' => 'done']);
             app(SpecHealthValidator::class)->run($project);
+            ContradictionCheckJob::dispatch($project->id); // FR-11(f) — async, stub no-op
 
             // Auto-repair SATU pass bila masih ada temuan critical (repaired_at mencegah loop)
             if (! $run->repaired_at && $project->healthFindings()->where('severity', 'critical')->exists()) {
