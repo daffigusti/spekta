@@ -3,9 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\Payment;
+use App\Models\Project;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class BillingTest extends TestCase
@@ -35,7 +37,7 @@ class BillingTest extends TestCase
         return User::firstOrFail();
     }
 
-    private function notify(Payment $payment, string $status = 'settlement'): \Illuminate\Testing\TestResponse
+    private function notify(Payment $payment, string $status = 'settlement'): TestResponse
     {
         $gross = number_format($payment->amount, 2, '.', '');
         $sig = hash('sha512', $payment->order_id.'200'.$gross.'SB-test-server-key');
@@ -116,6 +118,15 @@ class BillingTest extends TestCase
         $this->assertSame('free', $workspace->subscription->fresh()->plan);
     }
 
+    public function test_checkout_tanpa_server_key_gagal_jelas(): void
+    {
+        config(['spekta.midtrans.server_key' => '']);
+        $this->actingAs($this->user())
+            ->post('/billing/checkout', ['kind' => 'subscription', 'plan' => 'pro'])
+            ->assertServiceUnavailable();
+        $this->assertSame(0, Payment::count());
+    }
+
     public function test_readonly_after_grace_blocks_generate(): void
     {
         config(['spekta.llm.driver' => 'stub']);
@@ -130,7 +141,7 @@ class BillingTest extends TestCase
         $this->assertSame('readonly', $workspace->subscription->fresh()->effectiveStatus());
 
         $this->actingAs($user)->post('/projects');
-        $project = \App\Models\Project::firstOrFail();
+        $project = Project::firstOrFail();
         $this->post("/projects/{$project->id}/wizard/input", [
             'name' => 'P', 'kind' => 'idea',
             'raw_text' => str_repeat('Aplikasi manajemen gudang dengan barcode dan laporan. ', 3),

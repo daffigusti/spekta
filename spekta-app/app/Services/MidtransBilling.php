@@ -17,6 +17,10 @@ class MidtransBilling
     /** Buat transaksi Snap → Payment berisi redirect_url. */
     public function checkout(Workspace $workspace, string $email, array $attrs): Payment
     {
+        if (config('spekta.midtrans.server_key') === '') {
+            abort(503, 'Midtrans belum dikonfigurasi — isi MIDTRANS_SERVER_KEY & MIDTRANS_CLIENT_KEY di .env (lihat env.spekta.example).');
+        }
+
         $orderId = 'SPK-'.strtoupper(Str::random(12));
 
         $payment = Payment::create($attrs + [
