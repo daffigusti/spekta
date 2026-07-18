@@ -14,8 +14,8 @@ export default function Stack({ project, stack, understanding }: Props) {
     return (
         <WorkspaceLayout>
             <Head title={`Stack — ${project.name}`} />
-            <div className="w-full px-6 py-6">
-                <Link href={route('projects.show', project.id)} className="text-[13px] font-bold text-gray-500 hover:text-teal-700">
+            <div className="w-full">
+                <Link href={route('projects.show', project.id)} className="text-xs font-semibold text-gray-400 hover:text-teal-800">
                     ← {project.name}
                 </Link>
                 <div className="mt-1">
