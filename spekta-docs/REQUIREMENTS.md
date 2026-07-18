@@ -59,7 +59,7 @@ Acceptance criteria memakai kata kunci RFC 2119 (MUST/SHALL/SHOULD). Referensi F
 ### FR-07: Pipeline Generasi DAG
 **Acceptance Criteria:**
 - Pipeline MUST menghasilkan set dokumen scale-adaptive: kompleksitas 1–2 → 4–6 dokumen; 3 → 8–11; 4–5 → 12–15 (tambahan SECURITY.md, COMPLIANCE.md, INTEGRATION.md sesuai domain).
-- Urutan MUST mengikuti dependensi: PRD → (REQUIREMENTS, USER_FLOWS, BUSINESS_RULES) → (DATABASE, API, ARCHITECTURE) → (FEATURES, TESTING, DESIGN, ROADMAP) → validator → estimator.
+- Urutan MUST mengikuti dependensi: PROJECT_BRIEF → PRD → (REQUIREMENTS, USER_FLOWS, BUSINESS_RULES) → (DATABASE, API, ARCHITECTURE) → (FEATURES, TESTING, DESIGN, ROADMAP) → validator → estimator. PROJECT_BRIEF = ringkasan presales non-teknis (akar pipeline, masuk semua doc set).
 - Progres MUST streaming per dokumen (antre/berjalan/selesai/gagal) dan tetap berjalan bila tab ditutup; notifikasi email/in-app saat selesai.
 - Kegagalan satu node MUST di-retry otomatis (maks 2×) tanpa mengulang node yang sudah selesai.
 - PRD pertama MUST tampil ≤ 90 detik; seluruh pipeline ≤ 8 menit p90 (NFR-01).
@@ -69,10 +69,12 @@ Acceptance criteria memakai kata kunci RFC 2119 (MUST/SHALL/SHOULD). Referensi F
 - Tampilan MUST menyediakan 3 panel: file tree, editor/preview, panel AI — dengan mode Preview / Raw Markdown / Diff.
 - Diff MUST membandingkan dua versi manapun dari dokumen yang sama dengan highlight tambah/hapus.
 - Edit manual MUST membuat versi baru (vN+1) dengan atribusi editor dan timestamp; mermaid dirender di preview.
+- Versi MUST punya label semantik: otomatis ("Draf awal AI", "Regenerate AI", "Perbaikan spec health", "Restore dari vN") atau opsional saat edit manual (≤ 60 karakter).
+- Workspace MUST menampilkan dependency dokumen (diturunkan dari / mempengaruhi, dari doc_pipeline) dan penanda STALE bila upstream punya versi lebih baru dari versi dokumen; STALE hanya penanda, tidak memblokir.
 
 ### FR-09: AI Assistant + Impact Analysis
 **Acceptance Criteria:**
-- Chat MUST memiliki konteks seluruh dokumen proyek.
+- Chat MUST menyediakan pilihan scope konteks: dokumen aktif (default, hemat token — dokumen aktif + yang disebut, cap 5) atau seluruh proyek (semua dokumen, pilihan sadar user).
 - Permintaan perubahan MUST menghasilkan impact analysis SEBELUM eksekusi: daftar dokumen/section terdampak, delta man-days, delta biaya — user mengkonfirmasi atau membatalkan.
 - Impact analysis MUST selesai ≤ 20 detik (p90).
 
@@ -86,9 +88,14 @@ Acceptance criteria memakai kata kunci RFC 2119 (MUST/SHALL/SHOULD). Referensi F
 **Acceptance Criteria:**
 - Validator MUST memeriksa minimal: (a) setiap FR punya acceptance criteria; (b) setiap FR muncul di ROADMAP; (c) setiap FR P0/P1 punya skenario di TESTING; (d) setiap entity ERD dirujuk di API; (e) konsistensi penomoran/istilah; (f) kontradiksi antar-requirement.
 - Skor MUST 0–100 dengan formula terdokumentasi; tiap temuan memiliki severity (info/warning/critical), lokasi, dan saran perbaikan satu-klik ("fix with AI").
+- Skor MUST dipecah per dimensi bernama (Kelengkapan, Konsistensi, Keterlacakan, Cakupan) via mapping rule → dimensi di konfigurasi; temuan tampil tergroup per dimensi.
+- Sistem MUST menyediakan Requirement Traceability Matrix: baris per FR dari PRD × kolom dokumen turunan (REQUIREMENTS/USER_FLOWS/API/TESTING/ROADMAP); sel = disebut/tidak/dokumen belum ada.
+- Rule heuristik (mis. fact drift berbasis pairing keyword) MUST berbobot info, bukan warning/critical — hanya rule deterministik-terverifikasi yang boleh menghukum skor berat (BR-54).
 - Validator MUST otomatis berjalan setelah generate/regenerate dan dapat dipicu manual.
 
 ### FR-12: Bilingual (ID ↔ EN)
+> **Status: dicabut dari implementasi.** Fitur translation dibangun lalu dihapus (keputusan produk); kolom `language` tersisa sebagai bahasa primer proyek (id/en/bilingual saat generate).
+
 **Acceptance Criteria:**
 - Konversi seluruh set dokumen MUST mempertahankan struktur, penomoran FR/BR, tabel, dan diagram; istilah teknis tidak diterjemahkan.
 - Kedua bahasa MUST tersimpan sebagai varian dari versi yang sama (bukan versi baru).
@@ -124,6 +131,7 @@ Acceptance criteria memakai kata kunci RFC 2119 (MUST/SHALL/SHOULD). Referensi F
 - Share-link MUST memakai token unik + verifikasi email OTP; masa berlaku default 30 hari (dapat diubah/dicabut).
 - Portal MUST menampilkan branding perusahaan (white-label) dan HANYA dokumen yang dipilih untuk dibagikan.
 - Klien MUST dapat melihat versi terbaru yang di-share; angka harga dapat disembunyikan per dokumen.
+- Portal MUST menampilkan open questions proyek (pertanyaan interview yang dilewati, asumsi, kontradiksi input); kontak terverifikasi dapat menjawab langsung — jawaban tercatat (siapa, kapan) dan tampil di panel internal sebagai bahan update dokumen (BR-44).
 
 ### FR-18: Komentar per Section
 **Acceptance Criteria:**
@@ -145,6 +153,7 @@ Acceptance criteria memakai kata kunci RFC 2119 (MUST/SHALL/SHOULD). Referensi F
 ### FR-21: Export
 **Acceptance Criteria:**
 - Export ZIP MUST berisi seluruh dokumen markdown + gambar/diagram; PDF/DOCX per dokumen atau gabungan.
+- ZIP MUST menyertakan `README.md` branding ("Spekta Blueprint"): tabel urutan baca, grup dokumen, dependency antar dokumen, versi, dan Spec Health — nama file dokumen tetap vocabulary standar industri.
 - Export agent-ready MUST menghasilkan `CLAUDE.md`, `.cursorrules`, `AGENTS.md` berisi ringkasan arsitektur + konvensi + rujukan dokumen, dan `tasks.md` breakdown siap eksekusi.
 
 ### FR-22: Integrasi PM Tools

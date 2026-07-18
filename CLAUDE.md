@@ -39,19 +39,21 @@ Laravel 13 monolith, Inertia 2 + React 19 + Tailwind 4 + Radix/shadcn frontend. 
 2. **`Services/SpecEngine.php`** — single gateway for ALL LLM calls (ADR-3). Drivers: `anthropic`, `openai`-compatible, `stub`. Node-class routing (`reasoning`/`standard`/`economy`) maps to models via `config/spekta.php`. Output length uses a *soft cap* in the prompt plus `max_tokens` as safety net; `guardTruncation()` throws `LlmTruncated` when output hits `max_tokens`.
 3. **`Services/GenerationPipeline.php`** — builds a `GenerationRun` with `GenerationNode`s from the doc dependency DAG, topo-sorts, dispatches a sequential job chain (single-worker MVP, no parallel branches).
 4. **`Jobs/GenerateDocumentJob.php`** — one job per document. Reads upstream docs' current versions as context, streams progress into cache key `genstream:{runId}` (polled by the wizard via `projects/{project}/run-status`). `LlmTruncated` fails fast — deterministic, retrying would burn the same tokens. Resume (`generate/resume`) skips `done` nodes (BR-11).
-5. **`Services/SpecHealthValidator.php`** — cross-document consistency checks producing `HealthFinding`s and the project health score.
+5. **`Services/SpecHealthValidator.php`** — cross-document consistency checks producing `HealthFinding`s and the project health score. Findings are grouped into named dimensions via `config('spekta.health_dimensions')` (rule_key → dimension); `traceabilityMatrix()` emits the RTM (FR per PRD × downstream docs) shown as the Traceability tab. The `fact_drift` rule is a keyword-window heuristic: severity stays `info` by design (BR-54), and heading lines, leading-zero numbering, and HTTP status codes are excluded from number-claim scanning — don't "fix" these back to warnings.
 
 The DAG and doc sets are config, not code: `config/spekta.php` `doc_pipeline` (doc → upstream deps) and `doc_sets` (complexity 1–5 → which docs get generated). Adding a doc type means touching that config plus SpecEngine's per-doc prompt.
 
 ### `config/spekta.php` is the business-rule source of truth
 
-Plans/quotas (BR-01), top-up pricing, the estimate math (`role_split` is the ONLY source for Estimator, RabExporter, ChangeRequestService, and rate-card UI — must sum to 1.0), work-mode multipliers, and LLM model routing all live here.
+Plans/quotas (BR-01), top-up pricing, the estimate math (`role_split` is the ONLY source for Estimator, RabExporter, ChangeRequestService, and rate-card UI — must sum to 1.0), work-mode multipliers, and LLM model routing all live here. So do `health_dimensions` (Spec Health rule_key → dimension grouping) and `doc_groups` (Planning/Design/Technical/Delivery — drives both the sidebar sections and the README table in ZIP exports).
 
 ### Other subsystems
 
-- **Documents**: `Document` + immutable `DocumentVersion`s; restore creates a new version.
+- **Documents**: `Document` + immutable `DocumentVersion`s; restore creates a new version. Versions carry a semantic `label` (auto: "Draf awal AI" / "Regenerate AI" / "Perbaikan spec health" / "Restore dari vN"; optional on manual edit). The project page derives per-doc `upstream`/`downstream`/`stale` from `doc_pipeline` (STALE = upstream has a newer current version).
+- **Open questions**: `OpenQuestion` rows synced idempotently (hash) from skipped interview items + understanding assumptions/contradictions (`Project::syncOpenQuestions()`); clients answer them once via the portal (BR-44), answers surface in the internal right panel.
 - **Estimator** (FR-13/14): `Services/Estimator.php` from structure man-days; per-line overrides; exports via `Exporter`/`RabExporter`/`ProposalGenerator` (dompdf, phpword, phpspreadsheet).
-- **Client portal** (FR-17..19): unauthenticated `portal/{token}` routes, OTP-gated, comments/approvals/change-requests. Change requests flow through `ChangeRequestService`.
+- **Client portal** (FR-17..19): unauthenticated `portal/{token}` routes, OTP-gated, comments/approvals/change-requests/open-question answers. Change requests flow through `ChangeRequestService`.
+- **Assistant chat** (FR-09): `AssistantChatJob` → `SpecEngine::chat()`; context scope is user-selectable in the drawer — `doc` (active doc + mentioned, capped 5) or `project` (all docs, token-heavy).
 - **Billing** (FR-23): Midtrans Snap; webhook `midtrans/notify` is auth/CSRF-free, sha512 signature verified in `MidtransBilling`.
 - **Multi-tenancy**: `Workspace`/`WorkspaceMember`; user's current workspace via `User::currentWorkspace()`.
 
