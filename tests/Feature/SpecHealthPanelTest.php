@@ -87,7 +87,7 @@ class SpecHealthPanelTest extends TestCase
                 ->where('rtm.1.cells.REQUIREMENTS', false));
     }
 
-    public function test_open_questions_aggregate_interview_understanding(): void
+    public function test_open_questions_synced_from_interview_and_understanding(): void
     {
         $project = $this->makeProject();
         $project->interviewItems()->create(['seq' => 1, 'question' => 'Perlu multi-bahasa?', 'skipped' => true]);
@@ -97,11 +97,14 @@ class SpecHealthPanelTest extends TestCase
             'contradictions' => ['Budget kecil tapi scope besar'],
         ]);
 
-        $this->get(route('projects.show', $project))
-            ->assertInertia(fn ($page) => $page
-                ->where('open_questions.skipped_questions', ['Perlu multi-bahasa?'])
-                ->where('open_questions.assumptions', ['Integrasi pembayaran tidak disebut'])
-                ->where('open_questions.contradictions', ['Budget kecil tapi scope besar']));
+        // dua kali load — sync idempoten via question_hash, tidak dobel
+        $this->get(route('projects.show', $project))->assertInertia(fn ($page) => $page->has('open_questions', 3));
+        $this->get(route('projects.show', $project))->assertInertia(fn ($page) => $page->has('open_questions', 3));
+
+        $this->assertSame('Perlu multi-bahasa?', $project->openQuestions()->where('source', 'interview')->firstOrFail()->question);
+        $this->assertSame(1, $project->openQuestions()->where('source', 'assumption')->count());
+        $this->assertSame(1, $project->openQuestions()->where('source', 'contradiction')->count());
+        $this->assertSame(3, $project->openQuestions()->where('status', 'open')->count());
     }
 
     public function test_documents_carry_group_and_zip_export_contains_branded_readme(): void

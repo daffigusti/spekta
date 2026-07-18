@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Baseline;
+use App\Models\Comment;
 use App\Models\ShareLink;
+use App\Services\ChangeRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
@@ -38,7 +40,7 @@ class PortalController extends Controller
             ->whereIn('doc_key', $link->doc_keys)->get()
             ->sortBy(fn ($d) => $order[$d->doc_key] ?? 99)->values();
         $approvals = $link->approvals->keyBy('document_id');
-        $comments = \App\Models\Comment::whereIn('document_id', $documents->pluck('id'))
+        $comments = Comment::whereIn('document_id', $documents->pluck('id'))
             ->orderBy('created_at')->get();
 
         return Inertia::render('portal', [
@@ -64,6 +66,14 @@ class PortalController extends Controller
                 'delta_md' => $cr->delta_md,
                 'delta_cost' => $cr->delta_cost,
                 'impact_ready' => $cr->delta_md !== null,
+            ]),
+            // Open questions: klien bisa jawab langsung — jawaban jadi bahan update dokumen
+            'open_questions' => $project->openQuestions()->orderBy('created_at')->get()->map(fn ($q) => [
+                'id' => $q->id,
+                'question' => $q->question,
+                'status' => $q->status,
+                'answer_text' => $q->answer_text,
+                'answered_by' => $q->answered_by,
             ]),
             'comments' => $comments->map(fn ($c) => [
                 'id' => $c->id,
@@ -150,6 +160,24 @@ class PortalController extends Controller
         return back();
     }
 
+    /** Jawab open question — semua kontak terverifikasi boleh, sekali jawab (bukan thread; diskusi = komentar). */
+    public function answerOpenQuestion(Request $request, string $token, string $oqId)
+    {
+        $link = $this->resolve($token);
+        $email = $this->verifiedEmail($request, $link) ?? abort(403);
+        $data = $request->validate(['answer' => 'required|string|max:2000']);
+
+        $question = $link->project->openQuestions()->where('status', 'open')->findOrFail($oqId);
+        $question->update([
+            'status' => 'answered',
+            'answer_text' => $data['answer'],
+            'answered_by' => $email,
+            'answered_at' => now(),
+        ]);
+
+        return back();
+    }
+
     /** FR-19: approve satu dokumen — hanya approver utama (BR-27). */
     public function approveDocument(Request $request, string $token)
     {
@@ -224,7 +252,7 @@ class PortalController extends Controller
             'description' => 'nullable|string|max:5000',
         ]);
 
-        app(\App\Services\ChangeRequestService::class)->create($link->project, $data + [
+        app(ChangeRequestService::class)->create($link->project, $data + [
             'source' => 'client',
             'requested_by' => $email,
         ]);
@@ -246,7 +274,7 @@ class PortalController extends Controller
             $cr->update(['status' => 'rejected', 'decided_by' => $email, 'decided_at' => now()]);
         } else {
             abort_if($cr->delta_md === null, 422, 'Impact review belum diisi tim — belum bisa di-approve.');
-            app(\App\Services\ChangeRequestService::class)->approve($cr, $email);
+            app(ChangeRequestService::class)->approve($cr, $email);
         }
 
         return back();

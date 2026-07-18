@@ -84,6 +84,35 @@ class Project extends Model
         return $this->hasMany(HealthFinding::class);
     }
 
+    public function openQuestions()
+    {
+        return $this->hasMany(OpenQuestion::class);
+    }
+
+    /**
+     * Sinkronkan open questions dari sumber derived (interview skip, asumsi,
+     * kontradiksi input). Idempoten via question_hash; item answered tidak disentuh.
+     */
+    public function syncOpenQuestions(): void
+    {
+        $sources = [
+            'interview' => $this->interviewItems()->where('skipped', true)->orderBy('seq')->pluck('question')->all(),
+            'assumption' => $this->understanding?->assumptions ?? [],
+            'contradiction' => $this->understanding?->contradictions ?? [],
+        ];
+        foreach ($sources as $source => $questions) {
+            foreach ($questions as $q) {
+                if (! is_string($q) || $q === '') {
+                    continue;
+                }
+                $this->openQuestions()->firstOrCreate(
+                    ['question_hash' => sha1("$source|$q")],
+                    ['source' => $source, 'question' => $q],
+                );
+            }
+        }
+    }
+
     public function estimates()
     {
         return $this->hasMany(Estimate::class);

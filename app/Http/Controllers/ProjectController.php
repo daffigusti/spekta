@@ -78,13 +78,8 @@ class ProjectController extends Controller
             'health_dimensions' => array_keys(config('spekta.health_dimensions')),
             // RTM — closure agar tidak ikut dievaluasi saat partial reload polling run/kontradiksi
             'rtm' => fn () => app(SpecHealthValidator::class)->traceabilityMatrix($project),
-            // Open questions: derived, tanpa tabel baru — pertanyaan interview dilewati,
-            // asumsi understanding, dan kontradiksi input (FR-03)
-            'open_questions' => [
-                'skipped_questions' => $project->interviewItems()->where('skipped', true)->orderBy('seq')->pluck('question'),
-                'assumptions' => $project->understanding?->assumptions ?? [],
-                'contradictions' => $project->understanding?->contradictions ?? [],
-            ],
+            // Open questions: sinkron dari sumber derived, dijawab klien via portal
+            'open_questions' => $this->openQuestions($project),
             'run' => $project->generationRuns()->with('nodes')->latest()->first(),
             'missing_doc_keys' => array_values(array_diff(array_keys(config('spekta.doc_pipeline')), $project->documents()->pluck('doc_key')->all())),
             'share_links' => $project->shareLinks()->latest()->get()->map(fn ($l) => [
@@ -195,6 +190,17 @@ class ProjectController extends Controller
         ContradictionCheckJob::dispatch($project->id);
 
         return back();
+    }
+
+    private function openQuestions(Project $project): array
+    {
+        $project->syncOpenQuestions();
+
+        return $project->openQuestions()->orderBy('created_at')->get()
+            ->map(fn ($q) => [
+                'id' => $q->id, 'source' => $q->source, 'question' => $q->question,
+                'status' => $q->status, 'answer_text' => $q->answer_text, 'answered_by' => $q->answered_by,
+            ])->all();
     }
 
     public static function authorizeProject(Request $request, Project $project): void

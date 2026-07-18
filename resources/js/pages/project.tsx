@@ -7,7 +7,7 @@ import AssistantDrawer, { AssistantButton } from '@/components/assistant-drawer'
 import ImpactDialog from '@/components/impact-dialog';
 import MarkdownPreview from '@/components/markdown-preview';
 import { confirmDialog, promptDialog } from '@/components/system-dialog';
-import SpektaLayout from '@/layouts/spekta-layout';
+import WorkspaceLayout from '@/layouts/workspace-layout';
 
 type DocVersion = {
     id: string;
@@ -44,10 +44,13 @@ type Finding = {
 
 type RtmRow = { fr: string; scope: string | null; cells: Record<string, boolean | null> };
 
-type OpenQuestions = {
-    skipped_questions: string[];
-    assumptions: string[];
-    contradictions: string[];
+type OpenQuestionItem = {
+    id: string;
+    source: string;
+    question: string;
+    status: string;
+    answer_text: string | null;
+    answered_by: string | null;
 };
 
 type ShareLinkData = {
@@ -98,7 +101,7 @@ type Props = {
     findings: Finding[];
     health_dimensions: string[];
     rtm: RtmRow[];
-    open_questions: OpenQuestions;
+    open_questions: OpenQuestionItem[];
     share_links: ShareLinkData[];
     baselines: BaselineData[];
     change_requests: ChangeRequestData[];
@@ -247,7 +250,7 @@ export default function ProjectPage({
     findings,
     health_dimensions = [],
     rtm = [],
-    open_questions = { skipped_questions: [], assumptions: [], contradictions: [] },
+    open_questions = [],
     share_links = [],
     baselines = [],
     change_requests = [],
@@ -310,12 +313,16 @@ export default function ProjectPage({
         name,
         docs: documents.filter((d) => d.group === name),
     }));
-    // Open questions tergroup — hanya grup berisi yang tampil
-    const openQuestionGroups = [
-        { name: 'Interview dilewati', items: open_questions.skipped_questions },
-        { name: 'Asumsi belum dikonfirmasi', items: open_questions.assumptions },
-        { name: 'Kontradiksi input', items: open_questions.contradictions },
-    ].filter((g) => g.items.length > 0);
+    // Open questions tergroup per sumber — hanya grup berisi yang tampil; jawaban klien (portal) ikut tampil
+    const oqLabels: Record<string, string> = {
+        interview: 'Interview dilewati',
+        assumption: 'Asumsi belum dikonfirmasi',
+        contradiction: 'Kontradiksi input',
+    };
+    const openQuestionGroups = Object.entries(oqLabels)
+        .map(([key, name]) => ({ name, items: open_questions.filter((q) => q.source === key) }))
+        .filter((g) => g.items.length > 0);
+    const oqOpenCount = open_questions.filter((q) => q.status === 'open').length;
     const contraExhausted = contradiction?.quota.limit != null && contradiction.quota.used >= contradiction.quota.limit;
 
     const startEdit = () => {
@@ -355,11 +362,14 @@ export default function ProjectPage({
     );
 
     return (
-        <SpektaLayout crumb={project.name} active="projects">
+        <WorkspaceLayout>
             <Head title={`${project.name} — Dokumen`} />
 
             <div className="mb-[18px] flex flex-wrap items-end justify-between gap-4">
                 <div>
+                    <Link href={route('dashboard')} className="text-xs font-semibold text-gray-400 hover:text-teal-800">
+                        ← Proyek
+                    </Link>
                     <h1 className="group flex items-center gap-2 text-[22px] font-extrabold tracking-[-0.02em] text-gray-900">
                         {project.name}
                         <button
@@ -966,7 +976,7 @@ export default function ProjectPage({
                             </div>
                         )}
 
-                        <div className="mt-3.5 overflow-auto" style={{ maxHeight: 'calc(100vh - 330px)' }}>
+                        <div className="mt-3.5 overflow-auto" style={{ maxHeight: 'calc(100vh - 270px)' }}>
                             {mode === 'preview' && (
                                 <MarkdownPreview
                                     html={html}
@@ -1280,30 +1290,39 @@ export default function ProjectPage({
                             </button>
                         )}
 
-                        {/* Open questions: derived dari interview skip + asumsi + kontradiksi input — belum dikonfirmasi klien */}
+                        {/* Open questions: interview skip + asumsi + kontradiksi input — dijawab klien via portal */}
                         {openQuestionGroups.length > 0 && (
                             <div className="mt-3.5 border-t border-gray-200 pt-3.5">
                                 <div className="text-[11px] font-bold tracking-[0.08em] text-gray-500">
-                                    OPEN QUESTIONS ({openQuestionGroups.reduce((n, g) => n + g.items.length, 0)})
+                                    OPEN QUESTIONS ({oqOpenCount} terbuka)
                                 </div>
                                 <div className="mt-2 flex max-h-[150px] flex-col gap-2 overflow-auto">
                                     {openQuestionGroups.map((g) => (
                                         <div key={g.name} className="flex flex-col gap-1.5">
                                             <div className="text-[10px] font-bold tracking-[0.08em] text-gray-400 uppercase">{g.name}</div>
-                                            {g.items.map((q, i) => (
-                                                <button
-                                                    key={i}
-                                                    type="button"
-                                                    className="text-left text-[11.5px] font-semibold text-gray-600 hover:text-teal-700"
-                                                    title="Klik untuk buat pertanyaan klarifikasi di chat"
-                                                    onClick={() => {
-                                                        setChatPrefill(`Buat pertanyaan klarifikasi untuk klien terkait: ${q}`);
-                                                        setChatOpen(true);
-                                                    }}
-                                                >
-                                                    · {q}
-                                                </button>
-                                            ))}
+                                            {g.items.map((q) =>
+                                                q.status === 'answered' ? (
+                                                    <div key={q.id} className="text-[11.5px] font-semibold text-emerald-700">
+                                                        ✓ {q.question}
+                                                        <div className="font-medium text-gray-500">
+                                                            {q.answered_by}: {q.answer_text}
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        key={q.id}
+                                                        type="button"
+                                                        className="text-left text-[11.5px] font-semibold text-gray-600 hover:text-teal-700"
+                                                        title="Klik untuk buat pertanyaan klarifikasi di chat — atau share ke portal, klien bisa jawab langsung"
+                                                        onClick={() => {
+                                                            setChatPrefill(`Buat pertanyaan klarifikasi untuk klien terkait: ${q.question}`);
+                                                            setChatOpen(true);
+                                                        }}
+                                                    >
+                                                        · {q.question}
+                                                    </button>
+                                                ),
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -1398,6 +1417,6 @@ export default function ProjectPage({
                 quota={chat_quota}
                 error={errors.assistant}
             />
-        </SpektaLayout>
+        </WorkspaceLayout>
     );
 }

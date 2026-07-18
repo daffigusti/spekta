@@ -118,6 +118,7 @@ Route::prefix('portal/{token}')->group(function () {
     Route::post('request-otp', [PortalController::class, 'requestOtp'])->name('portal.otp.request');
     Route::post('verify', [PortalController::class, 'verifyOtp'])->name('portal.otp.verify');
     Route::post('comments', [PortalController::class, 'comment'])->name('portal.comments');
+    Route::post('open-questions/{oqId}/answer', [PortalController::class, 'answerOpenQuestion'])->name('portal.oq.answer');
     Route::post('approve', [PortalController::class, 'approveDocument'])->name('portal.approve');
     Route::post('approve-all', [PortalController::class, 'approveAll'])->name('portal.approve-all');
     Route::post('change-requests', [PortalController::class, 'proposeChangeRequest'])->name('portal.cr.propose');

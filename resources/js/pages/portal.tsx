@@ -35,6 +35,14 @@ type PortalCr = {
     impact_ready: boolean;
 };
 
+type PortalOq = {
+    id: string;
+    question: string;
+    status: string;
+    answer_text: string | null;
+    answered_by: string | null;
+};
+
 type Props = {
     mode: 'email' | 'otp' | 'portal';
     token: string;
@@ -46,6 +54,7 @@ type Props = {
     documents?: PortalDoc[];
     comments?: PortalComment[];
     change_requests?: PortalCr[];
+    open_questions?: PortalOq[];
     errors: Record<string, string>;
 };
 
@@ -53,6 +62,46 @@ const field =
     'w-full rounded-[10px] border-2 border-gray-200 px-3.5 py-2.5 text-sm font-medium text-gray-700 focus:border-teal-400 focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none';
 const btnTeal =
     'inline-flex items-center justify-center gap-[7px] rounded-[10px] bg-teal-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-teal-700 disabled:opacity-50';
+
+// Satu open question: sudah dijawab → tampil jawaban; belum → textarea jawab langsung dari portal
+function OqRow({ q, token }: { q: PortalOq; token: string }) {
+    const [answer, setAnswer] = useState('');
+    const [sending, setSending] = useState(false);
+
+    return (
+        <div className="rounded-[10px] border border-gray-200 px-3 py-2.5 text-[12px]">
+            <div className="font-medium text-gray-700">{q.question}</div>
+            {q.status === 'answered' ? (
+                <div className="mt-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[11.5px] text-emerald-800">
+                    <span className="font-bold">{q.answered_by}:</span> {q.answer_text}
+                </div>
+            ) : (
+                <div className="mt-1.5 flex gap-1.5">
+                    <input
+                        className="min-w-0 flex-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-[11.5px] font-medium text-gray-700 focus:border-teal-400 focus:outline-none"
+                        placeholder="Tulis jawaban…"
+                        value={answer}
+                        onChange={(e) => setAnswer(e.target.value)}
+                    />
+                    <button
+                        className="rounded-lg bg-teal-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-teal-700 disabled:opacity-40"
+                        disabled={!answer.trim() || sending}
+                        onClick={() => {
+                            setSending(true);
+                            router.post(
+                                route('portal.oq.answer', [token, q.id]),
+                                { answer },
+                                { preserveScroll: true, onFinish: () => setSending(false) },
+                            );
+                        }}
+                    >
+                        Kirim
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+}
 
 function Gate({ mode, token, workspace_name, project_name, errors }: Props) {
     const { data, setData, post, processing } = useForm({ email: '', code: '' });
@@ -126,7 +175,17 @@ function Gate({ mode, token, workspace_name, project_name, errors }: Props) {
 }
 
 export default function Portal(props: Props) {
-    const { token, workspace_name, project_name, documents = [], comments = [], change_requests = [], is_approver, approved_all } = props;
+    const {
+        token,
+        workspace_name,
+        project_name,
+        documents = [],
+        comments = [],
+        change_requests = [],
+        open_questions = [],
+        is_approver,
+        approved_all,
+    } = props;
     const [activeId, setActiveId] = useState(documents[0]?.id ?? '');
     const [reply, setReply] = useState('');
     const doc = documents.find((d) => d.id === activeId);
@@ -414,6 +473,22 @@ export default function Portal(props: Props) {
                                                 <div className="mt-1.5 text-[10.5px] font-medium text-gray-400">Menunggu impact review tim…</div>
                                             ))}
                                     </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {open_questions.length > 0 && (
+                        <div className="mt-3.5 border-t border-gray-100 pt-3.5">
+                            <div className="text-[11px] font-bold tracking-[0.08em] text-gray-500">
+                                PERTANYAAN TERBUKA ({open_questions.filter((q) => q.status === 'open').length} belum dijawab)
+                            </div>
+                            <div className="mt-1 text-[11px] font-medium text-gray-400">
+                                Jawaban Anda membantu tim melengkapi spesifikasi — hal yang belum dikonfirmasi ditandai sebagai asumsi.
+                            </div>
+                            <div className="mt-2 flex flex-col gap-2">
+                                {open_questions.map((q) => (
+                                    <OqRow key={q.id} q={q} token={token} />
                                 ))}
                             </div>
                         </div>
