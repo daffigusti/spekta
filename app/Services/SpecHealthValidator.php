@@ -13,6 +13,7 @@ use App\Models\Project;
  * (e) WIREFRAMES JSON valid + coverage flow vs USER_FLOWS
  * (f) DATABASE punya erDiagram
  * (g) SECURITY menyebut semua role (matrix akses lengkap)
+ * (h) fact drift: angka di dokumen lain tidak menyimpang dari fakta kanonik REQUIREMENTS
  * Skor = 100 - Σ penalti (critical 15, warning 7, info 2), floor 0.
  */
 class SpecHealthValidator
@@ -98,6 +99,14 @@ class SpecHealthValidator
             $findings[] = $f;
         }
 
+        // FR-11(h): fact drift — HANYA baca fact_sheet yang sudah ter-cache di meta (diisi
+        // SpecEngine::factSheet saat generate); validator jalur sync, dilarang trigger LLM di sini.
+        $facts = $project->documents()->where('doc_key', 'REQUIREMENTS')->first()
+            ?->currentVersion?->generated_meta['fact_sheet'] ?? [];
+        foreach (self::factDriftFindings(is_array($facts) ? $facts : [], $docs->all()) as $f) {
+            $findings[] = $f;
+        }
+
         foreach ($findings as $f) {
             $project->healthFindings()->create($f);
         }
@@ -163,6 +172,88 @@ class SpecHealthValidator
         }
 
         return $findings;
+    }
+
+    /**
+     * FR-11(h): angka di dokumen menyimpang dari fakta kanonik REQUIREMENTS. Deterministik, tanpa LLM.
+     * Kanon = keyword → himpunan angka sah dari SEMUA fakta ("min 2 cabang" + "maks 5 cabang" → cabang:{2,5}),
+     * jadi pasangan min/maks tidak false positive. Static murni — unit-testable.
+     */
+    public static function factDriftFindings(array $facts, array $docs): array
+    {
+        $canon = [];
+        foreach ($facts as $fact) {
+            if (! is_string($fact)) {
+                continue;
+            }
+            foreach (self::numberKeywordPairs($fact) as [$num, $kw]) {
+                $canon[$kw][$num] = true;
+            }
+        }
+        if ($canon === []) {
+            return [];
+        }
+
+        $findings = [];
+        $seen = [];
+        foreach ($docs as $key => $md) {
+            if (in_array($key, ['REQUIREMENTS', 'WIREFRAMES']) || $md === '') {
+                continue; // REQUIREMENTS = sumber kanon; WIREFRAMES = JSON layout, koordinatnya bukan klaim
+            }
+            // buang blok kode/mermaid — angka di dalamnya bukan klaim requirement
+            $clean = preg_replace('/^```.*?^```/ms', '', $md) ?? $md;
+            foreach (self::numberKeywordPairs($clean) as [$num, $kw]) {
+                if (! isset($canon[$kw]) || isset($canon[$kw][$num]) || isset($seen["$key|$kw"])) {
+                    continue;
+                }
+                $seen["$key|$kw"] = true;
+                $valid = implode('/', array_keys($canon[$kw]));
+                $findings[] = ['rule_key' => 'fact_drift', 'severity' => 'warning', 'location' => "$key / $kw",
+                    'message' => "Angka \"$num $kw\" di $key.md menyimpang dari fakta kanonik REQUIREMENTS ($valid $kw)",
+                    'suggestion' => "Samakan angka $kw di $key.md dengan REQUIREMENTS, atau perbarui REQUIREMENTS bila memang berubah."];
+                if (count($findings) >= 8) {
+                    return $findings; // cap — banjir temuan = noise, 8 pertama sudah cukup jadi alarm
+                }
+            }
+        }
+
+        return $findings;
+    }
+
+    /** Pasangan (angka, keyword terdekat) dari teks — keyword non-stopword dalam jendela 2 token, prioritas setelah angka. */
+    private static function numberKeywordPairs(string $text): array
+    {
+        $tokens = preg_split('/[^\p{L}\p{N}%,.]+/u', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $tokens = array_values(array_map(fn ($t) => trim($t, '.,'), $tokens));
+        $stop = ['dan', 'atau', 'yang', 'dari', 'untuk', 'pada', 'dengan', 'per', 'tiap', 'setiap', 'paling',
+            'lebih', 'kurang', 'maksimal', 'maksimum', 'minimal', 'minimum', 'maks', 'min', 'hingga', 'sampai',
+            'adalah', 'harus', 'wajib', 'bila', 'jika', 'the', 'and', 'max', 'most', 'least', 'atas', 'bawah'];
+        $codePrefix = ['fr', 'br', 'adr', 'v', 'versi', 'version', 'fase', 'phase', 'sprint', 'p'];
+
+        $pairs = [];
+        foreach ($tokens as $i => $t) {
+            if (! preg_match('/^\d+(?:[.,]\d+)?%?$/', $t)) {
+                continue;
+            }
+            // bukan klaim angka: kode FR-12/BR-05/v2/Fase 1, dan tahun
+            if (in_array($tokens[$i - 1] ?? '', $codePrefix)) {
+                continue;
+            }
+            $n = (int) $t;
+            if ($n >= 1900 && $n <= 2100 && ! str_contains($t, '%')) {
+                continue;
+            }
+            foreach ([$i + 1, $i + 2, $i - 1, $i - 2] as $j) {
+                $kw = $tokens[$j] ?? null;
+                if ($kw === null || mb_strlen($kw) < 3 || in_array($kw, $stop) || preg_match('/\d/', $kw)) {
+                    continue;
+                }
+                $pairs[] = [rtrim($t, '%'), $kw]; // % dibuang: "20%" dan "20 persen" harus dianggap sama
+                break;
+            }
+        }
+
+        return $pairs;
     }
 
     /** FR disebut sebagai token utuh — "FR-1" tidak boleh cocok dengan "FR-10" (sub "FR-1.x" tetap dihitung). */
