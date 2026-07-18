@@ -17,7 +17,15 @@ function swap(code: Element, svg: string) {
  * `html` WAJIB sudah tersanitasi DOMPurify oleh pemanggil (lihat mdHtml) — komponen ini tidak sanitasi ulang.
  * `skipLastMermaid`: saat streaming, fence terakhir mungkin belum ketutup — blok mermaid terakhir dibiarkan sebagai code.
  */
-export default function MarkdownPreview({ html, className, skipLastMermaid = false }: { html: string; className: string; skipLastMermaid?: boolean }) {
+export default function MarkdownPreview({
+    html,
+    className,
+    skipLastMermaid = false,
+}: {
+    html: string;
+    className: string;
+    skipLastMermaid?: boolean;
+}) {
     const ref = useRef<HTMLElement>(null);
     useLayoutEffect(() => {
         const root = ref.current;

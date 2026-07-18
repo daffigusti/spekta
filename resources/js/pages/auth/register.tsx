@@ -1,7 +1,7 @@
 import { Head, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 
-import { AuthPasswordInput, authCta, authError, authField, authLabel, GoogleDivider, SpektaAuthShell } from '@/layouts/auth/spekta-shell';
+import { authCta, authError, authField, authLabel, AuthPasswordInput, GoogleDivider, SpektaAuthShell } from '@/layouts/auth/spekta-shell';
 
 type RegisterForm = {
     name: string;
@@ -9,7 +9,7 @@ type RegisterForm = {
     email: string;
     password: string;
     password_confirmation: string;
-}
+};
 
 export default function Register() {
     const { data, setData, post, processing, errors, reset } = useForm<RegisterForm>({
@@ -80,9 +80,24 @@ export default function Register() {
                 {errors.password && <div style={authError}>{errors.password}</div>}
 
                 <div style={{ ...authLabel, marginTop: 14 }}>Ulangi kata sandi</div>
-                <AuthPasswordInput value={data.password_confirmation} onChange={(v) => setData('password_confirmation', v)} autoComplete="new-password" />
+                <AuthPasswordInput
+                    value={data.password_confirmation}
+                    onChange={(v) => setData('password_confirmation', v)}
+                    autoComplete="new-password"
+                />
 
-                <label style={{ display: 'flex', gap: 9, marginTop: 16, fontSize: 12, fontWeight: 500, color: '#99F6E4', lineHeight: 1.55, cursor: 'pointer' }}>
+                <label
+                    style={{
+                        display: 'flex',
+                        gap: 9,
+                        marginTop: 16,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: '#99F6E4',
+                        lineHeight: 1.55,
+                        cursor: 'pointer',
+                    }}
+                >
                     <input type="checkbox" required style={{ marginTop: 2, accentColor: '#2DD4BF', width: 15, height: 15, flex: 'none' }} />
                     <span>
                         Saya setuju dengan{' '}

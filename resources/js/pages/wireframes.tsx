@@ -61,9 +61,7 @@ function parseWireframes(raw: string | null): { screens: Screen[]; error: string
 }
 
 // ---- primitif low-fi ----
-const Ph = ({ w = '100%', h = 8 }: { w?: string | number; h?: number }) => (
-    <div className="rounded bg-gray-200" style={{ width: w, height: h }} />
-);
+const Ph = ({ w = '100%', h = 8 }: { w?: string | number; h?: number }) => <div className="rounded bg-gray-200" style={{ width: w, height: h }} />;
 
 function SectionView({ s }: { s: Section }) {
     switch (s.type) {
@@ -154,10 +152,18 @@ function SectionView({ s }: { s: Section }) {
                         {(s.items ?? ['Kartu 1', 'Kartu 2']).slice(0, 6).map((it, i) => (
                             <div key={i} className="rounded-md border border-gray-200 p-1.5">
                                 <div className="relative mb-1 h-9 overflow-hidden rounded bg-gray-100">
-                                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top right, transparent calc(50% - 1px), #d1d5db, transparent calc(50% + 1px)), linear-gradient(to bottom right, transparent calc(50% - 1px), #d1d5db, transparent calc(50% + 1px))' }} />
+                                    <div
+                                        className="absolute inset-0"
+                                        style={{
+                                            background:
+                                                'linear-gradient(to top right, transparent calc(50% - 1px), #d1d5db, transparent calc(50% + 1px)), linear-gradient(to bottom right, transparent calc(50% - 1px), #d1d5db, transparent calc(50% + 1px))',
+                                        }}
+                                    />
                                 </div>
                                 <div className="truncate text-[9px] font-bold text-gray-600">{it}</div>
-                                <div className="mt-1"><Ph h={5} w="70%" /></div>
+                                <div className="mt-1">
+                                    <Ph h={5} w="70%" />
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -182,7 +188,9 @@ function SectionView({ s }: { s: Section }) {
                 <div className="grid grid-cols-3 gap-1.5">
                     {(s.items ?? []).slice(0, 6).map((it, i) => (
                         <div key={i} className="rounded-md border border-gray-200 p-1.5">
-                            <div className="mb-1"><Ph h={10} w="50%" /></div>
+                            <div className="mb-1">
+                                <Ph h={10} w="50%" />
+                            </div>
                             <div className="truncate text-[8.5px] font-semibold text-gray-500">{it}</div>
                         </div>
                     ))}
@@ -202,7 +210,13 @@ function SectionView({ s }: { s: Section }) {
         case 'image':
             return (
                 <div className="relative h-16 overflow-hidden rounded-md border border-dashed border-gray-300 bg-gray-50">
-                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top right, transparent calc(50% - 1px), #d1d5db, transparent calc(50% + 1px)), linear-gradient(to bottom right, transparent calc(50% - 1px), #d1d5db, transparent calc(50% + 1px))' }} />
+                    <div
+                        className="absolute inset-0"
+                        style={{
+                            background:
+                                'linear-gradient(to top right, transparent calc(50% - 1px), #d1d5db, transparent calc(50% + 1px)), linear-gradient(to bottom right, transparent calc(50% - 1px), #d1d5db, transparent calc(50% + 1px))',
+                        }}
+                    />
                     {s.label && <span className="absolute bottom-1 left-1.5 text-[8.5px] font-semibold text-gray-400">{s.label}</span>}
                 </div>
             );
@@ -274,7 +288,15 @@ function ScreenFrame({ screen, selected, onSelect }: { screen: Screen; selected:
     );
 }
 
-export default function WireframesPage({ project, document: doc, run, assistant_messages = [], chat_stream = null, chat_quota = null, errors = {} }: Props) {
+export default function WireframesPage({
+    project,
+    document: doc,
+    run,
+    assistant_messages = [],
+    chat_stream = null,
+    chat_quota = null,
+    errors = {},
+}: Props) {
     const [chatOpen, setChatOpen] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [view, setView] = useState({ x: 48, y: 48, k: 0.85 });
@@ -378,12 +400,31 @@ export default function WireframesPage({ project, document: doc, run, assistant_
                             onClick={() => setChatOpen(true)}
                             className="inline-flex items-center gap-1.5 rounded-[10px] border-2 border-teal-200 bg-teal-50 px-3.5 py-1.5 text-[12.5px] font-bold text-teal-800 hover:bg-teal-100"
                         >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="#0D9488"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
                                 <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3z" />
                             </svg>
                             Revisi via AI
                             {chatBusy && (
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="animate-spin">
+                                <svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="#0D9488"
+                                    strokeWidth="2.4"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="animate-spin"
+                                >
                                     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                 </svg>
                             )}
@@ -430,17 +471,23 @@ export default function WireframesPage({ project, document: doc, run, assistant_
                                                 <div key={s.id ?? i} className="flex items-start">
                                                     {i > 0 && (
                                                         <div className="flex w-10 flex-none items-center justify-center self-stretch">
-                                                            <svg width="26" height="14" viewBox="0 0 26 14" fill="none" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 90 }}>
+                                                            <svg
+                                                                width="26"
+                                                                height="14"
+                                                                viewBox="0 0 26 14"
+                                                                fill="none"
+                                                                stroke="#94A3B8"
+                                                                strokeWidth="2"
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                style={{ marginTop: 90 }}
+                                                            >
                                                                 <line x1="1" y1="7" x2="21" y2="7" />
                                                                 <polyline points="16 2 21 7 16 12" />
                                                             </svg>
                                                         </div>
                                                     )}
-                                                    <ScreenFrame
-                                                        screen={s}
-                                                        selected={selectedId === s.id}
-                                                        onSelect={() => setSelectedId(s.id)}
-                                                    />
+                                                    <ScreenFrame screen={s} selected={selectedId === s.id} onSelect={() => setSelectedId(s.id)} />
                                                 </div>
                                             ))}
                                         </div>
@@ -456,7 +503,17 @@ export default function WireframesPage({ project, document: doc, run, assistant_
                             <div className="max-w-md rounded-xl border border-gray-200 bg-white px-8 py-8 text-center shadow-sm">
                                 {runActive && wireframeNode?.status !== 'done' ? (
                                     <>
-                                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto animate-spin">
+                                        <svg
+                                            width="28"
+                                            height="28"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="#0D9488"
+                                            strokeWidth="2.2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            className="mx-auto animate-spin"
+                                        >
                                             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                         </svg>
                                         <div className="mt-3 text-[14px] font-extrabold text-gray-900">Sedang generate wireframe…</div>
@@ -477,7 +534,17 @@ export default function WireframesPage({ project, document: doc, run, assistant_
                                     </>
                                 ) : (
                                     <>
-                                        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mx-auto">
+                                        <svg
+                                            width="30"
+                                            height="30"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="#9CA3AF"
+                                            strokeWidth="1.8"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            className="mx-auto"
+                                        >
                                             <rect x="3" y="3" width="18" height="18" rx="2" />
                                             <line x1="3" y1="9" x2="21" y2="9" />
                                             <line x1="9" y1="21" x2="9" y2="9" />
@@ -488,7 +555,12 @@ export default function WireframesPage({ project, document: doc, run, assistant_
                                         </div>
                                         <button
                                             onClick={async () => {
-                                                if (!(await confirmDialog('Generate wireframe + dokumen pipeline lain yang belum ada? Memakai 1 kredit.'))) return;
+                                                if (
+                                                    !(await confirmDialog(
+                                                        'Generate wireframe + dokumen pipeline lain yang belum ada? Memakai 1 kredit.',
+                                                    ))
+                                                )
+                                                    return;
                                                 router.post(route('projects.generate.missing', project.id), {}, { preserveScroll: true });
                                             }}
                                             className="mt-4 rounded-[10px] bg-teal-600 px-4 py-2 text-[13px] font-bold text-white hover:bg-teal-700"
@@ -539,12 +611,29 @@ export default function WireframesPage({ project, document: doc, run, assistant_
                                         title={`Pulihkan v${v.version_no}`}
                                         className="hidden text-gray-400 group-hover:inline hover:text-teal-700"
                                         onClick={async () => {
-                                            if (!(await confirmDialog(`Pulihkan v${v.version_no}? Isi lama disalin jadi versi baru v${(doc.version_no ?? 0) + 1}.`)))
+                                            if (
+                                                !(await confirmDialog(
+                                                    `Pulihkan v${v.version_no}? Isi lama disalin jadi versi baru v${(doc.version_no ?? 0) + 1}.`,
+                                                ))
+                                            )
                                                 return;
-                                            router.post(route('documents.versions.restore', [doc.id, v.version_no]), {}, { preserveScroll: true, only: ['document', 'errors'] });
+                                            router.post(
+                                                route('documents.versions.restore', [doc.id, v.version_no]),
+                                                {},
+                                                { preserveScroll: true, only: ['document', 'errors'] },
+                                            );
                                         }}
                                     >
-                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                                        <svg
+                                            width="11"
+                                            height="11"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.4"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
                                             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
                                             <path d="M3 3v5h5" />
                                         </svg>
@@ -571,7 +660,9 @@ export default function WireframesPage({ project, document: doc, run, assistant_
                 error={errors.assistant}
                 reloadOnApply={['document', 'errors']}
                 placeholder={selected ? `Revisi layar "${selected.name}"… (Enter)` : 'Minta revisi wireframe… (Enter)'}
-                emptyHint={'Minta perubahan wireframe — mis. "Tambah kolom No. Telepon di form registrasi" atau "Tambah layar konfirmasi setelah checkout".'}
+                emptyHint={
+                    'Minta perubahan wireframe — mis. "Tambah kolom No. Telepon di form registrasi" atau "Tambah layar konfirmasi setelah checkout".'
+                }
             />
         </SpektaLayout>
     );

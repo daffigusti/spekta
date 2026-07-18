@@ -14,7 +14,7 @@ export default function Stack({ project, stack, understanding }: Props) {
     return (
         <SpektaLayout crumb={project.name} active="projects">
             <Head title={`Stack — ${project.name}`} />
-            <div className="mx-auto max-w-[1100px] px-6 py-6">
+            <div className="w-full px-6 py-6">
                 <Link href={route('projects.show', project.id)} className="text-[13px] font-bold text-gray-500 hover:text-teal-700">
                     ← {project.name}
                 </Link>

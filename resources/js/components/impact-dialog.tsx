@@ -85,7 +85,9 @@ export default function ImpactDialog({ projectId, open, onClose, creditsError }:
                 <div className="mt-0.5 text-[12px] font-medium text-gray-400">FR-09/FR-10 — lihat dokumen terdampak sebelum regenerasi.</div>
 
                 {creditsError && (
-                    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11.5px] font-semibold text-red-600">{creditsError}</div>
+                    <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11.5px] font-semibold text-red-600">
+                        {creditsError}
+                    </div>
                 )}
 
                 {!impact ? (
@@ -98,7 +100,11 @@ export default function ImpactDialog({ projectId, open, onClose, creditsError }:
                         />
                         {error && <p className="mt-1.5 text-[11.5px] font-semibold text-red-600">{error}</p>}
                         <div className="mt-4 flex justify-end gap-2">
-                            <button type="button" className="rounded-lg px-4 py-2 text-[13px] font-bold text-gray-500 hover:bg-gray-100" onClick={close}>
+                            <button
+                                type="button"
+                                className="rounded-lg px-4 py-2 text-[13px] font-bold text-gray-500 hover:bg-gray-100"
+                                onClick={close}
+                            >
                                 Batal
                             </button>
                             <button
@@ -117,7 +123,10 @@ export default function ImpactDialog({ projectId, open, onClose, creditsError }:
                         <p className="mt-1 text-[11.5px] font-semibold text-gray-400">Perkiraan delta effort: {impact.delta_md} MD</p>
                         <ul className="mt-3 flex max-h-[260px] flex-col gap-1.5 overflow-y-auto">
                             {impact.affected.map((a) => (
-                                <li key={a.doc_key} className="flex items-start gap-2.5 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-[12.5px]">
+                                <li
+                                    key={a.doc_key}
+                                    className="flex items-start gap-2.5 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-[12.5px]"
+                                >
                                     <input
                                         type="checkbox"
                                         className="mt-0.5 h-4 w-4 accent-teal-600"
@@ -136,7 +145,11 @@ export default function ImpactDialog({ projectId, open, onClose, creditsError }:
                             ))}
                         </ul>
                         <div className="mt-4 flex justify-end gap-2">
-                            <button type="button" className="rounded-lg px-4 py-2 text-[13px] font-bold text-gray-500 hover:bg-gray-100" onClick={() => setImpact(null)}>
+                            <button
+                                type="button"
+                                className="rounded-lg px-4 py-2 text-[13px] font-bold text-gray-500 hover:bg-gray-100"
+                                onClick={() => setImpact(null)}
+                            >
                                 Kembali
                             </button>
                             <button

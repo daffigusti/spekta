@@ -52,7 +52,16 @@ export default function Dashboard({ projects }: { projects: ProjectCard[] }) {
                     onClick={() => router.post(route('projects.store'))}
                     className="inline-flex items-center gap-1.5 rounded-[10px] bg-teal-600 px-4.5 py-2.5 text-[13px] font-bold text-white hover:bg-teal-700"
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
                         <line x1="12" y1="5" x2="12" y2="19" />
                         <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
@@ -77,7 +86,9 @@ export default function Dashboard({ projects }: { projects: ProjectCard[] }) {
                             <div className="flex items-start justify-between gap-2.5">
                                 <div className="text-sm leading-tight font-bold text-gray-800">{p.name}</div>
                                 <div className="flex flex-none items-center gap-1.5">
-                                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wide ${b.cls}`}>
+                                    <span
+                                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wide ${b.cls}`}
+                                    >
                                         <span className={`h-1.5 w-1.5 rounded-full ${b.dot}`} />
                                         {b.label}
                                     </span>
@@ -95,7 +106,16 @@ export default function Dashboard({ projects }: { projects: ProjectCard[] }) {
                                                 }
                                             }}
                                         >
-                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                            <svg
+                                                width="13"
+                                                height="13"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2.2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            >
                                                 <path d="M3 6h18" />
                                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
                                                 <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -109,7 +129,16 @@ export default function Dashboard({ projects }: { projects: ProjectCard[] }) {
                             </div>
                             <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs">
                                 <div className="flex items-center gap-1.5 font-semibold text-gray-500">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={healthColor(p.health_score)} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke={healthColor(p.health_score)}
+                                        strokeWidth="2.2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
                                         <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                                     </svg>
                                     Health{' '}
@@ -129,7 +158,16 @@ export default function Dashboard({ projects }: { projects: ProjectCard[] }) {
                     onClick={() => router.post(route('projects.store'))}
                     className="flex min-h-[130px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-200 text-[13px] font-semibold text-gray-400 hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700"
                 >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                        width="22"
+                        height="22"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
                         <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                         <line x1="12" y1="19" x2="12" y2="22" />

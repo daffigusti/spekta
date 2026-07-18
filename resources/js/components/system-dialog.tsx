@@ -96,7 +96,9 @@ export function SystemDialogHost() {
                                         type="button"
                                         onClick={() => setSelected(opt)}
                                         className={`flex items-center gap-2.5 rounded-[10px] border-2 px-3.5 py-2.5 text-left text-sm font-medium ${
-                                            active ? 'border-teal-400 bg-teal-50/50 text-teal-900' : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                                            active
+                                                ? 'border-teal-400 bg-teal-50/50 text-teal-900'
+                                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                                         }`}
                                     >
                                         <span

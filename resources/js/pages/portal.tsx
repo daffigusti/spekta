@@ -49,8 +49,10 @@ type Props = {
     errors: Record<string, string>;
 };
 
-const field = 'w-full rounded-[10px] border-2 border-gray-200 px-3.5 py-2.5 text-sm font-medium text-gray-700 focus:border-teal-400 focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none';
-const btnTeal = 'inline-flex items-center justify-center gap-[7px] rounded-[10px] bg-teal-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-teal-700 disabled:opacity-50';
+const field =
+    'w-full rounded-[10px] border-2 border-gray-200 px-3.5 py-2.5 text-sm font-medium text-gray-700 focus:border-teal-400 focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none';
+const btnTeal =
+    'inline-flex items-center justify-center gap-[7px] rounded-[10px] bg-teal-600 px-4 py-2.5 text-[13px] font-bold text-white hover:bg-teal-700 disabled:opacity-50';
 
 function Gate({ mode, token, workspace_name, project_name, errors }: Props) {
     const { data, setData, post, processing } = useForm({ email: '', code: '' });
@@ -70,7 +72,9 @@ function Gate({ mode, token, workspace_name, project_name, errors }: Props) {
                 {mode === 'email' ? (
                     <>
                         <div className="text-lg font-extrabold text-gray-900">Verifikasi email Anda</div>
-                        <div className="mt-1 text-[13px] text-gray-500">Masukkan email yang diundang — kode akses dikirim ke sana (berlaku 10 menit).</div>
+                        <div className="mt-1 text-[13px] text-gray-500">
+                            Masukkan email yang diundang — kode akses dikirim ke sana (berlaku 10 menit).
+                        </div>
                         <input
                             type="email"
                             className={`${field} mt-4`}
@@ -79,7 +83,11 @@ function Gate({ mode, token, workspace_name, project_name, errors }: Props) {
                             onChange={(e) => setData('email', e.target.value)}
                         />
                         {errors.email && <div className="mt-1 text-xs text-red-600">{errors.email}</div>}
-                        <button className={`${btnTeal} mt-4 w-full`} disabled={processing || !data.email} onClick={() => post(route('portal.otp.request', token))}>
+                        <button
+                            className={`${btnTeal} mt-4 w-full`}
+                            disabled={processing || !data.email}
+                            onClick={() => post(route('portal.otp.request', token))}
+                        >
                             Kirim kode akses
                         </button>
                     </>
@@ -96,10 +104,17 @@ function Gate({ mode, token, workspace_name, project_name, errors }: Props) {
                             onChange={(e) => setData('code', e.target.value.replace(/\D/g, ''))}
                         />
                         {errors.code && <div className="mt-1 text-xs text-red-600">{errors.code}</div>}
-                        <button className={`${btnTeal} mt-4 w-full`} disabled={processing || data.code.length !== 6} onClick={() => post(route('portal.otp.verify', token))}>
+                        <button
+                            className={`${btnTeal} mt-4 w-full`}
+                            disabled={processing || data.code.length !== 6}
+                            onClick={() => post(route('portal.otp.verify', token))}
+                        >
                             Masuk portal
                         </button>
-                        <button className="mt-2 w-full text-xs font-semibold text-gray-400 hover:text-teal-700" onClick={() => router.get(route('portal.show', token))}>
+                        <button
+                            className="mt-2 w-full text-xs font-semibold text-gray-400 hover:text-teal-700"
+                            onClick={() => router.get(route('portal.show', token))}
+                        >
                             ← Ganti email
                         </button>
                     </>
@@ -116,10 +131,7 @@ export default function Portal(props: Props) {
     const [reply, setReply] = useState('');
     const doc = documents.find((d) => d.id === activeId);
 
-    const html = useMemo(
-        () => (doc?.content_md ? DOMPurify.sanitize(marked.parse(doc.content_md) as string) : ''),
-        [doc?.content_md],
-    );
+    const html = useMemo(() => (doc?.content_md ? DOMPurify.sanitize(marked.parse(doc.content_md) as string) : ''), [doc?.content_md]);
 
     if (props.mode !== 'portal') {
         return (
@@ -136,10 +148,14 @@ export default function Portal(props: Props) {
 
     const sendComment = (parentId?: string) => {
         if (!reply.trim()) return;
-        router.post(route('portal.comments', token), { document_id: activeId, body: reply, parent_id: parentId ?? null }, {
-            preserveScroll: true,
-            onSuccess: () => setReply(''),
-        });
+        router.post(
+            route('portal.comments', token),
+            { document_id: activeId, body: reply, parent_id: parentId ?? null },
+            {
+                preserveScroll: true,
+                onSuccess: () => setReply(''),
+            },
+        );
     };
 
     return (
@@ -171,7 +187,10 @@ export default function Portal(props: Props) {
                                     MENUNGGU REVIEW
                                 </span>
                                 {is_approver && (
-                                    <button className={btnTeal} onClick={() => router.post(route('portal.approve-all', token), {}, { preserveScroll: true })}>
+                                    <button
+                                        className={btnTeal}
+                                        onClick={() => router.post(route('portal.approve-all', token), {}, { preserveScroll: true })}
+                                    >
                                         ✓ Setujui semua
                                     </button>
                                 )}
@@ -197,7 +216,17 @@ export default function Portal(props: Props) {
                                     }`}
                                 >
                                     {d.approved ? (
-                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="flex-none">
+                                        <svg
+                                            width="15"
+                                            height="15"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="#16A34A"
+                                            strokeWidth="2.4"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            className="flex-none"
+                                        >
                                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                                             <polyline points="22 4 12 14.01 9 11.01" />
                                         </svg>
@@ -206,7 +235,9 @@ export default function Portal(props: Props) {
                                     )}
                                     <span className="min-w-0 truncate">{d.doc_key}</span>
                                     {count > 0 && (
-                                        <span className="ml-auto rounded-full bg-blue-100 px-2 py-px font-mono text-[10px] font-bold text-blue-700">{count}</span>
+                                        <span className="ml-auto rounded-full bg-blue-100 px-2 py-px font-mono text-[10px] font-bold text-blue-700">
+                                            {count}
+                                        </span>
                                     )}
                                 </button>
                             );
@@ -215,9 +246,14 @@ export default function Portal(props: Props) {
                     <div className="mt-3 border-t border-gray-100 pt-3 text-[11.5px] font-semibold text-gray-500">
                         Progres review
                         <div className="mt-[7px] h-1.5 overflow-hidden rounded-full bg-gray-200">
-                            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${(approvedCount / Math.max(documents.length, 1)) * 100}%` }} />
+                            <div
+                                className="h-full rounded-full bg-emerald-500 transition-all"
+                                style={{ width: `${(approvedCount / Math.max(documents.length, 1)) * 100}%` }}
+                            />
                         </div>
-                        <div className="mt-1.5 font-mono">{approvedCount} / {documents.length} disetujui</div>
+                        <div className="mt-1.5 font-mono">
+                            {approvedCount} / {documents.length} disetujui
+                        </div>
                     </div>
                 </div>
 
@@ -230,13 +266,24 @@ export default function Portal(props: Props) {
                             dangerouslySetInnerHTML={{ __html: html }}
                         />
                     </div>
-                    <div className="mt-3 flex items-start gap-2.5 rounded-[10px] border border-red-200 border-l-[3px] border-l-red-500 bg-red-50 px-4 py-3">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B91C1C" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="mt-px flex-none">
+                    <div className="mt-3 flex items-start gap-2.5 rounded-[10px] border border-l-[3px] border-red-200 border-l-red-500 bg-red-50 px-4 py-3">
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#B91C1C"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="mt-px flex-none"
+                        >
                             <rect x="3" y="11" width="18" height="11" rx="2" />
                             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                         </svg>
                         <div className="text-[12.5px] leading-relaxed font-medium text-red-900">
-                            Setelah approval, perubahan scope tercatat sebagai <b className="font-bold">Change Request</b> dengan estimasi biaya &amp; dampak timeline tersendiri.
+                            Setelah approval, perubahan scope tercatat sebagai <b className="font-bold">Change Request</b> dengan estimasi biaya &amp;
+                            dampak timeline tersendiri.
                         </div>
                     </div>
                 </div>
@@ -250,7 +297,9 @@ export default function Portal(props: Props) {
                             <div key={c.id}>
                                 <div className="rounded-[10px] border border-gray-200 px-3 py-2.5">
                                     <div className="flex items-center gap-2">
-                                        <div className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-[10px] font-extrabold text-white ${c.author_type === 'team' ? 'bg-teal-600' : 'bg-blue-600'}`}>
+                                        <div
+                                            className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-[10px] font-extrabold text-white ${c.author_type === 'team' ? 'bg-teal-600' : 'bg-blue-600'}`}
+                                        >
                                             {c.author_name.slice(0, 2).toUpperCase()}
                                         </div>
                                         <div className="min-w-0">
@@ -260,12 +309,16 @@ export default function Portal(props: Props) {
                                     </div>
                                     <div className="mt-[7px] text-[12.5px] leading-relaxed font-medium text-gray-700">{c.body}</div>
                                 </div>
-                                {docComments.filter((r) => r.parent_id === c.id).map((r) => (
-                                    <div key={r.id} className="mt-1.5 ml-5 rounded-[10px] border border-gray-200 px-3 py-2.5">
-                                        <div className="text-[11.5px] font-bold text-gray-800">{r.author_name} <span className="font-medium text-gray-400">· {r.created_at}</span></div>
-                                        <div className="mt-1 text-[12.5px] leading-relaxed font-medium text-gray-700">{r.body}</div>
-                                    </div>
-                                ))}
+                                {docComments
+                                    .filter((r) => r.parent_id === c.id)
+                                    .map((r) => (
+                                        <div key={r.id} className="mt-1.5 ml-5 rounded-[10px] border border-gray-200 px-3 py-2.5">
+                                            <div className="text-[11.5px] font-bold text-gray-800">
+                                                {r.author_name} <span className="font-medium text-gray-400">· {r.created_at}</span>
+                                            </div>
+                                            <div className="mt-1 text-[12.5px] leading-relaxed font-medium text-gray-700">{r.body}</div>
+                                        </div>
+                                    ))}
                             </div>
                         ))}
                     </div>
@@ -310,9 +363,15 @@ export default function Portal(props: Props) {
                                     <div key={cr.id} className="rounded-[10px] border border-gray-200 px-3 py-2.5 text-[12px]">
                                         <div className="flex items-center gap-2">
                                             <span className="font-mono font-bold text-gray-800">{cr.label}</span>
-                                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase ${
-                                                cr.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : cr.status === 'rejected' ? 'bg-gray-200 text-gray-500' : 'bg-amber-100 text-amber-800'
-                                            }`}>
+                                            <span
+                                                className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase ${
+                                                    cr.status === 'approved'
+                                                        ? 'bg-emerald-100 text-emerald-800'
+                                                        : cr.status === 'rejected'
+                                                          ? 'bg-gray-200 text-gray-500'
+                                                          : 'bg-amber-100 text-amber-800'
+                                                }`}
+                                            >
                                                 {cr.status}
                                             </span>
                                         </div>
@@ -322,26 +381,38 @@ export default function Portal(props: Props) {
                                                 Δ {cr.delta_md} MD · Rp {Math.round((cr.delta_cost ?? 0) / 1e6)} jt
                                             </div>
                                         )}
-                                        {cr.status === 'proposed' && is_approver && (
-                                            cr.impact_ready ? (
+                                        {cr.status === 'proposed' &&
+                                            is_approver &&
+                                            (cr.impact_ready ? (
                                                 <div className="mt-2 flex gap-1.5">
                                                     <button
                                                         className="flex-1 rounded-lg bg-teal-600 py-1.5 text-[11px] font-bold text-white hover:bg-teal-700"
-                                                        onClick={() => router.post(route('portal.cr.decide', [token, cr.id]), { decision: 'approved' }, { preserveScroll: true })}
+                                                        onClick={() =>
+                                                            router.post(
+                                                                route('portal.cr.decide', [token, cr.id]),
+                                                                { decision: 'approved' },
+                                                                { preserveScroll: true },
+                                                            )
+                                                        }
                                                     >
                                                         Setujui — baseline baru
                                                     </button>
                                                     <button
                                                         className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-[11px] font-bold text-gray-500 hover:text-red-600"
-                                                        onClick={() => router.post(route('portal.cr.decide', [token, cr.id]), { decision: 'rejected' }, { preserveScroll: true })}
+                                                        onClick={() =>
+                                                            router.post(
+                                                                route('portal.cr.decide', [token, cr.id]),
+                                                                { decision: 'rejected' },
+                                                                { preserveScroll: true },
+                                                            )
+                                                        }
                                                     >
                                                         Tolak
                                                     </button>
                                                 </div>
                                             ) : (
                                                 <div className="mt-1.5 text-[10.5px] font-medium text-gray-400">Menunggu impact review tim…</div>
-                                            )
-                                        )}
+                                            ))}
                                     </div>
                                 ))}
                             </div>

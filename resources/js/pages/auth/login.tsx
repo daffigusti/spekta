@@ -1,13 +1,13 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 
-import { AuthPasswordInput, authCta, authError, authField, authLabel, GoogleDivider, SpektaAuthShell } from '@/layouts/auth/spekta-shell';
+import { authCta, authError, authField, authLabel, AuthPasswordInput, GoogleDivider, SpektaAuthShell } from '@/layouts/auth/spekta-shell';
 
 type LoginForm = {
     email: string;
     password: string;
     remember: boolean;
-}
+};
 
 export default function Login({ status }: { status?: string; canResetPassword: boolean }) {
     const { data, setData, post, processing, errors, reset } = useForm<LoginForm>({
