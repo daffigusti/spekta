@@ -1,6 +1,4 @@
 .DS_Store
 .playwright-mcp/
 .serena/
-
-# separate git repo with own history
-spekta-app/
+.codegraph/
