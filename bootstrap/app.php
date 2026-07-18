@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
         ]);
         $middleware->validateCsrfTokens(except: ['midtrans/notify']); // webhook server-to-server
+        $middleware->trustProxies(at: '*'); // di belakang Traefik (Dokploy); hanya network internal Docker
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
