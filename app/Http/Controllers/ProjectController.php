@@ -59,8 +59,8 @@ class ProjectController extends Controller
                     // STALE: upstream punya versi lebih baru dari versi dokumen ini (timestamp current version)
                     'stale' => $ownAt !== null && $upstream->contains(fn ($k) => $currentVersions[$k]?->created_at?->gt($ownAt) ?? false),
                     // Riwayat versi hanya bahasa primer — baris varian terjemahan lama (fitur sudah dicabut) tidak ikut
-                    'versions' => $d->versions()->where('language', $project->primaryLanguage())->get(['id', 'version_no', 'source', 'created_at'])->map(fn ($v) => [
-                        'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source,
+                    'versions' => $d->versions()->where('language', $project->primaryLanguage())->get(['id', 'version_no', 'source', 'label', 'created_at'])->map(fn ($v) => [
+                        'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source, 'label' => $v->label,
                         'created_at' => $v->created_at->format('d M Y H:i'),
                     ]),
                 ];

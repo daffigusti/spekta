@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\LlmTruncated;
 use App\Models\Document;
 use App\Models\GenerationNode;
 use App\Services\SpecEngine;
@@ -75,7 +76,7 @@ class GenerateDocumentJob implements ShouldQueue
                     $onDelta,
                 )
                 : $engine->generateDocument($project, $node->doc_key, $upstream, $onDelta);
-        } catch (\App\Exceptions\LlmTruncated $e) {
+        } catch (LlmTruncated $e) {
             // Deterministik — retry pasti kena batas yang sama; fail langsung, jangan bakar 2 panggilan LLM lagi
             $this->fail($e);
 
@@ -92,6 +93,7 @@ class GenerateDocumentJob implements ShouldQueue
             'version_no' => $versionNo,
             'content_md' => $md,
             'source' => 'ai',
+            'label' => $versionNo === 1 ? 'Draf awal AI' : ($run->trigger === 'regen' ? 'Regenerate AI' : null),
             'language' => $project->primaryLanguage(), // FR-12: default kolom 'id' salah utk proyek EN
             'generated_meta' => $meta, // BR-12
         ]);

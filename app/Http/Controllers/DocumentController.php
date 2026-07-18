@@ -26,7 +26,7 @@ class DocumentController extends Controller
     public function storeVersion(Request $request, Document $document)
     {
         ProjectController::authorizeProject($request, $document->project);
-        $data = $request->validate(['content_md' => 'required|string']);
+        $data = $request->validate(['content_md' => 'required|string', 'label' => 'nullable|string|max:60']);
 
         // BR-25: dokumen ter-baseline hanya boleh diubah lewat CR yang mencakupnya
         abort_unless(
@@ -39,6 +39,7 @@ class DocumentController extends Controller
             'version_no' => ($document->versions()->max('version_no') ?? 0) + 1,
             'content_md' => $data['content_md'],
             'source' => 'user', // BR-53: dibedakan di version history
+            'label' => $data['label'] ?? null,
             'language' => $document->project->primaryLanguage(), // FR-12: default kolom 'id' salah utk proyek EN
             'created_by' => $request->user()->id,
         ]);
@@ -67,6 +68,7 @@ class DocumentController extends Controller
             'version_no' => ($document->versions()->max('version_no') ?? 0) + 1,
             'content_md' => $old->content_md,
             'source' => 'user',
+            'label' => "Restore dari v{$versionNo}",
             'language' => $document->project->primaryLanguage(),
             'created_by' => $request->user()->id,
         ]);

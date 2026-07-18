@@ -13,6 +13,7 @@ type DocVersion = {
     id: string;
     version_no: number;
     source: string;
+    label: string | null;
     created_at: string;
 };
 
@@ -1051,7 +1052,7 @@ export default function ProjectPage({
                                                 .filter((v) => v.version_no !== doc.version_no)
                                                 .map((v) => (
                                                     <option key={v.id} value={v.version_no}>
-                                                        v{v.version_no} · {v.source}
+                                                        v{v.version_no} · {v.label ?? v.source}
                                                     </option>
                                                 ))}
                                         </select>
@@ -1119,7 +1120,7 @@ export default function ProjectPage({
                                         key={v.id}
                                         className={`group inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono ${v.source === 'user' ? 'border-blue-200 text-blue-600' : 'border-amber-200 text-amber-600'}`}
                                     >
-                                        v{v.version_no} · {v.source}
+                                        v{v.version_no} · {v.label ?? v.source}
                                         {v.version_no !== doc.version_no && (
                                             <button
                                                 title={`Pulihkan v${v.version_no} (disalin jadi v${(doc.version_no ?? 0) + 1})`}
