@@ -3,20 +3,72 @@
 namespace App\Http\Controllers;
 
 use App\Models\Document;
+use App\Models\Project;
 use Illuminate\Http\Request;
 
 class DocumentController extends Controller
 {
     // Baca dokumen selesai saat run masih jalan (wizard step generate)
-    public function showByKey(Request $request, \App\Models\Project $project, string $docKey)
+    public function showByKey(Request $request, Project $project, string $docKey)
     {
         ProjectController::authorizeProject($request, $project);
         $document = $project->documents()->where('doc_key', $docKey)->firstOrFail();
+
+        // FR-12: varian bahasa via ?lang= — fallback ke version_no varian tertinggi yang tersedia
+        $lang = $request->query('lang');
+        if ($lang && $lang !== $project->primaryLanguage()) {
+            $variant = $document->versions()->where('language', $lang)->orderByDesc('version_no')->first();
+            abort_unless($variant, 404, 'Varian bahasa belum tersedia.');
+
+            return response()->json([
+                'doc_key' => $docKey,
+                'content_md' => $variant->content_md,
+            ]);
+        }
 
         return response()->json([
             'doc_key' => $docKey,
             'content_md' => $document->currentVersion?->content_md ?? '',
         ]);
+    }
+
+    /** FR-12 */
+    public function translate(Request $request, Project $project, string $docKey)
+    {
+        ProjectController::authorizeProject($request, $project);
+        $this->guardTranslateBilling($project);
+        $document = $project->documents()->where('doc_key', $docKey)->firstOrFail();
+        \App\Jobs\TranslateDocumentJob::dispatch($document->id);
+
+        return back();
+    }
+
+    /** FR-12: seluruh set. WIREFRAMES dilewati — kontennya JSON layout. */
+    public function translateAll(Request $request, Project $project)
+    {
+        ProjectController::authorizeProject($request, $project);
+        $this->guardTranslateBilling($project);
+        foreach ($project->documents()->where('doc_key', '!=', 'WIREFRAMES')->pluck('id') as $id) {
+            \App\Jobs\TranslateDocumentJob::dispatch($id);
+        }
+
+        return back();
+    }
+
+    /**
+     * BR-05/BR-02 — pola sama dengan ImpactController::analyze(): translate juga panggilan LLM
+     * jadi diblok saat read-only / kredit habis, tapi TIDAK mengkonsumsi kredit (nilai blueprint
+     * yang sudah dibayar; keputusan pakai/tidak bisa dievaluasi user nanti).
+     */
+    private function guardTranslateBilling(Project $project): void
+    {
+        $workspace = $project->workspace;
+        if ($workspace->subscription?->effectiveStatus() === 'readonly') {
+            abort(403, 'Langganan berakhir — workspace read-only (BR-05).');
+        }
+        if ($workspace->creditBalance() < 1) {
+            abort(402, 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).');
+        }
     }
 
     // FR-08: edit manual → versi baru dengan atribusi
@@ -36,6 +88,7 @@ class DocumentController extends Controller
             'version_no' => ($document->versions()->max('version_no') ?? 0) + 1,
             'content_md' => $data['content_md'],
             'source' => 'user', // BR-53: dibedakan di version history
+            'language' => $document->project->primaryLanguage(), // FR-12: default kolom 'id' salah utk proyek EN
             'created_by' => $request->user()->id,
         ]);
         $document->update(['current_version_id' => $version->id]);
@@ -55,11 +108,15 @@ class DocumentController extends Controller
             'Proyek sudah di-approve — perubahan wajib lewat Change Request yang mencakup dokumen ini (BR-25).'
         );
 
-        $old = $document->versions()->where('version_no', $versionNo)->firstOrFail();
+        // FR-12: filter bahasa primer — versi varian bisa berbagi version_no yang sama (ambigu tanpa filter)
+        $old = $document->versions()->where('version_no', $versionNo)
+            ->where('language', $document->project->primaryLanguage())
+            ->firstOrFail();
         $version = $document->versions()->create([
             'version_no' => ($document->versions()->max('version_no') ?? 0) + 1,
             'content_md' => $old->content_md,
             'source' => 'user',
+            'language' => $document->project->primaryLanguage(),
             'created_by' => $request->user()->id,
         ]);
         $document->update(['current_version_id' => $version->id]);
@@ -72,7 +129,10 @@ class DocumentController extends Controller
     public function showVersion(Request $request, Document $document, int $versionNo)
     {
         ProjectController::authorizeProject($request, $document->project);
-        $version = $document->versions()->where('version_no', $versionNo)->firstOrFail();
+        // FR-12: filter bahasa primer — versi varian bisa berbagi version_no yang sama (ambigu tanpa filter)
+        $version = $document->versions()->where('version_no', $versionNo)
+            ->where('language', $document->project->primaryLanguage())
+            ->firstOrFail();
 
         return response()->json($version->only(['version_no', 'content_md', 'source', 'created_at']));
     }

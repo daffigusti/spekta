@@ -58,6 +58,7 @@ class RepairRunJob implements ShouldQueue
                 'version_no' => ($document->versions()->max('version_no') ?? 0) + 1,
                 'content_md' => $md,
                 'source' => 'ai',
+                'language' => $project->primaryLanguage(), // FR-12: default kolom 'id' salah utk proyek EN
                 'generated_meta' => $meta,
             ]);
             $document->update(['current_version_id' => $version->id]);

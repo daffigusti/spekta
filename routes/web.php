@@ -53,6 +53,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('documents/{document}/versions/{versionNo}', [DocumentController::class, 'showVersion'])->name('documents.versions.show');
     Route::post('documents/{document}/versions/{versionNo}/restore', [DocumentController::class, 'restoreVersion'])->name('documents.versions.restore');
 
+    // FR-12: bilingual
+    Route::post('projects/{project}/documents/{docKey}/translate', [DocumentController::class, 'translate'])->middleware('throttle:12,1')->name('projects.documents.translate');
+    Route::post('projects/{project}/translate-all', [DocumentController::class, 'translateAll'])->middleware('throttle:12,1')->name('projects.translate-all');
+
     // Estimasi (FR-13/FR-14)
     Route::get('projects/{project}/estimate', [EstimateController::class, 'show'])->name('projects.estimate');
     Route::post('projects/{project}/estimate/recompute', [EstimateController::class, 'recompute'])->name('projects.estimate.recompute');

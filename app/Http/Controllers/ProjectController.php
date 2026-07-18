@@ -40,7 +40,11 @@ class ProjectController extends Controller
                 'version_no' => $d->currentVersion?->version_no,
                 'content_md' => $d->currentVersion?->content_md,
                 'generated_meta' => $d->currentVersion?->generated_meta,
-                'versions' => $d->versions()->get(['id', 'version_no', 'source', 'created_at'])->map(fn ($v) => [
+                // FR-12: bilingual — frontend hitung available = variant_version_no !== null, stale = variant_version_no < version_no
+                'variant_language' => $project->variantLanguage(),
+                'variant_version_no' => $d->versions()->where('language', $project->variantLanguage())->max('version_no'),
+                // Riwayat versi hanya bahasa primer — varian bukan entri riwayat terpisah
+                'versions' => $d->versions()->where('language', $project->primaryLanguage())->get(['id', 'version_no', 'source', 'created_at'])->map(fn ($v) => [
                     'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source,
                     'created_at' => $v->created_at->format('d M Y H:i'),
                 ]),
