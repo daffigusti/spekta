@@ -633,6 +633,13 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
 
     private function text(string $class, string $system, string $user, ?int &$tokensIn = null, ?int &$tokensOut = null, ?callable $onDelta = null): string
     {
+        // Panggilan LLM sync dari wizard bisa > 30s (max_execution_time default web),
+        // jadi beri ruang 300s. CLI/queue worker WAJIB tetap 0: set_time_limit(300)
+        // di worker meng-override default CLI 0 dan membunuh job LLM panjang dengan
+        // fatal "Maximum execution time of 300+2 seconds" — timeout job sudah diatur
+        // pcntl alarm queue (job 540 < listener 600 < retry_after 630).
+        set_time_limit(PHP_SAPI === 'cli' ? 0 : 300);
+
         $started = microtime(true);
         $out = $this->driver() === 'openai'
             ? $this->openaiText($class, $system, $user, $tokensIn, $tokensOut, $onDelta)
