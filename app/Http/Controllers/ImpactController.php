@@ -87,4 +87,29 @@ class ImpactController extends Controller
 
         return back();
     }
+
+    /** FR-20 + FR-09: isi impact CR otomatis dari engine — tim tetap bisa koreksi via update() existing. */
+    public function forChangeRequest(Request $request, Project $project, string $crId, SpecEngine $engine, ChangeRequestService $service)
+    {
+        ProjectController::authorizeProject($request, $project);
+        $cr = $project->changeRequests()->where('status', 'proposed')->findOrFail($crId);
+
+        $workspace = $project->workspace;
+
+        // BR-05: mode read-only setelah grace period habis — analisa (panggilan LLM) diblok
+        if ($workspace->subscription?->effectiveStatus() === 'readonly') {
+            abort(403, 'Langganan berakhir — workspace read-only (BR-05).');
+        }
+
+        // BR-02: analisa perlu kredit tersedia, tapi TIDAK mengkonsumsi — hanya preview;
+        // konsumsi baru terjadi saat regenerate() sukses.
+        if ($workspace->creditBalance() < 1) {
+            abort(402, 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).');
+        }
+
+        $impact = $engine->impact($project, trim($cr->title."\n".(string) $cr->description));
+        $service->setImpact($cr, (float) $impact['delta_md'], array_column($impact['affected'], 'doc_key'));
+
+        return back();
+    }
 }

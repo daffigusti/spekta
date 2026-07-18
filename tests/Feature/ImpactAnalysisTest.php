@@ -82,4 +82,19 @@ class ImpactAnalysisTest extends TestCase
             'change_text' => 'Tambah fitur notifikasi email',
         ])->assertStatus(402);
     }
+
+    public function test_cr_impact_ai_fills_delta_and_docs(): void
+    {
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail();
+        $cr = app(\App\Services\ChangeRequestService::class)->create($project, [
+            'title' => 'Tambah notifikasi', 'source' => 'team', 'requested_by' => $user->email,
+        ]);
+
+        $this->actingAs($user)->post(route('projects.cr.impact-ai', [$project, $cr->id]))->assertRedirect();
+
+        $cr->refresh();
+        $this->assertNotNull($cr->delta_md);
+        $this->assertNotEmpty($cr->affected_doc_keys);
+    }
 }

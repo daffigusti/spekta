@@ -88,6 +88,7 @@ Route::middleware(['auth'])->group(function () {
     // FR-09/FR-10: impact analysis + selective regeneration
     Route::post('projects/{project}/impact', [ImpactController::class, 'analyze'])->middleware('throttle:12,1')->name('projects.impact');
     Route::post('projects/{project}/regenerate', [ImpactController::class, 'regenerate'])->name('projects.regenerate');
+    Route::post('projects/{project}/change-requests/{crId}/impact-ai', [ImpactController::class, 'forChangeRequest'])->middleware('throttle:12,1')->name('projects.cr.impact-ai');
 
     // Billing (FR-23)
     Route::get('billing', [BillingController::class, 'index'])->name('billing.index');
