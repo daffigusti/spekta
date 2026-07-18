@@ -90,6 +90,14 @@ class SpecHealthValidator
             }
         }
 
+        // FR-11 aturan lanjutan (d)+(e)
+        foreach (self::erdApiFindings($docs['DATABASE'] ?? '', $docs['API'] ?? '') as $f) {
+            $findings[] = $f;
+        }
+        foreach (self::numberingFindings($docs->all()) as $f) {
+            $findings[] = $f;
+        }
+
         $penalty = ['critical' => 15, 'warning' => 7, 'info' => 2];
         $score = 100;
         foreach ($findings as $f) {
@@ -100,6 +108,52 @@ class SpecHealthValidator
         $project->update(['health_score' => $score]);
 
         return $score;
+    }
+
+    /** FR-11(d): tiap entity di erDiagram DATABASE dirujuk di API.md. Static murni — unit-testable. */
+    public static function erdApiFindings(string $database, string $api): array
+    {
+        if ($database === '' || $api === '' || ! str_contains($database, 'erDiagram')) {
+            return [];
+        }
+        // ponytail: entity = "nama {" di dalam blok erDiagram; regex cukup, parser mermaid berlebihan
+        preg_match_all('/^\s{0,8}([A-Za-z_][A-Za-z0-9_]*)\s*\{/m', $database, $m);
+        $findings = [];
+        foreach (array_unique($m[1]) as $entity) {
+            if (stripos($api, $entity) === false) {
+                $findings[] = ['rule_key' => 'erd_entity_in_api', 'severity' => 'warning', 'location' => "DATABASE / $entity",
+                    'message' => "Entity \"$entity\" di ERD tidak dirujuk di API.md",
+                    'suggestion' => "Tambahkan endpoint/schema yang memakai $entity di API.md, atau hapus entity tak terpakai dari ERD."];
+            }
+        }
+
+        return $findings;
+    }
+
+    /** FR-11(e): FR dirujuk harus terdefinisi di REQUIREMENTS; nomor FR tidak dobel. */
+    public static function numberingFindings(array $docs): array
+    {
+        $req = $docs['REQUIREMENTS'] ?? '';
+        if ($req === '') {
+            return [];
+        }
+        preg_match_all('/^#{2,4}\s.*?\b(FR-\d+)\b/m', $req, $m);
+        $defined = $m[1];
+        $findings = [];
+        foreach (array_unique(array_diff_assoc($defined, array_unique($defined))) as $dup) {
+            $findings[] = ['rule_key' => 'fr_duplicate', 'severity' => 'warning', 'location' => "REQUIREMENTS / $dup",
+                'message' => "$dup terdefinisi lebih dari satu kali di REQUIREMENTS.md",
+                'suggestion' => 'Gabungkan section duplikat atau renumber agar tiap FR unik.'];
+        }
+        preg_match_all('/\bFR-\d+\b/', implode("\n", $docs), $refs);
+        preg_match_all('/\bFR-\d+\b/', $docs['PRD'] ?? '', $prd); // FR di PRD sudah dijaga rule fr_has_ac
+        foreach (array_diff(array_unique($refs[0]), $defined, array_unique($prd[0])) as $ref) {
+            $findings[] = ['rule_key' => 'fr_dangling_ref', 'severity' => 'warning', 'location' => "REQUIREMENTS / $ref",
+                'message' => "$ref dirujuk di dokumen tapi tidak terdefinisi di REQUIREMENTS.md",
+                'suggestion' => "Tambahkan section $ref di REQUIREMENTS atau perbaiki rujukan yang salah nomor."];
+        }
+
+        return $findings;
     }
 
     /** FR disebut sebagai token utuh — "FR-1" tidak boleh cocok dengan "FR-10" (sub "FR-1.x" tetap dihitung). */
