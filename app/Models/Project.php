@@ -107,9 +107,4 @@ class Project extends Model
     {
         return ($this->blueprint['language'] ?? $this->docTemplate?->language ?? 'id') === 'en' ? 'en' : 'id';
     }
-
-    public function variantLanguage(): string
-    {
-        return $this->primaryLanguage() === 'id' ? 'en' : 'id';
-    }
 }

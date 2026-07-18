@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Document;
 use App\Models\Project;
+use App\Services\ChangeRequestService;
+use App\Services\SpecHealthValidator;
 use Illuminate\Http\Request;
 
 class DocumentController extends Controller
@@ -14,55 +16,10 @@ class DocumentController extends Controller
         ProjectController::authorizeProject($request, $project);
         $document = $project->documents()->where('doc_key', $docKey)->firstOrFail();
 
-        // FR-12: varian bahasa via ?lang= — fallback ke version_no varian tertinggi yang tersedia
-        $lang = $request->query('lang');
-        if ($lang && $lang !== $project->primaryLanguage()) {
-            $variant = $document->versions()->where('language', $lang)->orderByDesc('version_no')->first();
-            abort_unless($variant, 404, 'Varian bahasa belum tersedia.');
-
-            return response()->json([
-                'doc_key' => $docKey,
-                'content_md' => $variant->content_md,
-            ]);
-        }
-
         return response()->json([
             'doc_key' => $docKey,
             'content_md' => $document->currentVersion?->content_md ?? '',
         ]);
-    }
-
-    /** FR-12 */
-    public function translate(Request $request, Project $project, string $docKey)
-    {
-        ProjectController::authorizeProject($request, $project);
-        $this->guardTranslateBilling($project);
-        $document = $project->documents()->where('doc_key', $docKey)->firstOrFail();
-        \App\Jobs\TranslateDocumentJob::dispatch($document->id);
-
-        return back();
-    }
-
-    /** FR-12: seluruh set. WIREFRAMES dilewati — kontennya JSON layout. */
-    public function translateAll(Request $request, Project $project)
-    {
-        ProjectController::authorizeProject($request, $project);
-        $this->guardTranslateBilling($project);
-        foreach ($project->documents()->where('doc_key', '!=', 'WIREFRAMES')->pluck('id') as $id) {
-            \App\Jobs\TranslateDocumentJob::dispatch($id);
-        }
-
-        return back();
-    }
-
-    /**
-     * BR-05/BR-02 — pola sama dengan ImpactController::analyze(): translate juga panggilan LLM
-     * jadi diblok saat read-only / kredit habis, tapi TIDAK mengkonsumsi kredit (nilai blueprint
-     * yang sudah dibayar; keputusan pakai/tidak bisa dievaluasi user nanti).
-     */
-    private function guardTranslateBilling(Project $project): void
-    {
-        $project->workspace->assertAiAllowed();
     }
 
     // FR-08: edit manual → versi baru dengan atribusi
@@ -73,7 +30,7 @@ class DocumentController extends Controller
 
         // BR-25: dokumen ter-baseline hanya boleh diubah lewat CR yang mencakupnya
         abort_unless(
-            app(\App\Services\ChangeRequestService::class)->editAllowed($document->project, $document->doc_key),
+            app(ChangeRequestService::class)->editAllowed($document->project, $document->doc_key),
             403,
             'Proyek sudah di-approve — perubahan wajib lewat Change Request yang mencakup dokumen ini (BR-25).'
         );
@@ -87,7 +44,7 @@ class DocumentController extends Controller
         ]);
         $document->update(['current_version_id' => $version->id]);
 
-        app(\App\Services\SpecHealthValidator::class)->run($document->project); // BR-15
+        app(SpecHealthValidator::class)->run($document->project); // BR-15
 
         return back();
     }
@@ -97,7 +54,7 @@ class DocumentController extends Controller
     {
         ProjectController::authorizeProject($request, $document->project);
         abort_unless(
-            app(\App\Services\ChangeRequestService::class)->editAllowed($document->project, $document->doc_key),
+            app(ChangeRequestService::class)->editAllowed($document->project, $document->doc_key),
             403,
             'Proyek sudah di-approve — perubahan wajib lewat Change Request yang mencakup dokumen ini (BR-25).'
         );
@@ -115,7 +72,7 @@ class DocumentController extends Controller
         ]);
         $document->update(['current_version_id' => $version->id]);
 
-        app(\App\Services\SpecHealthValidator::class)->run($document->project); // BR-15
+        app(SpecHealthValidator::class)->run($document->project); // BR-15
 
         return back();
     }

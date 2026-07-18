@@ -85,9 +85,9 @@ class Workspace extends Model
     }
 
     /**
-     * BR-05/BR-02: guard bersama untuk endpoint yang memanggil LLM (analisa dampak, terjemahan,
-     * cek kontradiksi, dst). Dulu diduplikasi di ImpactController::analyze/forChangeRequest &
-     * DocumentController::guardTranslateBilling — disatukan di sini supaya titik guard baru
+     * BR-05/BR-02: guard bersama untuk endpoint yang memanggil LLM (analisa dampak,
+     * cek kontradiksi, dst). Dulu diduplikasi di ImpactController::analyze/forChangeRequest —
+     * disatukan di sini supaya titik guard baru
      * (mis. ProjectController::checkContradictions) tidak lupa menerapkannya.
      */
     public function assertAiAllowed(): void
@@ -96,7 +96,7 @@ class Workspace extends Model
         if ($this->subscription?->effectiveStatus() === 'readonly') {
             abort(403, 'Langganan berakhir — workspace read-only (BR-05).');
         }
-        // BR-02: butuh kredit tersedia (analisa/terjemahan/cek TIDAK mengkonsumsi, hanya preview/gate).
+        // BR-02: butuh kredit tersedia (analisa/cek TIDAK mengkonsumsi, hanya preview/gate).
         if ($this->creditBalance() < 1) {
             abort(402, 'Kredit blueprint habis. Upgrade paket atau top-up (BR-02).');
         }

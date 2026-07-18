@@ -38,7 +38,7 @@ class ProjectLanguageTest extends TestCase
         return $project->refresh();
     }
 
-    public function test_primary_and_variant_language_follow_blueprint_not_dead_column(): void
+    public function test_primary_language_follows_blueprint_not_dead_column(): void
     {
         $project = $this->projectEnViaWizard();
 
@@ -48,7 +48,6 @@ class ProjectLanguageTest extends TestCase
         $this->assertSame('id', $project->getAttribute('language'));
 
         $this->assertSame('en', $project->primaryLanguage());
-        $this->assertSame('id', $project->variantLanguage());
     }
 
     public function test_generate_job_tags_version_language_from_blueprint(): void

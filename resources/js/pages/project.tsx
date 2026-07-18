@@ -26,9 +26,6 @@ type Doc = {
     content_md: string | null;
     generated_meta: Record<string, unknown> | null;
     versions: DocVersion[];
-    // FR-12: bahasa varian (selalu lawan bahasa utama proyek — id<->en) + version_no varian terkini (null = belum diterjemahkan)
-    variant_language: string;
-    variant_version_no: number | null;
 };
 
 type Finding = {
@@ -150,13 +147,6 @@ function collapseContext(rows: DiffRow[]): DiffRow[] {
     return out;
 }
 
-// baca cookie XSRF-TOKEN Laravel — fetch() manual (bukan router.post) butuh header ini sendiri.
-// FR-12: dipakai untuk translate/translate-all supaya error 402/403 (abort() polos, bukan withErrors)
-// tetap dapat balasan JSON berisi message — pola sama dengan ImpactDialog.analyze() (Task 6).
-function xsrf(): string {
-    return decodeURIComponent(document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? '');
-}
-
 function healthColor(h: number | null) {
     if (h == null) return '#9CA3AF';
     if (h >= 85) return '#059669';
@@ -246,93 +236,9 @@ export default function ProjectPage({
         return () => clearInterval(t);
     }, [runActive]);
 
-    // ---- FR-12: toggle bahasa dokumen (ID/EN) ----
-    const [docLang, setDocLang] = useState<'primary' | 'variant'>('primary');
-    const [variantMd, setVariantMd] = useState<string | null>(null);
-    const [variantError, setVariantError] = useState<string | null>(null);
-    const [translateBusy, setTranslateBusy] = useState(false);
-    const [translateError, setTranslateError] = useState<string | null>(null);
-    const [translateAllBusy, setTranslateAllBusy] = useState(false);
-    const [translateAllError, setTranslateAllError] = useState<string | null>(null);
-    // bahasa utama selalu lawan variant_language (skema biner id<->en — lihat Project::variantLanguage())
-    const primaryLang = doc?.variant_language === 'en' ? 'id' : 'en';
-
-    // reset ke bahasa utama saat ganti dokumen aktif
-    useEffect(() => {
-        setDocLang('primary');
-        setVariantMd(null);
-        setVariantError(null);
-        setTranslateError(null);
-    }, [activeKey]);
-
-    // ambil konten varian on-demand — viewer existing memuat konten via props Inertia (documents[].content_md),
-    // jadi varian yang belum ada di props diambil lewat GET projects.documents.show?lang= (Task 8)
-    useEffect(() => {
-        if (docLang !== 'variant' || !doc) return;
-        setVariantMd(null);
-        setVariantError(null);
-        fetch(`${route('projects.documents.show', [project.id, doc.doc_key])}?lang=${doc.variant_language}`, {
-            headers: { Accept: 'application/json' },
-        })
-            .then(async (r) => {
-                if (!r.ok) throw new Error(r.status === 404 ? 'Varian bahasa belum tersedia.' : `Gagal memuat varian (${r.status}).`);
-                return r.json();
-            })
-            .then((d: { content_md?: string }) => setVariantMd(d.content_md ?? ''))
-            .catch((e) => setVariantError(e instanceof Error ? e.message : 'Gagal memuat varian.'));
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [docLang, doc?.id, doc?.variant_language, doc?.variant_version_no]);
-
-    // FR-12: minta terjemahan (baru atau perbarui) — fetch+XSRF (pola ImpactDialog.analyze(), Task 6) karena
-    // guardTranslateBilling() di backend abort(402/403) polos, bukan back()->withErrors() — router.post
-    // biasa TIDAK akan menampilkan pesannya (Inertia menganggap respons non-Inertia), jadi jangan senyap.
-    const translateDoc = async (docKey: string) => {
-        setTranslateBusy(true);
-        setTranslateError(null);
-        try {
-            const res = await fetch(route('projects.documents.translate', [project.id, docKey]), {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf() },
-            });
-            if (!res.ok) {
-                const body: { message?: string } | null = await res.json().catch(() => null);
-                throw new Error(body?.message ?? `Terjemahkan gagal (${res.status}).`);
-            }
-            router.reload({ only: ['documents'] });
-        } catch (e) {
-            setTranslateError(e instanceof Error ? e.message : 'Terjemahkan gagal.');
-        } finally {
-            setTranslateBusy(false);
-        }
-    };
-
-    const translateAll = async () => {
-        setTranslateAllBusy(true);
-        setTranslateAllError(null);
-        try {
-            const res = await fetch(route('projects.translate-all', project.id), {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { Accept: 'application/json', 'X-XSRF-TOKEN': xsrf() },
-            });
-            if (!res.ok) {
-                const body: { message?: string } | null = await res.json().catch(() => null);
-                throw new Error(body?.message ?? `Terjemahkan semua gagal (${res.status}).`);
-            }
-            router.reload({ only: ['documents'] });
-        } catch (e) {
-            setTranslateAllError(e instanceof Error ? e.message : 'Terjemahkan semua gagal.');
-        } finally {
-            setTranslateAllBusy(false);
-        }
-    };
-
-    // konten yang ditampilkan mengikuti toggle bahasa — mode edit hanya untuk bahasa utama (lihat tombol Edit)
-    const displayContentMd = docLang === 'variant' ? variantMd : (doc?.content_md ?? null);
     const html = useMemo(
-        () => (displayContentMd ? DOMPurify.sanitize(marked.parse(displayContentMd) as string) : ''),
-        [displayContentMd],
+        () => (doc?.content_md ? DOMPurify.sanitize(marked.parse(doc.content_md) as string) : ''),
+        [doc?.content_md],
     );
 
     const health = project.health_score;
@@ -660,16 +566,6 @@ export default function ProjectPage({
                                 {documents.length} file
                             </span>
                         </div>
-                        {/* FR-12: terjemahkan seluruh dokumen (WIREFRAMES dilewati backend) */}
-                        <button
-                            type="button"
-                            disabled={translateAllBusy}
-                            onClick={translateAll}
-                            className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-[8px] border border-gray-200 bg-white py-1.5 text-[11px] font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                            {translateAllBusy ? 'Menerjemahkan…' : 'Terjemahkan semua'}
-                        </button>
-                        {translateAllError && <div className="mb-2 text-[10.5px] font-semibold text-red-600">{translateAllError}</div>}
                         <div className="flex flex-1 flex-col gap-px">
                             {documents.map((d) => {
                                 const activeDoc = d.doc_key === activeKey;
@@ -787,70 +683,16 @@ export default function ProjectPage({
                                     Diff v{baseNo} → v{doc.version_no}
                                 </button>
                             )}
-                            {/* FR-12: mode edit hanya untuk bahasa utama — varian selalu hasil AI dari versi utama */}
-                            {docLang === 'primary' && (
-                                <button
-                                    onClick={startEdit}
-                                    className={`rounded-[10px] border-2 px-3.5 py-[7px] text-[12.5px] font-bold ${
-                                        mode === 'edit'
-                                            ? 'border-teal-600 bg-teal-50 text-teal-800'
-                                            : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'
-                                    }`}
-                                >
-                                    Edit
-                                </button>
-                            )}
-
-                            {/* FR-12: toggle bahasa + terjemahkan + badge usang */}
-                            {doc && doc.variant_version_no !== null && (
-                                <div className="ml-1.5 flex items-center gap-1.5">
-                                    <div className="flex overflow-hidden rounded-[8px] border border-gray-200 text-[10.5px] font-extrabold">
-                                        <button
-                                            type="button"
-                                            onClick={() => setDocLang('primary')}
-                                            className={`px-2 py-[5px] uppercase ${docLang === 'primary' ? 'bg-teal-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            {primaryLang}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setDocLang('variant');
-                                                if (mode === 'edit') setMode('preview');
-                                            }}
-                                            className={`border-l border-gray-200 px-2 py-[5px] uppercase ${docLang === 'variant' ? 'bg-teal-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
-                                        >
-                                            {doc.variant_language}
-                                        </button>
-                                    </div>
-                                    {doc.variant_version_no < (doc.version_no ?? 0) && (
-                                        <>
-                                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-700">
-                                                terjemahan usang
-                                            </span>
-                                            <button
-                                                type="button"
-                                                disabled={translateBusy}
-                                                onClick={() => translateDoc(doc.doc_key)}
-                                                className="rounded-[8px] border border-teal-200 bg-teal-50 px-2 py-[5px] text-[10.5px] font-bold text-teal-700 hover:bg-teal-100 disabled:opacity-50"
-                                            >
-                                                {translateBusy ? 'Memperbarui…' : 'Perbarui'}
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                            {doc && doc.variant_version_no === null && (
-                                <button
-                                    type="button"
-                                    disabled={translateBusy}
-                                    onClick={() => translateDoc(doc.doc_key)}
-                                    className="ml-1.5 rounded-[10px] border border-gray-200 bg-white px-3 py-[7px] text-[11.5px] font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                                >
-                                    {translateBusy ? 'Menerjemahkan…' : `Terjemahkan (${doc.variant_language.toUpperCase()})`}
-                                </button>
-                            )}
-                            {translateError && <span className="ml-1.5 self-center text-[10.5px] font-semibold text-red-600">{translateError}</span>}
+                            <button
+                                onClick={startEdit}
+                                className={`rounded-[10px] border-2 px-3.5 py-[7px] text-[12.5px] font-bold ${
+                                    mode === 'edit'
+                                        ? 'border-teal-600 bg-teal-50 text-teal-800'
+                                        : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'
+                                }`}
+                            >
+                                Edit
+                            </button>
 
                             {doc?.generated_meta && (
                                 <span className="ml-auto self-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-extrabold text-amber-700" title={`model: ${doc.generated_meta.model}`}>
@@ -865,24 +707,14 @@ export default function ProjectPage({
                         </div>
 
                         <div className="mt-3.5 overflow-auto" style={{ maxHeight: 'calc(100vh - 330px)' }}>
-                            {mode === 'preview' &&
-                                (docLang === 'variant' && variantError ? (
-                                    <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-[12.5px] font-semibold text-red-600">{variantError}</div>
-                                ) : docLang === 'variant' && displayContentMd == null ? (
-                                    <div className="text-[12.5px] font-medium text-gray-400">Memuat varian…</div>
-                                ) : (
-                                    <MarkdownPreview html={html} className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none" />
-                                ))}
-                            {mode === 'raw' &&
-                                (docLang === 'variant' && variantError ? (
-                                    <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-[12.5px] font-semibold text-red-600">{variantError}</div>
-                                ) : docLang === 'variant' && displayContentMd == null ? (
-                                    <div className="text-[12.5px] font-medium text-gray-400">Memuat varian…</div>
-                                ) : (
-                                    <pre className="rounded-[10px] border border-gray-100 bg-gray-50 p-4 font-mono text-xs leading-[1.7] font-medium whitespace-pre-wrap text-gray-700">
-                                        {displayContentMd}
-                                    </pre>
-                                ))}
+                            {mode === 'preview' && (
+                                <MarkdownPreview html={html} className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none" />
+                            )}
+                            {mode === 'raw' && (
+                                <pre className="rounded-[10px] border border-gray-100 bg-gray-50 p-4 font-mono text-xs leading-[1.7] font-medium whitespace-pre-wrap text-gray-700">
+                                    {doc?.content_md}
+                                </pre>
+                            )}
                             {mode === 'diff' && doc && (
                                 <div>
                                     <div className="mb-2.5 flex items-center gap-2 text-[12px] font-semibold text-gray-500">

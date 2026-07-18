@@ -58,8 +58,6 @@ Route::middleware(['auth', EnsureWorkspace::class])->group(function () {
     Route::post('documents/{document}/versions/{versionNo}/restore', [DocumentController::class, 'restoreVersion'])->name('documents.versions.restore');
 
     // FR-12: bilingual
-    Route::post('projects/{project}/documents/{docKey}/translate', [DocumentController::class, 'translate'])->middleware('throttle:12,1')->name('projects.documents.translate');
-    Route::post('projects/{project}/translate-all', [DocumentController::class, 'translateAll'])->middleware('throttle:12,1')->name('projects.translate-all');
 
     // Estimasi (FR-13/FR-14)
     Route::get('projects/{project}/estimate', [EstimateController::class, 'show'])->name('projects.estimate');
@@ -98,7 +96,7 @@ Route::middleware(['auth', EnsureWorkspace::class])->group(function () {
     Route::post('projects/{project}/regenerate', [ImpactController::class, 'regenerate'])->name('projects.regenerate');
     Route::post('projects/{project}/change-requests/{crId}/impact-ai', [ImpactController::class, 'forChangeRequest'])->middleware('throttle:12,1')->name('projects.cr.impact-ai');
 
-    // FR-11(f): trigger manual cek kontradiksi antar-requirement — job LLM termahal, throttle sama dgn impact/translate
+    // FR-11(f): trigger manual cek kontradiksi antar-requirement — job LLM termahal, throttle sama dgn impact
     Route::post('projects/{project}/health/contradictions', [ProjectController::class, 'checkContradictions'])->middleware('throttle:12,1')->name('projects.health.contradictions');
 
     // Billing (FR-23)

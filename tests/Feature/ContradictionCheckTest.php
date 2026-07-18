@@ -82,7 +82,7 @@ class ContradictionCheckTest extends TestCase
     public function test_manual_endpoint_blocked_when_credits_exhausted(): void
     {
         // BR-02/BR-05: cek kontradiksi dispatch job LLM (termahal) — wajib guard billing yang sama
-        // dengan ImpactController::analyze/forChangeRequest & DocumentController::guardTranslateBilling.
+        // dengan ImpactController::analyze/forChangeRequest.
         Queue::fake();
         $project = $this->projectWithDocs();
         $user = User::firstOrFail();
