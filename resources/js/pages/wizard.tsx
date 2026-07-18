@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import MarkdownPreview from '@/components/markdown-preview';
 import { confirmDialog, promptDialog, selectDialog } from '@/components/system-dialog';
+import SpektaLayout from '@/layouts/spekta-layout';
 import {
     Building2,
     CalendarCheck,
@@ -20,7 +21,6 @@ import {
     Wallet,
     type LucideIcon,
 } from 'lucide-react';
-import SpektaLayout from '@/layouts/spekta-layout';
 
 export type Node = {
     id: string;
@@ -62,8 +62,12 @@ export type Understanding = {
     domain: string | null;
     complexity: number;
     assumptions: string[];
+    // pernyataan input yang saling bertentangan (deteksi FR-02) — null di baris lama
+    contradictions?: string[] | null;
     confirmed: boolean;
 };
+
+export type StepJob = { status: string; step: string; error?: string | null } | null;
 
 type Props = {
     project: { id: string; name: string; client_name: string | null; status: string; wizard_step: string; scope_mode: string };
@@ -76,6 +80,7 @@ type Props = {
     stream: { doc_key: string; text: string } | null;
     credits: number;
     errors: Record<string, string>;
+    step_job: StepJob;
 };
 
 const STEPS = [
@@ -87,19 +92,55 @@ const STEPS = [
     { key: 'generate', label: 'Generate' },
 ];
 
-const btn = 'inline-flex items-center gap-1.5 rounded-[10px] bg-teal-600 px-5 py-2.5 text-[13px] font-bold text-white hover:bg-teal-700 disabled:opacity-50';
-const btnGhost = 'inline-flex items-center rounded-[10px] border border-gray-200 bg-white px-4 py-2.5 text-[13px] font-bold text-gray-700 hover:bg-gray-50';
+const btn =
+    'inline-flex items-center gap-1.5 rounded-[10px] bg-teal-600 px-5 py-2.5 text-[13px] font-bold text-white hover:bg-teal-700 disabled:opacity-50';
+const btnGhost =
+    'inline-flex items-center rounded-[10px] border border-gray-200 bg-white px-4 py-2.5 text-[13px] font-bold text-gray-700 hover:bg-gray-50';
 const field =
     'w-full rounded-[10px] border-2 border-gray-200 px-3.5 py-2.5 text-sm font-medium text-gray-700 focus:border-teal-400 focus:shadow-[0_0_0_3px_#F0FDFA] focus:outline-none';
 const sectionLabel = 'text-[11px] font-bold tracking-[0.08em] text-gray-500 uppercase';
-const Spinner = () => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="flex-none animate-spin">
+const Spinner = ({ stroke = '#0D9488' }: { stroke?: string }) => (
+    <svg
+        width="15"
+        height="15"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={stroke}
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="flex-none animate-spin"
+    >
         <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
 );
 
+// Job step async (WizardStepJob): poll reload ringan sampai selesai (wizard_step maju) / error.
+// Selesai = cache dihapus server → stepJob null → parent otomatis render step berikutnya.
+function useStepJob(stepJob: StepJob | undefined, step: 'structure' | 'stack') {
+    const mine = !!stepJob && stepJob.step === step;
+    const active = mine && ['queued', 'running'].includes(stepJob.status);
+    const error = mine && stepJob.status === 'error' ? (stepJob.error ?? 'AI gagal — coba lagi.') : null;
+    useEffect(() => {
+        if (!active) return;
+        const t = setInterval(() => router.reload({ only: ['step_job', 'project', 'nodes', 'stack'] }), 1500);
+        return () => clearInterval(t);
+    }, [active]);
+    return { active, error };
+}
+
 const CheckCircle = ({ stroke = '#16A34A' }: { stroke?: string }) => (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="flex-none">
+    <svg
+        width="15"
+        height="15"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={stroke}
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="flex-none"
+    >
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
         <polyline points="22 4 12 14.01 9 11.01" />
     </svg>
@@ -123,18 +164,31 @@ function Stepper({ current }: { current: string }) {
                                 }`}
                             >
                                 {i < idx ? (
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg
+                                        width="13"
+                                        height="13"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="3"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
                                         <polyline points="20 6 9 17 4 12" />
                                     </svg>
                                 ) : (
                                     i + 1
                                 )}
                             </span>
-                            <span className={`text-[12.5px] whitespace-nowrap ${i === idx ? 'font-extrabold text-gray-900' : 'font-semibold text-gray-400'}`}>
+                            <span
+                                className={`text-[12.5px] whitespace-nowrap ${i === idx ? 'font-extrabold text-gray-900' : 'font-semibold text-gray-400'}`}
+                            >
                                 {s.label}
                             </span>
                         </div>
-                        {i < STEPS.length - 1 && <div className={`mx-3 h-0.5 min-w-3.5 flex-1 rounded-full ${i < idx ? 'bg-teal-500' : 'bg-gray-200'}`} />}
+                        {i < STEPS.length - 1 && (
+                            <div className={`mx-3 h-0.5 min-w-3.5 flex-1 rounded-full ${i < idx ? 'bg-teal-500' : 'bg-gray-200'}`} />
+                        )}
                     </div>
                 ))}
             </div>
@@ -171,8 +225,16 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
     };
 
     const KINDS = [
-        { v: 'idea', l: 'Ketik Ide', ph: 'Contoh: "Klien saya butuh aplikasi kasir untuk 3 cabang toko retail, dengan pembayaran QRIS, laporan penjualan harian, dan prediksi stok…"' },
-        { v: 'transcript', l: 'Transkrip / Notulen Meeting', ph: 'Tempel transkrip meeting di sini, atau tarik file rekaman/notulen ke area di bawah…' },
+        {
+            v: 'idea',
+            l: 'Ketik Ide',
+            ph: 'Contoh: "Klien saya butuh aplikasi kasir untuk 3 cabang toko retail, dengan pembayaran QRIS, laporan penjualan harian, dan prediksi stok…"',
+        },
+        {
+            v: 'transcript',
+            l: 'Transkrip / Notulen Meeting',
+            ph: 'Tempel transkrip meeting di sini, atau tarik file rekaman/notulen ke area di bawah…',
+        },
         { v: 'rfp', l: 'Dokumen RFP / Brief', ph: 'Tempel isi dokumen RFP / brief klien di sini…' },
     ];
 
@@ -248,7 +310,8 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
     // Guard template mentah: placeholder [kurung] belum diisi → konfirmasi, bukan hard block
     const submitInput = async () => {
         const holes = data.kind === 'idea' ? data.raw_text.match(/\[[^\]\n]{2,80}\]/g) : null;
-        if (holes && !(await confirmDialog(`Masih ada ${holes.length} bagian [kurung] yang belum diisi (mis. ${holes[0]}). Lanjut analisa saja?`))) return;
+        if (holes && !(await confirmDialog(`Masih ada ${holes.length} bagian [kurung] yang belum diisi (mis. ${holes[0]}). Lanjut analisa saja?`)))
+            return;
         post(route('wizard.input', project.id));
     };
     const chip = (active: boolean) =>
@@ -257,7 +320,9 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
     return (
         <div>
             <h1 className="mb-1 text-[26px] font-extrabold tracking-[-0.02em] text-gray-900">Mulai blueprint baru</h1>
-            <div className="mb-5 text-sm text-gray-500">Dari ide, transkrip meeting klien, atau dokumen RFP — AI mengekstrak requirement untuk Anda.</div>
+            <div className="mb-5 text-sm text-gray-500">
+                Dari ide, transkrip meeting klien, atau dokumen RFP — AI mengekstrak requirement untuk Anda.
+            </div>
 
             <div className="grid items-start gap-[18px]" style={{ gridTemplateColumns: 'minmax(0,1fr) minmax(300px,380px)' }}>
                 <div>
@@ -268,7 +333,9 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                                 type="button"
                                 onClick={() => setData('kind', k.v)}
                                 className={`inline-flex items-center rounded-[10px] border-2 px-3.5 py-2 text-[13px] font-bold ${
-                                    data.kind === k.v ? 'border-teal-600 bg-teal-50 text-teal-800' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'
+                                    data.kind === k.v
+                                        ? 'border-teal-600 bg-teal-50 text-teal-800'
+                                        : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'
                                 }`}
                             >
                                 {k.l}
@@ -311,14 +378,35 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                     />
                     <div
                         onClick={() => fileInput.current?.click()}
-                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            setDragOver(true);
+                        }}
                         onDragLeave={() => setDragOver(false)}
-                        onDrop={(e) => { e.preventDefault(); setDragOver(false); pickFile(e.dataTransfer.files?.[0]); }}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            setDragOver(false);
+                            pickFile(e.dataTransfer.files?.[0]);
+                        }}
                         className={`mt-3 cursor-pointer rounded-xl border-2 border-dashed p-[18px] text-center ${
-                            dragOver ? 'border-teal-400 bg-teal-50 text-teal-700' : data.file ? 'border-teal-300 bg-teal-50/50 text-gray-600' : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'
+                            dragOver
+                                ? 'border-teal-400 bg-teal-50 text-teal-700'
+                                : data.file
+                                  ? 'border-teal-300 bg-teal-50/50 text-gray-600'
+                                  : 'border-gray-200 bg-white text-gray-500 hover:border-teal-300'
                         }`}
                     >
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-1.5">
+                        <svg
+                            width="22"
+                            height="22"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#0D9488"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="mx-auto mb-1.5"
+                        >
                             <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" />
                             <path d="M12 12v9" />
                             <path d="m16 16-4-4-4 4" />
@@ -329,19 +417,27 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                                 <button
                                     type="button"
                                     className="ml-1.5 font-bold text-gray-400 hover:text-red-500"
-                                    onClick={(e) => { e.stopPropagation(); setData('file', null); if (fileInput.current) fileInput.current.value = ''; }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setData('file', null);
+                                        if (fileInput.current) fileInput.current.value = '';
+                                    }}
                                 >
                                     ✕ hapus
                                 </button>
                             </div>
                         ) : (
                             <div className="text-[13px] font-semibold">
-                                Atau tarik file ke sini <span className="font-medium text-gray-400">— .txt · .md · .docx · .pdf (audio/video segera)</span>
+                                Atau tarik file ke sini{' '}
+                                <span className="font-medium text-gray-400">— .txt · .md · .docx · .pdf (audio/video segera)</span>
                             </div>
                         )}
                         <div className="mt-2.5 flex justify-center gap-1.5">
                             {['Fireflies', 'Google Meet', 'WhatsApp export'].map((s) => (
-                                <span key={s} className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-[3px] text-[11px] font-bold text-gray-600">
+                                <span
+                                    key={s}
+                                    className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-[3px] text-[11px] font-bold text-gray-600"
+                                >
                                     {s}
                                 </span>
                             ))}
@@ -389,14 +485,14 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                             )}
                             {data.depth === 'auto' && (
                                 <>
-                                    <b className="text-gray-700">Otomatis</b> — AI menilai kompleksitas proyek (1–5) dari input Anda, lalu memilih
-                                    set dokumen: sederhana 5 docs, menengah 7 docs (+ Database, API), kompleks 13 docs lengkap.
+                                    <b className="text-gray-700">Otomatis</b> — AI menilai kompleksitas proyek (1–5) dari input Anda, lalu memilih set
+                                    dokumen: sederhana 5 docs, menengah 7 docs (+ Database, API), kompleks 13 docs lengkap.
                                 </>
                             )}
                             {data.depth === 'full' && (
                                 <>
-                                    <b className="text-gray-700">Lengkap</b> — 13 dokumen: PRD, Requirements, User Flows, Wireframes, Business
-                                    Rules, Database, API, Architecture, Security, Features, Testing, Design, Roadmap. Untuk spek siap-development.
+                                    <b className="text-gray-700">Lengkap</b> — 13 dokumen: PRD, Requirements, User Flows, Wireframes, Business Rules,
+                                    Database, API, Architecture, Security, Features, Testing, Design, Roadmap. Untuk spek siap-development.
                                 </>
                             )}{' '}
                             Dokumen yang belum digenerate bisa ditambah kapan saja lewat "Generate dokumen lanjutan" di halaman proyek.
@@ -424,14 +520,14 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                             )}
                             {data.work_mode === 'ai_assisted' && (
                                 <>
-                                    <b className="text-gray-700">AI-assisted</b> — tim pakai Copilot/AI sebagai alat bantu. Porsi implementasi
-                                    (FE+BE) dihitung 0.6× baseline; QA & PM tetap penuh. Confidence ±20%.
+                                    <b className="text-gray-700">AI-assisted</b> — tim pakai Copilot/AI sebagai alat bantu. Porsi implementasi (FE+BE)
+                                    dihitung 0.6× baseline; QA & PM tetap penuh. Confidence ±20%.
                                 </>
                             )}
                             {data.work_mode === 'vibe' && (
                                 <>
-                                    <b className="text-gray-700">Vibe / AI-first</b> — AI menulis mayoritas kode. Porsi implementasi 0.4× baseline;
-                                    QA & PM tetap penuh — review kode AI tidak ikut cepat. Confidence melebar ±25%.
+                                    <b className="text-gray-700">Vibe / AI-first</b> — AI menulis mayoritas kode. Porsi implementasi 0.4× baseline; QA
+                                    & PM tetap penuh — review kode AI tidak ikut cepat. Confidence melebar ±25%.
                                 </>
                             )}{' '}
                             Estimasi menampilkan baseline konvensional & angka mode ini berdampingan.
@@ -456,7 +552,12 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                             <button type="button" className={chip(true)}>
                                 Greenfield (baru)
                             </button>
-                            <button type="button" disabled className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-bold text-gray-400" title="Segera">
+                            <button
+                                type="button"
+                                disabled
+                                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-bold text-gray-400"
+                                title="Segera"
+                            >
                                 Brownfield — connect repo
                             </button>
                         </div>
@@ -470,6 +571,7 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
 
             <div className="mt-5 flex justify-end">
                 <button className={btn} disabled={processing} onClick={() => void submitInput()}>
+                    {processing && <Spinner stroke="#fff" />}
                     {processing ? 'Menganalisa…' : '✦ Analisa dengan AI'}
                 </button>
             </div>
@@ -497,22 +599,44 @@ function UnderstandingCard({
         <div className="rounded-xl border border-gray-200 bg-white p-[18px]">
             <div className="flex items-center justify-between gap-2.5">
                 <div className="flex items-center gap-2 text-[15px] font-bold text-gray-800">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#0D9488"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
                         <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
                         <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
                     </svg>
                     Pemahaman AI
                 </div>
-                <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-[3px] text-[11px] font-bold text-gray-500">{u.domain ?? '—'}</span>
+                <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-[3px] text-[11px] font-bold text-gray-500">
+                    {u.domain ?? '—'}
+                </span>
             </div>
 
             <div className={`${sectionLabel} mt-4`}>User roles</div>
             <div className="mt-[7px] flex flex-wrap gap-1.5">
                 {roles.map((r, i) => (
-                    <span key={i} className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-teal-600 bg-teal-50 px-3 py-[5px] text-xs font-bold text-teal-800">
+                    <span
+                        key={i}
+                        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-teal-600 bg-teal-50 px-3 py-[5px] text-xs font-bold text-teal-800"
+                    >
                         {r.name}
                         {editable && setData && (
-                            <button className="text-teal-400 hover:text-red-500" onClick={() => setData('roles', roles.filter((_, j) => j !== i))}>
+                            <button
+                                className="text-teal-400 hover:text-red-500"
+                                onClick={() =>
+                                    setData(
+                                        'roles',
+                                        roles.filter((_, j) => j !== i),
+                                    )
+                                }
+                            >
                                 ✕
                             </button>
                         )}
@@ -541,16 +665,33 @@ function UnderstandingCard({
                                 <input
                                     className="min-w-0 flex-1 border-0 bg-transparent p-0 font-semibold focus:outline-none"
                                     value={f.title}
-                                    onChange={(e) => setData('features', features.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))}
+                                    onChange={(e) =>
+                                        setData(
+                                            'features',
+                                            features.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)),
+                                        )
+                                    }
                                 />
-                                <button className="text-xs font-bold text-gray-300 hover:text-red-500" onClick={() => setData('features', features.filter((_, j) => j !== i))}>
+                                <button
+                                    className="text-xs font-bold text-gray-300 hover:text-red-500"
+                                    onClick={() =>
+                                        setData(
+                                            'features',
+                                            features.filter((_, j) => j !== i),
+                                        )
+                                    }
+                                >
                                     ✕
                                 </button>
                             </>
                         ) : (
                             <>
                                 <span className="min-w-0 flex-1 truncate">{f.title}</span>
-                                {f.quote && <span className="ml-auto max-w-[40%] truncate font-mono text-[10.5px] font-semibold text-gray-400">"{f.quote}"</span>}
+                                {f.quote && (
+                                    <span className="ml-auto max-w-[40%] truncate font-mono text-[10.5px] font-semibold text-gray-400">
+                                        "{f.quote}"
+                                    </span>
+                                )}
                             </>
                         )}
                     </div>
@@ -581,14 +722,21 @@ function UnderstandingCard({
                 </div>
                 <span>Enterprise</span>
             </div>
-            {editable && (
-                <div className="mt-1.5 text-[11px] text-gray-400">Menentukan jumlah dokumen (4–11) dan kelas arsitektur (BR-16).</div>
-            )}
+            {editable && <div className="mt-1.5 text-[11px] text-gray-400">Menentukan jumlah dokumen (4–11) dan kelas arsitektur (BR-16).</div>}
 
             {u.assumptions.length > 0 && (
                 <div className="mt-4 rounded-[10px] border-l-[3px] border-amber-500 bg-amber-100/60 px-3.5 py-3">
                     <div className="flex items-center gap-[7px] text-[11px] font-bold tracking-[0.08em] text-amber-800">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
                             <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
                             <line x1="12" y1="9" x2="12" y2="13" />
                             <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -638,9 +786,28 @@ function StepUnderstanding({ project, understanding }: Pick<Props, 'project' | '
                     />
                 </div>
             </div>
+            {/* kontradiksi di input — non-blocking: perbaiki input, atau lanjut dan diklarifikasi di interview */}
+            {(u.contradictions ?? []).length > 0 && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-[14px]">
+                    <div className="text-[12px] font-extrabold text-amber-800">⚠ Input memuat pernyataan yang saling bertentangan</div>
+                    <ul className="mt-1.5 flex flex-col gap-1 text-[12px] font-medium text-amber-800">
+                        {(u.contradictions ?? []).map((c, i) => (
+                            <li key={i}>• {c}</li>
+                        ))}
+                    </ul>
+                    <div className="mt-1.5 text-[11px] font-semibold text-amber-600">
+                        Perbaiki input di step sebelumnya, atau lanjut — tiap poin otomatis jadi pertanyaan interview.
+                    </div>
+                </div>
+            )}
             <UnderstandingCard u={u} editable data={data} setData={setData as (k: 'roles' | 'features' | 'complexity', v: unknown) => void} />
             <div className="mt-4 flex justify-end">
-                <button className={btn} disabled={processing || data.features.length === 0} onClick={() => post(route('wizard.understanding', project.id))}>
+                <button
+                    className={btn}
+                    disabled={processing || data.features.length === 0}
+                    onClick={() => post(route('wizard.understanding', project.id))}
+                >
+                    {processing && <Spinner stroke="#fff" />}
                     {processing ? 'Menyiapkan interview…' : 'Konfirmasi & lanjut →'}
                 </button>
             </div>
@@ -649,25 +816,40 @@ function StepUnderstanding({ project, understanding }: Pick<Props, 'project' | '
 }
 
 // ---------- STEP 3: INTERVIEW ----------
-function StepInterview({ project, interview, understanding }: Pick<Props, 'project' | 'interview' | 'understanding'>) {
+function StepInterview({ project, interview, understanding, step_job }: Pick<Props, 'project' | 'interview' | 'understanding' | 'step_job'>) {
     const pending = interview.filter((i) => !i.answer_text && !i.skipped);
     const current = pending[0];
     const next = pending[1];
     const answered = interview.length - pending.length;
     const [answer, setAnswer] = useState('');
-    const [busy, setBusy] = useState(false);
+    const [localBusy, setLocalBusy] = useState(false);
+    const [finishing, setFinishing] = useState(false);
+    // buildStructure berjalan async di WizardStepJob — poll sampai wizard_step maju
+    const job = useStepJob(step_job, 'structure');
+    const structuring = finishing || job.active;
+    const busy = localBusy || structuring;
 
     const submit = (skip: boolean) => {
         if (!current) return;
-        setBusy(true);
+        setLocalBusy(true);
         router.post(
             route('wizard.interview.answer', project.id),
             { seq: current.seq, answer: skip ? null : answer, skip },
-            { onFinish: () => { setAnswer(''); setBusy(false); }, preserveScroll: true },
+            {
+                onFinish: () => {
+                    setAnswer('');
+                    setLocalBusy(false);
+                },
+                preserveScroll: true,
+            },
         );
     };
 
-    const finish = (skipAll: boolean) => router.post(route('wizard.interview.finish', project.id), { skip_all: skipAll });
+    const finish = (skipAll: boolean) => {
+        if (busy) return;
+        setFinishing(true);
+        router.post(route('wizard.interview.finish', project.id), { skip_all: skipAll }, { onFinish: () => setFinishing(false) });
+    };
 
     return (
         <div className="grid items-start gap-[18px] lg:grid-cols-2">
@@ -678,12 +860,20 @@ function StepInterview({ project, interview, understanding }: Pick<Props, 'proje
                     <div className="text-[15px] font-bold text-gray-800">
                         Pertanyaan {Math.min(answered + 1, interview.length)} dari {interview.length}
                     </div>
-                    <button onClick={() => finish(true)} className="text-xs font-semibold text-teal-500 underline hover:text-teal-800">
-                        Lewati semua → jadi asumsi
+                    <button
+                        onClick={() => finish(true)}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-500 underline hover:text-teal-800 disabled:opacity-50"
+                    >
+                        {structuring && <Spinner />}
+                        {structuring ? 'Menyusun struktur…' : 'Lewati semua → jadi asumsi'}
                     </button>
                 </div>
                 <div className="mb-3.5 h-1.5 overflow-hidden rounded-full bg-gray-200">
-                    <div className="h-full rounded-full bg-teal-600 transition-all" style={{ width: `${(answered / Math.max(interview.length, 1)) * 100}%` }} />
+                    <div
+                        className="h-full rounded-full bg-teal-600 transition-all"
+                        style={{ width: `${(answered / Math.max(interview.length, 1)) * 100}%` }}
+                    />
                 </div>
 
                 {current ? (
@@ -699,10 +889,14 @@ function StepInterview({ project, interview, understanding }: Pick<Props, 'proje
                                             key={o}
                                             onClick={() => setAnswer(o)}
                                             className={`flex items-center gap-2.5 rounded-[10px] border-2 px-3 py-2.5 text-left text-[13px] ${
-                                                on ? 'border-teal-600 bg-teal-50 font-bold text-teal-900' : 'border-gray-200 font-medium text-gray-600 hover:border-teal-300'
+                                                on
+                                                    ? 'border-teal-600 bg-teal-50 font-bold text-teal-900'
+                                                    : 'border-gray-200 font-medium text-gray-600 hover:border-teal-300'
                                             }`}
                                         >
-                                            <span className={`h-[15px] w-[15px] flex-none rounded-full border-2 ${on ? 'border-teal-600 bg-teal-600' : 'border-gray-400'}`} />
+                                            <span
+                                                className={`h-[15px] w-[15px] flex-none rounded-full border-2 ${on ? 'border-teal-600 bg-teal-600' : 'border-gray-400'}`}
+                                            />
                                             {o}
                                         </button>
                                     );
@@ -720,7 +914,10 @@ function StepInterview({ project, interview, understanding }: Pick<Props, 'proje
                             <div className="mt-3 rounded-xl border border-gray-200 bg-white p-4 opacity-45">
                                 <div className="text-sm font-bold text-gray-800">{next.question}</div>
                                 {next.options?.slice(0, 2).map((o) => (
-                                    <div key={o} className="mt-[7px] flex items-center gap-2.5 rounded-[10px] border-2 border-gray-200 px-3 py-2.5 text-[13px] text-gray-600">
+                                    <div
+                                        key={o}
+                                        className="mt-[7px] flex items-center gap-2.5 rounded-[10px] border-2 border-gray-200 px-3 py-2.5 text-[13px] text-gray-600"
+                                    >
                                         <span className="h-[15px] w-[15px] flex-none rounded-full border-2 border-gray-400" />
                                         {o}
                                     </div>
@@ -728,6 +925,11 @@ function StepInterview({ project, interview, understanding }: Pick<Props, 'proje
                             </div>
                         )}
 
+                        {job.error && (
+                            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-[13px] font-semibold text-red-700">
+                                {job.error}
+                            </div>
+                        )}
                         <div className="mt-4 flex justify-end gap-2.5">
                             <button className={btnGhost} disabled={busy} onClick={() => submit(true)}>
                                 Lewati → asumsi
@@ -742,9 +944,15 @@ function StepInterview({ project, interview, understanding }: Pick<Props, 'proje
                         <div className="rounded-xl border border-teal-200 bg-teal-50 p-5 text-sm font-semibold text-teal-800">
                             Semua pertanyaan selesai. Lanjut menyusun struktur proyek.
                         </div>
+                        {job.error && (
+                            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-[13px] font-semibold text-red-700">
+                                {job.error}
+                            </div>
+                        )}
                         <div className="mt-4 flex justify-end">
-                            <button className={btn} onClick={() => finish(false)}>
-                                Susun struktur →
+                            <button className={btn} disabled={busy} onClick={() => finish(false)}>
+                                {structuring && <Spinner stroke="#fff" />}
+                                {structuring ? 'Menyusun struktur…' : job.error ? 'Coba lagi →' : 'Susun struktur →'}
                             </button>
                         </div>
                     </>
@@ -755,10 +963,19 @@ function StepInterview({ project, interview, understanding }: Pick<Props, 'proje
 }
 
 // ---------- STEP 4: STRUCTURE ----------
-export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props, 'project' | 'nodes'> & { fullHeight?: boolean }) {
+export function StepStructure({
+    project,
+    nodes,
+    step_job,
+    fullHeight = false,
+}: Pick<Props, 'project' | 'nodes'> & { step_job?: StepJob; fullHeight?: boolean }) {
     const phases = nodes.filter((n) => n.kind === 'phase');
     const root = nodes.find((n) => n.kind === 'root');
     const [scopeMode, setScopeMode] = useState(project.scope_mode);
+    const [posting, setPosting] = useState(false);
+    // recommendStack berjalan async di WizardStepJob — poll sampai wizard_step maju
+    const job = useStepJob(step_job, 'stack');
+    const confirming = posting || job.active;
 
     const featuresOf = (pid: string) => nodes.filter((n) => n.parent_id === pid && n.kind === 'feature' && n.scope !== 'parked');
 
@@ -774,8 +991,14 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
         return subs.length ? subs.reduce((a, s) => a + Number(s.est_md), 0) : Number(f.est_md);
     };
     const inScope = (f: Node) => scopeMode === 'full' || f.scope === 'mvp';
-    const totalMd = phases.flatMap((p) => featuresOf(p.id)).filter(inScope).reduce((a, f) => a + mdOf(f), 0);
-    const phaseMd = (p: Node) => featuresOf(p.id).filter(inScope).reduce((a, f) => a + mdOf(f), 0);
+    const totalMd = phases
+        .flatMap((p) => featuresOf(p.id))
+        .filter(inScope)
+        .reduce((a, f) => a + mdOf(f), 0);
+    const phaseMd = (p: Node) =>
+        featuresOf(p.id)
+            .filter(inScope)
+            .reduce((a, f) => a + mdOf(f), 0);
 
     const toggleScope = (f: Node) =>
         router.patch(route('wizard.nodes.update', [project.id, f.id]), { scope: f.scope === 'mvp' ? 'full' : 'mvp' }, { preserveScroll: true });
@@ -827,7 +1050,6 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
     const contentW = useMemo(() => {
         const xs = [...Object.values(layout.pos), ...Object.values(dragged)].map((p) => p.x);
         return Math.max(xs.length ? Math.max(...xs) + CARD_W + 80 : 0, 880);
-         
     }, [layout, dragged]);
 
     const zoomAt = (cx: number, cy: number, nz: number) => {
@@ -938,7 +1160,10 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
     };
 
     const wire = (a: { x: number; y: number }, b: { x: number; y: number }, dy1 = 30, dy2 = 30) => {
-        const x1 = a.x + CARD_W, y1 = a.y + dy1, x2 = b.x, y2 = b.y + dy2;
+        const x1 = a.x + CARD_W,
+            y1 = a.y + dy1,
+            x2 = b.x,
+            y2 = b.y + dy2;
         return `M ${x1} ${y1} C ${x1 + 55} ${y1}, ${x2 - 55} ${y2}, ${x2} ${y2}`;
     };
 
@@ -961,163 +1186,163 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
                     onMouseUp={endDrag}
                     onMouseLeave={endDrag}
                 >
+                    <div
+                        className="absolute top-0 left-0 origin-top-left"
+                        style={{ width: contentW, height: layout.height, transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.z})` }}
+                    >
+                        {/* wires */}
+                        <svg className="pointer-events-none absolute inset-0 h-full w-full">
+                            {phases.map((p) => (
+                                <path key={p.id} d={wire(animOf('__root'), animOf(p.id), 34, 30)} stroke="#99F6E4" strokeWidth="2" fill="none" />
+                            ))}
+                            {phases.flatMap((p) =>
+                                featuresOf(p.id).map((f) => (
+                                    <path
+                                        key={f.id}
+                                        d={wire(animOf(p.id), animOf(f.id), 30, 32)}
+                                        stroke={inScope(f) ? '#99F6E4' : '#FDE68A'}
+                                        strokeWidth="2"
+                                        fill="none"
+                                    />
+                                )),
+                            )}
+                        </svg>
+
+                        {/* node root */}
                         <div
-                            className="absolute top-0 left-0 origin-top-left"
-                            style={{ width: contentW, height: layout.height, transform: `translate(${cam.x}px, ${cam.y}px) scale(${cam.z})` }}
+                            data-node
+                            className={`${card} cursor-grab border-2 border-teal-600 px-3.5 py-3 shadow-[0_2px_8px_rgba(13,148,136,0.12)] active:cursor-grabbing`}
+                            style={{ left: animOf('__root').x, top: animOf('__root').y }}
+                            onMouseDown={startDrag('__root')}
                         >
-                    {/* wires */}
-                    <svg className="pointer-events-none absolute inset-0 h-full w-full">
-                        {phases.map((p) => (
-                            <path key={p.id} d={wire(animOf('__root'), animOf(p.id), 34, 30)} stroke="#99F6E4" strokeWidth="2" fill="none" />
+                            <div className="text-[13px] font-extrabold text-gray-900">{project.name}</div>
+                            <div className="mt-0.5 text-[11px] font-medium text-gray-400">
+                                Perencanaan · {phases.length} fase · {phases.flatMap((p) => featuresOf(p.id)).length} fitur
+                            </div>
+                        </div>
+
+                        {/* node fase */}
+                        {phases.map((p, pi) => (
+                            <div
+                                key={p.id}
+                                data-node
+                                className={`${card} cursor-grab border-gray-200 px-3.5 py-3 active:cursor-grabbing`}
+                                style={{ left: animOf(p.id).x, top: animOf(p.id).y }}
+                                onMouseDown={startDrag(p.id)}
+                            >
+                                <span className="absolute -top-[9px] right-2.5 rounded-[5px] bg-teal-600 px-[7px] py-0.5 text-[9px] font-extrabold tracking-[0.05em] text-white">
+                                    FASE {p.phase_no ?? pi + 1}
+                                </span>
+                                <div className="text-[13px] font-bold text-gray-800">{p.title}</div>
+                                <div className="mt-0.5 flex items-center justify-between font-mono text-[11px] font-semibold text-teal-700">
+                                    est. {phaseMd(p).toFixed(0)} MD
+                                    <button
+                                        className="rounded border border-gray-200 px-1.5 font-sans text-[11px] font-bold text-gray-500 hover:bg-gray-50"
+                                        title="Tambah fitur di fase ini"
+                                        onClick={async () => {
+                                            const title = await promptDialog('Nama fitur baru:');
+                                            if (title)
+                                                router.post(
+                                                    route('wizard.nodes.store', project.id),
+                                                    { parent_id: p.id, kind: 'feature', title, est_md: 5 },
+                                                    { preserveScroll: true },
+                                                );
+                                        }}
+                                    >
+                                        + Fitur
+                                    </button>
+                                </div>
+                            </div>
                         ))}
+
+                        {/* node fitur */}
                         {phases.flatMap((p) =>
                             featuresOf(p.id).map((f) => (
-                                <path
+                                <div
                                     key={f.id}
-                                    d={wire(animOf(p.id), animOf(f.id), 30, 32)}
-                                    stroke={inScope(f) ? '#99F6E4' : '#FDE68A'}
-                                    strokeWidth="2"
-                                    fill="none"
-                                />
-                            )),
-                        )}
-                    </svg>
-
-                    {/* node root */}
-                    <div
-                        data-node
-                        className={`${card} cursor-grab border-2 border-teal-600 px-3.5 py-3 shadow-[0_2px_8px_rgba(13,148,136,0.12)] active:cursor-grabbing`}
-                        style={{ left: animOf('__root').x, top: animOf('__root').y }}
-                        onMouseDown={startDrag('__root')}
-                    >
-                        <div className="text-[13px] font-extrabold text-gray-900">{project.name}</div>
-                        <div className="mt-0.5 text-[11px] font-medium text-gray-400">
-                            Perencanaan · {phases.length} fase · {phases.flatMap((p) => featuresOf(p.id)).length} fitur
-                        </div>
-                    </div>
-
-                    {/* node fase */}
-                    {phases.map((p, pi) => (
-                        <div
-                            key={p.id}
-                            data-node
-                            className={`${card} cursor-grab border-gray-200 px-3.5 py-3 active:cursor-grabbing`}
-                            style={{ left: animOf(p.id).x, top: animOf(p.id).y }}
-                            onMouseDown={startDrag(p.id)}
-                        >
-                            <span className="absolute -top-[9px] right-2.5 rounded-[5px] bg-teal-600 px-[7px] py-0.5 text-[9px] font-extrabold tracking-[0.05em] text-white">
-                                FASE {p.phase_no ?? pi + 1}
-                            </span>
-                            <div className="text-[13px] font-bold text-gray-800">{p.title}</div>
-                            <div className="mt-0.5 flex items-center justify-between font-mono text-[11px] font-semibold text-teal-700">
-                                est. {phaseMd(p).toFixed(0)} MD
-                                <button
-                                    className="rounded border border-gray-200 px-1.5 font-sans text-[11px] font-bold text-gray-500 hover:bg-gray-50"
-                                    title="Tambah fitur di fase ini"
-                                    onClick={async () => {
-                                        const title = await promptDialog('Nama fitur baru:');
-                                        if (title)
-                                            router.post(
-                                                route('wizard.nodes.store', project.id),
-                                                { parent_id: p.id, kind: 'feature', title, est_md: 5 },
-                                                { preserveScroll: true },
-                                            );
-                                    }}
+                                    data-node
+                                    className={`${card} cursor-grab border-gray-200 px-3 py-2.5 active:cursor-grabbing ${inScope(f) ? '' : 'opacity-40'}`}
+                                    style={{ left: animOf(f.id).x, top: animOf(f.id).y }}
+                                    onMouseDown={startDrag(f.id)}
                                 >
-                                    + Fitur
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-
-                    {/* node fitur */}
-                    {phases.flatMap((p) =>
-                        featuresOf(p.id).map((f) => (
-                            <div
-                                key={f.id}
-                                data-node
-                                className={`${card} cursor-grab border-gray-200 px-3 py-2.5 active:cursor-grabbing ${inScope(f) ? '' : 'opacity-40'}`}
-                                style={{ left: animOf(f.id).x, top: animOf(f.id).y }}
-                                onMouseDown={startDrag(f.id)}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={() => toggleScope(f)}
-                                        title="Klik untuk toggle MVP/Full"
-                                        className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold ${
-                                            f.scope === 'mvp' ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-700'
-                                        }`}
-                                    >
-                                        {f.scope === 'mvp' ? 'MVP' : 'POST-MVP'}
-                                    </button>
-                                    <span
-                                        className="min-w-0 flex-1 cursor-pointer truncate text-[12.5px] font-bold text-gray-800 hover:text-teal-700"
-                                        title={f.title + (f.description ? ` — ${f.description}` : '')}
-                                        onClick={() => setDetail(f)}
-                                    >
-                                        {f.title}
-                                    </span>
-                                    {subsOf(f.id).length > 0 && (
+                                    <div className="flex items-center gap-2">
                                         <button
-                                            className="text-gray-400 hover:text-teal-700"
-                                            title={isCollapsed(f.id) ? 'Buka sub-fitur' : 'Tutup sub-fitur'}
-                                            onClick={() => toggleCollapse(f.id)}
+                                            onClick={() => toggleScope(f)}
+                                            title="Klik untuk toggle MVP/Full"
+                                            className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold ${
+                                                f.scope === 'mvp' ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-700'
+                                            }`}
                                         >
-                                            <svg
-                                                width="13"
-                                                height="13"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2.4"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                className={isCollapsed(f.id) ? '' : 'rotate-180'}
-                                            >
-                                                <polyline points="6 9 12 15 18 9" />
-                                            </svg>
+                                            {f.scope === 'mvp' ? 'MVP' : 'POST-MVP'}
                                         </button>
-                                    )}
-                                    <button
-                                        className="text-xs text-gray-300 hover:text-red-500"
-                                        title="Parkir ide (tidak dihapus permanen)"
-                                        onClick={() => router.delete(route('wizard.nodes.destroy', [project.id, f.id]), { preserveScroll: true })}
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                                <div className="mt-1 font-mono text-[11px] font-semibold text-teal-700">
-                                    est. {mdOf(f).toFixed(0)} MD
-                                    {isCollapsed(f.id) && subsOf(f.id).length > 0 && (
-                                        <span className="ml-1.5 text-gray-400">· {subsOf(f.id).length} sub</span>
-                                    )}
-                                </div>
-                                {!isCollapsed(f.id) && subsOf(f.id).length > 0 && (
-                                    <div className="mt-1.5 flex flex-col gap-1">
-                                        <div className="text-[10px] font-bold tracking-[0.08em] text-gray-400">SUB-FITUR</div>
-                                        {visibleSubsOf(f.id).map((s) => (
-                                            <span
-                                                key={s.id}
-                                                className="cursor-pointer truncate rounded-md border border-gray-200 bg-gray-50 px-2 py-[3px] text-[11.5px] font-semibold text-gray-600 hover:border-teal-300 hover:bg-teal-50"
-                                                title={s.title + (s.description ? ` — ${s.description}` : '')}
-                                                onClick={() => setDetail(s)}
-                                            >
-                                                {s.title} <span className="font-mono text-gray-400">({Number(s.est_md).toFixed(0)})</span>
-                                            </span>
-                                        ))}
-                                        {hiddenSubsOf(f.id) > 0 && (
+                                        <span
+                                            className="min-w-0 flex-1 cursor-pointer truncate text-[12.5px] font-bold text-gray-800 hover:text-teal-700"
+                                            title={f.title + (f.description ? ` — ${f.description}` : '')}
+                                            onClick={() => setDetail(f)}
+                                        >
+                                            {f.title}
+                                        </span>
+                                        {subsOf(f.id).length > 0 && (
                                             <button
-                                                className="rounded-md border border-dashed border-teal-300 bg-teal-50/70 px-2 py-[3px] text-[11px] font-bold text-teal-700 hover:bg-teal-100"
-                                                onClick={() => setExpandedSubs((prev) => ({ ...prev, [f.id]: !prev[f.id] }))}
+                                                className="text-gray-400 hover:text-teal-700"
+                                                title={isCollapsed(f.id) ? 'Buka sub-fitur' : 'Tutup sub-fitur'}
+                                                onClick={() => toggleCollapse(f.id)}
                                             >
-                                                {expandedSubs[f.id] ? 'Tampilkan lebih sedikit' : `Lihat semua · ${hiddenSubsOf(f.id)} lagi`}
+                                                <svg
+                                                    width="13"
+                                                    height="13"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2.4"
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    className={isCollapsed(f.id) ? '' : 'rotate-180'}
+                                                >
+                                                    <polyline points="6 9 12 15 18 9" />
+                                                </svg>
                                             </button>
                                         )}
+                                        <button
+                                            className="text-xs text-gray-300 hover:text-red-500"
+                                            title="Parkir ide (tidak dihapus permanen)"
+                                            onClick={() => router.delete(route('wizard.nodes.destroy', [project.id, f.id]), { preserveScroll: true })}
+                                        >
+                                            ✕
+                                        </button>
                                     </div>
-                                )}
-                            </div>
-                        )),
-                    )}
+                                    <div className="mt-1 font-mono text-[11px] font-semibold text-teal-700">
+                                        est. {mdOf(f).toFixed(0)} MD
+                                        {isCollapsed(f.id) && subsOf(f.id).length > 0 && (
+                                            <span className="ml-1.5 text-gray-400">· {subsOf(f.id).length} sub</span>
+                                        )}
+                                    </div>
+                                    {!isCollapsed(f.id) && subsOf(f.id).length > 0 && (
+                                        <div className="mt-1.5 flex flex-col gap-1">
+                                            <div className="text-[10px] font-bold tracking-[0.08em] text-gray-400">SUB-FITUR</div>
+                                            {visibleSubsOf(f.id).map((s) => (
+                                                <span
+                                                    key={s.id}
+                                                    className="cursor-pointer truncate rounded-md border border-gray-200 bg-gray-50 px-2 py-[3px] text-[11.5px] font-semibold text-gray-600 hover:border-teal-300 hover:bg-teal-50"
+                                                    title={s.title + (s.description ? ` — ${s.description}` : '')}
+                                                    onClick={() => setDetail(s)}
+                                                >
+                                                    {s.title} <span className="font-mono text-gray-400">({Number(s.est_md).toFixed(0)})</span>
+                                                </span>
+                                            ))}
+                                            {hiddenSubsOf(f.id) > 0 && (
+                                                <button
+                                                    className="rounded-md border border-dashed border-teal-300 bg-teal-50/70 px-2 py-[3px] text-[11px] font-bold text-teal-700 hover:bg-teal-100"
+                                                    onClick={() => setExpandedSubs((prev) => ({ ...prev, [f.id]: !prev[f.id] }))}
+                                                >
+                                                    {expandedSubs[f.id] ? 'Tampilkan lebih sedikit' : `Lihat semua · ${hiddenSubsOf(f.id)} lagi`}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )),
+                        )}
                     </div>
                 </div>
 
@@ -1128,7 +1353,11 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
                         onClick={async () => {
                             const title = await promptDialog('Nama fase baru:');
                             if (title && root)
-                                router.post(route('wizard.nodes.store', project.id), { parent_id: root.id, kind: 'phase', title }, { preserveScroll: true });
+                                router.post(
+                                    route('wizard.nodes.store', project.id),
+                                    { parent_id: root.id, kind: 'phase', title },
+                                    { preserveScroll: true },
+                                );
                         }}
                     >
                         + Fase
@@ -1154,15 +1383,30 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
 
                 {/* zoom controls */}
                 <div className="absolute right-4 bottom-4 z-[5] flex items-center overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <button className="px-2.5 py-1.5 text-sm font-bold text-gray-600 hover:bg-gray-50" title="Zoom out" onClick={() => zoomBy(1 / 1.2)}>
+                    <button
+                        className="px-2.5 py-1.5 text-sm font-bold text-gray-600 hover:bg-gray-50"
+                        title="Zoom out"
+                        onClick={() => zoomBy(1 / 1.2)}
+                    >
                         −
                     </button>
-                    <span className="border-x border-gray-200 px-2 py-1.5 font-mono text-[11px] font-semibold text-gray-500">{Math.round(cam.z * 100)}%</span>
+                    <span className="border-x border-gray-200 px-2 py-1.5 font-mono text-[11px] font-semibold text-gray-500">
+                        {Math.round(cam.z * 100)}%
+                    </span>
                     <button className="px-2.5 py-1.5 text-sm font-bold text-gray-600 hover:bg-gray-50" title="Zoom in" onClick={() => zoomBy(1.2)}>
                         +
                     </button>
                     <button className="border-l border-gray-200 px-2.5 py-1.5 text-gray-600 hover:bg-gray-50" title="Fit screen" onClick={fitScreen}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
                             <path d="M8 3H5a2 2 0 0 0-2 2v3" />
                             <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
                             <path d="M3 16v3a2 2 0 0 0 2 2h3" />
@@ -1174,7 +1418,10 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
                 {/* popup detail node — klik judul fitur / chip sub-fitur */}
                 {detail && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-gray-900/30" onClick={() => setDetail(null)}>
-                        <div className="w-[min(440px,90%)] rounded-xl border border-gray-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <div
+                            className="w-[min(440px,90%)] rounded-xl border border-gray-200 bg-white p-5 shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        >
                             <div className="flex items-start justify-between gap-3">
                                 <div>
                                     <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
@@ -1182,14 +1429,18 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
                                             {detail.kind === 'subfeature' ? 'Sub-fitur' : 'Fitur'}
                                         </span>
                                         {detail.kind === 'feature' && (
-                                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold ${detail.scope === 'mvp' ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-700'}`}>
+                                            <span
+                                                className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold ${detail.scope === 'mvp' ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-700'}`}
+                                            >
                                                 {detail.scope === 'mvp' ? 'MVP' : 'POST-MVP'}
                                             </span>
                                         )}
                                     </div>
                                     <div className="text-[15px] leading-snug font-bold text-gray-900">{detail.title}</div>
                                 </div>
-                                <button className="text-gray-300 hover:text-gray-600" onClick={() => setDetail(null)}>✕</button>
+                                <button className="text-gray-300 hover:text-gray-600" onClick={() => setDetail(null)}>
+                                    ✕
+                                </button>
                             </div>
                             {(() => {
                                 const parent = nodes.find((n) => n.id === detail.parent_id);
@@ -1210,7 +1461,16 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-[18px] py-3.5">
                 <span className="flex items-center gap-[7px] text-[12.5px] font-medium text-gray-500">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0D9488" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#0D9488"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
                         <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
                         <path d="M21 3v5h-5" />
                         <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
@@ -1219,9 +1479,24 @@ export function StepStructure({ project, nodes, fullHeight = false }: Pick<Props
                     Perubahan scope memicu hitung ulang estimasi otomatis
                 </span>
                 {project.wizard_step === 'structure' ? (
-                    <button className={btn} onClick={() => router.post(route('wizard.structure.confirm', project.id), { scope_mode: scopeMode })}>
-                        Lanjut ke stack →
-                    </button>
+                    <span className="flex items-center gap-3">
+                        {job.error && <span className="text-[12.5px] font-semibold text-red-600">{job.error}</span>}
+                        <button
+                            className={btn}
+                            disabled={confirming}
+                            onClick={() => {
+                                setPosting(true);
+                                router.post(
+                                    route('wizard.structure.confirm', project.id),
+                                    { scope_mode: scopeMode },
+                                    { onFinish: () => setPosting(false) },
+                                );
+                            }}
+                        >
+                            {confirming && <Spinner stroke="#fff" />}
+                            {confirming ? 'Menyiapkan rekomendasi stack…' : job.error ? 'Coba lagi →' : 'Lanjut ke stack →'}
+                        </button>
+                    </span>
                 ) : (
                     <button className={btnGhost} onClick={() => router.visit(route('projects.show', project.id))}>
                         ← Kembali ke dokumen
@@ -1245,6 +1520,7 @@ const STACK_OPTIONS: Record<string, string[]> = {
 export function StepStack({ project, stack, understanding }: Pick<Props, 'project' | 'stack' | 'understanding'>) {
     const arch = stack.find((s) => s.layer === 'backend');
     const alternatives = stack.flatMap((s) => s.alternatives ?? []);
+    const [confirming, setConfirming] = useState(false);
 
     return (
         <div>
@@ -1255,7 +1531,17 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
 
             {arch && (
                 <div className="mb-4 flex items-start gap-2.5 rounded-[10px] border-l-[3px] border-amber-500 bg-amber-100/60 px-4 py-3">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#B45309" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="mt-px flex-none">
+                    <svg
+                        width="17"
+                        height="17"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#B45309"
+                        strokeWidth="2.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="mt-px flex-none"
+                    >
                         <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
                         <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
                         <path d="M7 21h10" />
@@ -1263,8 +1549,8 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
                         <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
                     </svg>
                     <div className="text-[13px] leading-relaxed font-medium text-amber-800">
-                        <b className="font-bold">Complexity governor (BR-16):</b> kompleksitas proyek {understanding?.complexity ?? '—'}/5 — AI merekomendasikan{' '}
-                        <b className="font-bold">{arch.choice}</b>. Arsitektur disesuaikan skala nyata klien, bukan template generik.
+                        <b className="font-bold">Complexity governor (BR-16):</b> kompleksitas proyek {understanding?.complexity ?? '—'}/5 — AI
+                        merekomendasikan <b className="font-bold">{arch.choice}</b>. Arsitektur disesuaikan skala nyata klien, bukan template generik.
                     </div>
                 </div>
             )}
@@ -1273,9 +1559,15 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
                 <table className="w-full min-w-[640px] border-collapse text-[13px]">
                     <thead>
                         <tr>
-                            <th className="w-[120px] border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-bold tracking-[0.08em] text-gray-500 uppercase">Layer</th>
-                            <th className="w-[230px] border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-bold tracking-[0.08em] text-gray-500 uppercase">Pilihan</th>
-                            <th className="border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-bold tracking-[0.08em] text-gray-500 uppercase">Justifikasi</th>
+                            <th className="w-[120px] border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-bold tracking-[0.08em] text-gray-500 uppercase">
+                                Layer
+                            </th>
+                            <th className="w-[230px] border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-bold tracking-[0.08em] text-gray-500 uppercase">
+                                Pilihan
+                            </th>
+                            <th className="border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-left text-[10px] font-bold tracking-[0.08em] text-gray-500 uppercase">
+                                Justifikasi
+                            </th>
                             <th className="w-[100px] border-b border-gray-200 bg-gray-50" />
                         </tr>
                     </thead>
@@ -1285,7 +1577,9 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
                                 <td className="px-4 py-3 font-bold text-gray-800 capitalize">{s.layer}</td>
                                 <td className="px-4 py-3 font-mono text-[12.5px] font-semibold text-teal-800">
                                     {s.choice}
-                                    {s.source === 'user' && <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">USER</span>}
+                                    {s.source === 'user' && (
+                                        <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">USER</span>
+                                    )}
                                 </td>
                                 <td className="px-4 py-3 font-medium text-gray-500">{s.justification}</td>
                                 <td className="px-4 py-3">
@@ -1293,15 +1587,32 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
                                         className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-[5px] text-xs font-bold text-gray-700 hover:bg-gray-100"
                                         onClick={async () => {
                                             const options = [
-                                                ...new Set([s.choice, ...(s.alternatives ?? []).map((a) => a.choice), ...(STACK_OPTIONS[s.layer] ?? [])]),
+                                                ...new Set([
+                                                    s.choice,
+                                                    ...(s.alternatives ?? []).map((a) => a.choice),
+                                                    ...(STACK_OPTIONS[s.layer] ?? []),
+                                                ]),
                                             ];
                                             const choice = await selectDialog(`Override ${s.layer}:`, options, s.choice);
                                             if (choice && choice !== s.choice)
-                                                router.patch(route('wizard.stack.update', [project.id, s.layer]), { choice }, { preserveScroll: true });
+                                                router.patch(
+                                                    route('wizard.stack.update', [project.id, s.layer]),
+                                                    { choice },
+                                                    { preserveScroll: true },
+                                                );
                                         }}
                                     >
                                         Ubah
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                        <svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.2"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
                                             <polyline points="6 9 12 15 18 9" />
                                         </svg>
                                     </button>
@@ -1316,7 +1627,11 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
                 <div className="mt-3.5 flex flex-wrap items-center gap-2 text-[12.5px] text-gray-500">
                     Alternatif yang dipertimbangkan:
                     {alternatives.slice(0, 5).map((a, i) => (
-                        <span key={i} className="rounded-full border border-gray-200 bg-white px-2.5 py-[3px] text-[11px] font-bold text-gray-600" title={a.reason_rejected}>
+                        <span
+                            key={i}
+                            className="rounded-full border border-gray-200 bg-white px-2.5 py-[3px] text-[11px] font-bold text-gray-600"
+                            title={a.reason_rejected}
+                        >
                             {a.choice}
                         </span>
                     ))}
@@ -1326,8 +1641,16 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
 
             <div className="mt-5 flex justify-end">
                 {project.wizard_step === 'stack' ? (
-                    <button className={btn} onClick={() => router.post(route('wizard.stack.confirm', project.id))}>
-                        ✦ Generate dokumen
+                    <button
+                        className={btn}
+                        disabled={confirming}
+                        onClick={() => {
+                            setConfirming(true);
+                            router.post(route('wizard.stack.confirm', project.id), {}, { onFinish: () => setConfirming(false) });
+                        }}
+                    >
+                        {confirming && <Spinner stroke="#fff" />}
+                        {confirming ? 'Membuka generator…' : '✦ Generate dokumen'}
                     </button>
                 ) : (
                     <button className={btnGhost} onClick={() => router.visit(route('projects.show', project.id))}>
@@ -1346,6 +1669,13 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
     const currentNode = run?.nodes.find((n) => n.status === 'running') ?? run?.nodes.find((n) => n.status === 'queued');
     const streamRef = useRef<HTMLDivElement>(null);
     const isWireframe = stream?.doc_key === 'WIREFRAMES';
+    // Double submit generate = risiko dobel potong kredit (BR-02) — busy wajib
+    const [starting, setStarting] = useState(false);
+    const startRun = (routeName: 'projects.generate' | 'projects.generate.resume') => {
+        if (starting) return;
+        setStarting(true);
+        router.post(route(routeName, project.id), {}, { onFinish: () => setStarting(false) });
+    };
 
     // Typewriter: poll datang per ~1 dtk dalam gumpalan — reveal per karakter biar terasa live.
     // Init dengan teks stream saat mount: refresh halaman lanjut dari posisi sekarang, bukan replay dari awal
@@ -1375,10 +1705,7 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
         return () => clearInterval(iv);
     }, [running, isWireframe]);
 
-    const streamHtml = useMemo(
-        () => (shown && !isWireframe ? DOMPurify.sanitize(marked.parse(shown) as string) : ''),
-        [shown, isWireframe],
-    );
+    const streamHtml = useMemo(() => (shown && !isWireframe ? DOMPurify.sanitize(marked.parse(shown) as string) : ''), [shown, isWireframe]);
     // WIREFRAMES streaming JSON mentah — tampilkan layar yang sudah tergambar, bukan teks JSON
     const wfScreens = useMemo(() => {
         if (!isWireframe || !stream?.text) return [];
@@ -1431,230 +1758,264 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
 
     return (
         <>
-        <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white">
-            {/* pane kiri: checklist dokumen */}
-            <div className="w-[300px] flex-none border-r border-gray-200 p-[18px]">
-                <div className="text-sm font-bold text-gray-800">
-                    {run ? (
-                        <>
-                            {run.nodes.length} dokumen · <span className="font-mono text-teal-700">{doneCount}</span> selesai
-                        </>
-                    ) : (
-                        'Siap generate'
-                    )}
-                </div>
-                <div className="my-2.5 h-1.5 overflow-hidden rounded-full bg-gray-200">
-                    <div
-                        className="h-full rounded-full bg-teal-600 transition-all duration-500"
-                        style={{ width: run ? `${(doneCount / Math.max(run.nodes.length, 1)) * 100}%` : '0%' }}
-                    />
-                </div>
-                <div className="flex flex-col gap-0.5">
-                    {run?.nodes.map((n) => (
-                        <div
-                            key={n.doc_key}
-                            onClick={
-                                n.status === 'done'
-                                    ? () =>
-                                          // WIREFRAMES = JSON, bukan markdown — buka halaman wireframes di tab baru
-                                          n.doc_key === 'WIREFRAMES'
-                                              ? window.open(route('projects.wireframes', project.id), '_blank')
-                                              : openDoc(n.doc_key)
-                                    : undefined
-                            }
-                            title={n.status === 'done' ? 'Klik untuk baca' : undefined}
-                            className={`flex items-center gap-2 rounded-[7px] px-2 py-[5px] text-[12.5px] ${
-                                n.status === 'running'
-                                    ? 'bg-teal-50 font-bold text-teal-900'
-                                    : n.status === 'done'
-                                      ? 'cursor-pointer font-semibold text-gray-700 hover:bg-gray-100'
-                                      : n.status === 'error'
-                                        ? 'font-semibold text-red-600'
-                                        : 'font-medium text-gray-400'
-                            }`}
-                        >
-                            {n.status === 'done' ? (
-                                <CheckCircle />
-                            ) : n.status === 'running' ? (
-                                <Spinner />
-                            ) : n.status === 'error' ? (
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="flex-none">
-                                    <line x1="18" y1="6" x2="6" y2="18" />
-                                    <line x1="6" y1="6" x2="18" y2="18" />
-                                </svg>
-                            ) : (
-                                <span className="box-border h-[15px] w-[15px] flex-none rounded-full border-2 border-gray-200" />
-                            )}
-                            {n.doc_key}.md
-                            {n.status === 'running' && <span className="ml-auto text-[10.5px] font-medium text-gray-400">menulis…</span>}
-                        </div>
-                    ))}
-                </div>
-                <div className="mt-3.5 rounded-[10px] border border-gray-200 bg-gray-50 px-3 py-2.5 text-[11.5px] leading-relaxed font-medium text-gray-500">
-                    Model routing aktif per kelas node (BR-50): <b className="font-bold text-gray-700">reasoning</b> (PRD/Arch) ·{' '}
-                    <b className="font-bold text-gray-700">standard</b> (docs) · <b className="font-bold text-gray-700">economy</b> (API/DB)
-                </div>
-            </div>
-
-            {/* pane kanan */}
-            <div className="min-w-0 flex-1 p-[18px]">
-                {errors.credits && (
-                    <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-[13px] font-semibold text-red-700">{errors.credits}</div>
-                )}
-
-                {!run && (
-                    <div className="flex min-h-[380px] flex-col items-center justify-center text-center">
-                        <div className="text-lg font-extrabold text-gray-900">Generate blueprint</div>
-                        <div className="mt-1.5 max-w-[380px] text-[13px] leading-relaxed font-medium text-gray-500">
-                            Pipeline DAG — dokumen digenerate berurutan sesuai dependensi, berjalan di background (FR-07). 1 kredit per pipeline (BR-02).
-                        </div>
-                        <div className="mt-4 text-sm text-gray-600">
-                            Kredit tersedia: <span className="font-mono font-bold text-gray-900">{credits}</span>
-                        </div>
-                        <button className={`${btn} mt-5`} onClick={() => router.post(route('projects.generate', project.id))}>
-                            ✦ Generate blueprint (1 kredit)
-                        </button>
-                    </div>
-                )}
-
-                {run && running && (
-                    <>
-                        <div className="flex items-center justify-between">
-                            <div className="text-sm font-bold text-gray-800">
-                                Sedang menulis — <span className="font-mono text-teal-700">{currentNode?.doc_key ?? '…'}.md</span>
-                            </div>
-                            {stale ? (
-                                <span
-                                    className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-[3px] text-[11px] font-bold text-amber-800"
-                                    title="Tidak ada progress >90 detik. Cek apakah queue worker jalan (composer run dev), lalu run lanjut otomatis."
-                                >
-                                    ⚠ Diam — worker queue jalan?
-                                </span>
-                            ) : (
-                                <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-[3px] font-mono text-[11px] font-bold text-gray-500 uppercase">
-                                    {run.status}
-                                </span>
-                            )}
-                        </div>
-                        {stream?.text && isWireframe ? (
-                            <div
-                                ref={streamRef}
-                                className="mt-3 max-h-[420px] min-h-[330px] overflow-auto rounded-xl border border-gray-200 p-[18px]"
-                                style={{ backgroundImage: 'radial-gradient(#E2E8F0 1px, transparent 1px)', backgroundSize: '18px 18px' }}
-                            >
-                                <div className="mb-3 flex items-center gap-2 text-[13px] font-bold text-teal-800">
-                                    <Spinner />
-                                    Menggambar wireframe — {wfScreens.length} layar…
-                                </div>
-                                <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2.5">
-                                    {wfScreens.map((s, i) => (
-                                        <div
-                                            key={i}
-                                            className={`overflow-hidden rounded-lg border bg-white shadow-sm ${
-                                                i === wfScreens.length - 1 ? 'animate-pulse border-teal-300' : 'border-gray-200'
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-1 border-b border-gray-100 bg-gray-50 px-2 py-1">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-gray-300" />
-                                                <span className="h-1.5 w-1.5 rounded-full bg-gray-300" />
-                                                <span className="min-w-0 flex-1 truncate text-center text-[9.5px] font-bold text-gray-600">{s.name}</span>
-                                            </div>
-                                            <div className="flex flex-col gap-1 p-2">
-                                                <div className="h-1.5 w-3/4 rounded bg-gray-200" />
-                                                <div className="h-1.5 w-full rounded bg-gray-100" />
-                                                <div className="h-1.5 w-1/2 rounded bg-gray-100" />
-                                            </div>
-                                            {s.flow && (
-                                                <div className="truncate border-t border-gray-100 px-2 py-1 text-[8.5px] font-semibold text-teal-700">{s.flow}</div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : stream?.text ? (
-                            <div ref={streamRef} className="mt-3 max-h-[420px] min-h-[330px] overflow-auto rounded-xl border border-gray-200 p-[18px]">
-                                <MarkdownPreview
-                                    html={streamHtml}
-                                    skipLastMermaid={(shown.match(/```/g)?.length ?? 0) % 2 === 1}
-                                    className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none"
-                                />
-                                <span className="ml-0.5 inline-block h-[14px] w-[8px] animate-pulse bg-teal-600 align-text-bottom" />
-                            </div>
+            <div className="flex overflow-hidden rounded-xl border border-gray-200 bg-white">
+                {/* pane kiri: checklist dokumen */}
+                <div className="w-[300px] flex-none border-r border-gray-200 p-[18px]">
+                    <div className="text-sm font-bold text-gray-800">
+                        {run ? (
+                            <>
+                                {run.nodes.length} dokumen · <span className="font-mono text-teal-700">{doneCount}</span> selesai
+                            </>
                         ) : (
-                            <div className="mt-3 flex min-h-[330px] items-center justify-center rounded-xl border border-gray-200 p-[18px]">
-                                <div className="text-center">
-                                    <Spinner />
-                                    <div className="mt-3 text-[13px] font-semibold text-gray-500">
-                                        AI menyusun {currentNode?.doc_key ?? 'dokumen'} dari dokumen upstream…
-                                    </div>
-                                </div>
-                            </div>
+                            'Siap generate'
                         )}
-                        <div className="mt-3 flex items-center gap-[7px] text-xs font-medium text-gray-400">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="10" />
-                                <polyline points="12 6 12 12 16 14" />
-                            </svg>
-                            Berjalan di background — aman meninggalkan halaman ini.
-                            {shown && !isWireframe && (
-                                <span className="ml-auto font-mono text-[11px] text-gray-400">
-                                    {shown.split('\n').length} baris · {(shown.length / 1000).toFixed(1)}k karakter
-                                </span>
-                            )}
-                        </div>
-                    </>
-                )}
-
-                {run && ['paused', 'error'].includes(run.status) && (
-                    <div className="flex min-h-[380px] flex-col items-center justify-center text-center">
-                        <div className="text-lg font-extrabold text-red-600">Generate terhenti</div>
-                        <div className="mt-1.5 max-w-[380px] text-[13px] font-medium text-gray-500">
-                            Node gagal setelah 2× retry (BR-11). Lanjutkan hanya menjalankan ulang node yang gagal — tidak memakai kredit baru.
-                        </div>
-                        <button className={`${btn} mt-5`} onClick={() => router.post(route('projects.generate.resume', project.id))}>
-                            Lanjutkan (node gagal saja)
-                        </button>
                     </div>
-                )}
-            </div>
+                    <div className="my-2.5 h-1.5 overflow-hidden rounded-full bg-gray-200">
+                        <div
+                            className="h-full rounded-full bg-teal-600 transition-all duration-500"
+                            style={{ width: run ? `${(doneCount / Math.max(run.nodes.length, 1)) * 100}%` : '0%' }}
+                        />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                        {run?.nodes.map((n) => (
+                            <div
+                                key={n.doc_key}
+                                onClick={
+                                    n.status === 'done'
+                                        ? () =>
+                                              // WIREFRAMES = JSON, bukan markdown — buka halaman wireframes di tab baru
+                                              n.doc_key === 'WIREFRAMES'
+                                                  ? window.open(route('projects.wireframes', project.id), '_blank')
+                                                  : openDoc(n.doc_key)
+                                        : undefined
+                                }
+                                title={n.status === 'done' ? 'Klik untuk baca' : undefined}
+                                className={`flex items-center gap-2 rounded-[7px] px-2 py-[5px] text-[12.5px] ${
+                                    n.status === 'running'
+                                        ? 'bg-teal-50 font-bold text-teal-900'
+                                        : n.status === 'done'
+                                          ? 'cursor-pointer font-semibold text-gray-700 hover:bg-gray-100'
+                                          : n.status === 'error'
+                                            ? 'font-semibold text-red-600'
+                                            : 'font-medium text-gray-400'
+                                }`}
+                            >
+                                {n.status === 'done' ? (
+                                    <CheckCircle />
+                                ) : n.status === 'running' ? (
+                                    <Spinner />
+                                ) : n.status === 'error' ? (
+                                    <svg
+                                        width="15"
+                                        height="15"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="#EF4444"
+                                        strokeWidth="2.4"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className="flex-none"
+                                    >
+                                        <line x1="18" y1="6" x2="6" y2="18" />
+                                        <line x1="6" y1="6" x2="18" y2="18" />
+                                    </svg>
+                                ) : (
+                                    <span className="box-border h-[15px] w-[15px] flex-none rounded-full border-2 border-gray-200" />
+                                )}
+                                {n.doc_key}.md
+                                {n.status === 'running' && <span className="ml-auto text-[10.5px] font-medium text-gray-400">menulis…</span>}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-3.5 rounded-[10px] border border-gray-200 bg-gray-50 px-3 py-2.5 text-[11.5px] leading-relaxed font-medium text-gray-500">
+                        Model routing aktif per kelas node (BR-50): <b className="font-bold text-gray-700">reasoning</b> (PRD/Arch) ·{' '}
+                        <b className="font-bold text-gray-700">standard</b> (docs) · <b className="font-bold text-gray-700">economy</b> (API/DB)
+                    </div>
+                </div>
 
-            {/* Modal baca dokumen selesai — run tetap jalan di background */}
-            {readDoc && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" onClick={() => setReadDoc(null)}>
-                    <div
-                        className="flex max-h-[85vh] w-full max-w-[860px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5">
-                            <div className="font-mono text-sm font-bold text-teal-700">{readDoc.key}.md</div>
-                            <button className="rounded-md px-2 py-1 text-lg leading-none text-gray-400 hover:bg-gray-100" onClick={() => setReadDoc(null)}>
-                                ×
+                {/* pane kanan */}
+                <div className="min-w-0 flex-1 p-[18px]">
+                    {errors.credits && (
+                        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-[13px] font-semibold text-red-700">
+                            {errors.credits}
+                        </div>
+                    )}
+
+                    {!run && (
+                        <div className="flex min-h-[380px] flex-col items-center justify-center text-center">
+                            <div className="text-lg font-extrabold text-gray-900">Generate blueprint</div>
+                            <div className="mt-1.5 max-w-[380px] text-[13px] leading-relaxed font-medium text-gray-500">
+                                Pipeline DAG — dokumen digenerate berurutan sesuai dependensi, berjalan di background (FR-07). 1 kredit per pipeline
+                                (BR-02).
+                            </div>
+                            <div className="mt-4 text-sm text-gray-600">
+                                Kredit tersedia: <span className="font-mono font-bold text-gray-900">{credits}</span>
+                            </div>
+                            <button className={`${btn} mt-5`} disabled={starting} onClick={() => startRun('projects.generate')}>
+                                {starting && <Spinner stroke="#fff" />}
+                                {starting ? 'Memulai pipeline…' : '✦ Generate blueprint (1 kredit)'}
                             </button>
                         </div>
-                        <div className="overflow-auto p-6">
-                            {readDoc.md === null ? (
-                                <div className="flex justify-center py-10">
-                                    <Spinner />
+                    )}
+
+                    {run && running && (
+                        <>
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm font-bold text-gray-800">
+                                    Sedang menulis — <span className="font-mono text-teal-700">{currentNode?.doc_key ?? '…'}.md</span>
+                                </div>
+                                {stale ? (
+                                    <span
+                                        className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-[3px] text-[11px] font-bold text-amber-800"
+                                        title="Tidak ada progress >90 detik. Cek apakah queue worker jalan (composer run dev), lalu run lanjut otomatis."
+                                    >
+                                        ⚠ Diam — worker queue jalan?
+                                    </span>
+                                ) : (
+                                    <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-[3px] font-mono text-[11px] font-bold text-gray-500 uppercase">
+                                        {run.status}
+                                    </span>
+                                )}
+                            </div>
+                            {stream?.text && isWireframe ? (
+                                <div
+                                    ref={streamRef}
+                                    className="mt-3 max-h-[420px] min-h-[330px] overflow-auto rounded-xl border border-gray-200 p-[18px]"
+                                    style={{ backgroundImage: 'radial-gradient(#E2E8F0 1px, transparent 1px)', backgroundSize: '18px 18px' }}
+                                >
+                                    <div className="mb-3 flex items-center gap-2 text-[13px] font-bold text-teal-800">
+                                        <Spinner />
+                                        Menggambar wireframe — {wfScreens.length} layar…
+                                    </div>
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2.5">
+                                        {wfScreens.map((s, i) => (
+                                            <div
+                                                key={i}
+                                                className={`overflow-hidden rounded-lg border bg-white shadow-sm ${
+                                                    i === wfScreens.length - 1 ? 'animate-pulse border-teal-300' : 'border-gray-200'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-1 border-b border-gray-100 bg-gray-50 px-2 py-1">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-gray-300" />
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-gray-300" />
+                                                    <span className="min-w-0 flex-1 truncate text-center text-[9.5px] font-bold text-gray-600">
+                                                        {s.name}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col gap-1 p-2">
+                                                    <div className="h-1.5 w-3/4 rounded bg-gray-200" />
+                                                    <div className="h-1.5 w-full rounded bg-gray-100" />
+                                                    <div className="h-1.5 w-1/2 rounded bg-gray-100" />
+                                                </div>
+                                                {s.flow && (
+                                                    <div className="truncate border-t border-gray-100 px-2 py-1 text-[8.5px] font-semibold text-teal-700">
+                                                        {s.flow}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : stream?.text ? (
+                                <div
+                                    ref={streamRef}
+                                    className="mt-3 max-h-[420px] min-h-[330px] overflow-auto rounded-xl border border-gray-200 p-[18px]"
+                                >
+                                    <MarkdownPreview
+                                        html={streamHtml}
+                                        skipLastMermaid={(shown.match(/```/g)?.length ?? 0) % 2 === 1}
+                                        className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none"
+                                    />
+                                    <span className="ml-0.5 inline-block h-[14px] w-[8px] animate-pulse bg-teal-600 align-text-bottom" />
                                 </div>
                             ) : (
-                                <MarkdownPreview
-                                    html={DOMPurify.sanitize(marked.parse(readDoc.md) as string)}
-                                    className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none"
-                                />
+                                <div className="mt-3 flex min-h-[330px] items-center justify-center rounded-xl border border-gray-200 p-[18px]">
+                                    <div className="text-center">
+                                        <Spinner />
+                                        <div className="mt-3 text-[13px] font-semibold text-gray-500">
+                                            AI menyusun {currentNode?.doc_key ?? 'dokumen'} dari dokumen upstream…
+                                        </div>
+                                    </div>
+                                </div>
                             )}
+                            <div className="mt-3 flex items-center gap-[7px] text-xs font-medium text-gray-400">
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                                Berjalan di background — aman meninggalkan halaman ini.
+                                {shown && !isWireframe && (
+                                    <span className="ml-auto font-mono text-[11px] text-gray-400">
+                                        {shown.split('\n').length} baris · {(shown.length / 1000).toFixed(1)}k karakter
+                                    </span>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    {run && ['paused', 'error'].includes(run.status) && (
+                        <div className="flex min-h-[380px] flex-col items-center justify-center text-center">
+                            <div className="text-lg font-extrabold text-red-600">Generate terhenti</div>
+                            <div className="mt-1.5 max-w-[380px] text-[13px] font-medium text-gray-500">
+                                Node gagal setelah 2× retry (BR-11). Lanjutkan hanya menjalankan ulang node yang gagal — tidak memakai kredit baru.
+                            </div>
+                            <button className={`${btn} mt-5`} disabled={starting} onClick={() => startRun('projects.generate.resume')}>
+                                {starting && <Spinner stroke="#fff" />}
+                                {starting ? 'Melanjutkan…' : 'Lanjutkan (node gagal saja)'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Modal baca dokumen selesai — run tetap jalan di background */}
+                {readDoc && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" onClick={() => setReadDoc(null)}>
+                        <div
+                            className="flex max-h-[85vh] w-full max-w-[860px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3.5">
+                                <div className="font-mono text-sm font-bold text-teal-700">{readDoc.key}.md</div>
+                                <button
+                                    className="rounded-md px-2 py-1 text-lg leading-none text-gray-400 hover:bg-gray-100"
+                                    onClick={() => setReadDoc(null)}
+                                >
+                                    ×
+                                </button>
+                            </div>
+                            <div className="overflow-auto p-6">
+                                {readDoc.md === null ? (
+                                    <div className="flex justify-center py-10">
+                                        <Spinner />
+                                    </div>
+                                ) : (
+                                    <MarkdownPreview
+                                        html={DOMPurify.sanitize(marked.parse(readDoc.md) as string)}
+                                        className="prose prose-sm prose-headings:font-extrabold prose-headings:tracking-tight max-w-none"
+                                    />
+                                )}
+                            </div>
                         </div>
                     </div>
+                )}
+            </div>
+
+            {run && running && (
+                <div className="mt-5 flex justify-end">
+                    <button className={btn} onClick={() => router.visit(route('projects.show', project.id))}>
+                        Buka workspace tanpa nunggu →
+                    </button>
                 </div>
             )}
-        </div>
-
-        {run && running && (
-            <div className="mt-5 flex justify-end">
-                <button className={btn} onClick={() => router.visit(route('projects.show', project.id))}>
-                    Buka workspace tanpa nunggu →
-                </button>
-            </div>
-        )}
         </>
     );
 }
@@ -1699,8 +2060,15 @@ export default function Wizard(props: Props) {
                 <Stepper current={step} />
                 {step === 'input' && <StepInput project={props.project} input={props.input} />}
                 {step === 'understanding' && <StepUnderstanding project={props.project} understanding={props.understanding} />}
-                {step === 'interview' && <StepInterview project={props.project} interview={props.interview} understanding={props.understanding} />}
-                {step === 'structure' && <StepStructure project={props.project} nodes={props.nodes} />}
+                {step === 'interview' && (
+                    <StepInterview
+                        project={props.project}
+                        interview={props.interview}
+                        understanding={props.understanding}
+                        step_job={props.step_job}
+                    />
+                )}
+                {step === 'structure' && <StepStructure project={props.project} nodes={props.nodes} step_job={props.step_job} />}
                 {step === 'stack' && <StepStack project={props.project} stack={props.stack} understanding={props.understanding} />}
                 {(step === 'generate' || step === 'done') && (
                     <StepGenerate project={props.project} run={props.run} stream={props.stream} credits={props.credits} errors={props.errors} />

@@ -1,15 +1,16 @@
 import { Head, Link } from '@inertiajs/react';
 
 import SpektaLayout from '@/layouts/spekta-layout';
-import { StepStructure, type Node } from '@/pages/wizard';
+import { StepStructure, type Node, type StepJob } from '@/pages/wizard';
 
 type Props = {
     project: { id: string; name: string; client_name: string | null; status: string; wizard_step: string; scope_mode: string };
     nodes: Node[];
+    step_job: StepJob;
 };
 
 // FR-04/FR-05: canvas struktur sebagai halaman sendiri, full body (di luar wizard)
-export default function Structure({ project, nodes }: Props) {
+export default function Structure({ project, nodes, step_job }: Props) {
     return (
         <SpektaLayout crumb={project.name} active="projects">
             <Head title={`Struktur — ${project.name}`} />
@@ -23,7 +24,7 @@ export default function Structure({ project, nodes }: Props) {
                     <h1 className="text-[15px] font-extrabold text-gray-900">Struktur proyek</h1>
                 </div>
                 <div className="min-h-0 flex-1">
-                    <StepStructure project={project} nodes={nodes} fullHeight />
+                    <StepStructure project={project} nodes={nodes} step_job={step_job} fullHeight />
                 </div>
             </div>
         </SpektaLayout>

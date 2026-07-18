@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\WizardStepJob;
 use App\Models\CreditLedger;
 use App\Models\Project;
 use App\Services\GenerationPipeline;
@@ -9,7 +10,6 @@ use App\Services\InputExtractor;
 use App\Services\SpecEngine;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -32,6 +32,8 @@ class WizardController extends Controller
             'stream' => $run && $run->status === 'running'
                 ? Cache::get('genstream:'.$run->id)
                 : null,
+            // Status job step async (WizardStepJob) — dipoll StepInterview/StepStructure
+            'step_job' => Cache::get(WizardStepJob::statusKey($project->id)),
         ]);
     }
 
@@ -43,6 +45,7 @@ class WizardController extends Controller
         return Inertia::render('structure', [
             'project' => $project->only(['id', 'name', 'client_name', 'status', 'wizard_step', 'scope_mode']),
             'nodes' => $project->structureNodes,
+            'step_job' => Cache::get(WizardStepJob::statusKey($project->id)),
         ]);
     }
 
@@ -110,6 +113,9 @@ class WizardController extends Controller
             'domain' => $result['domain'] ?? null,
             'complexity' => $result['complexity'] ?? 3,
             'assumptions' => $result['assumptions'] ?? [],
+            // Kontradiksi di input user — ditampilkan di step understanding + dipaksa jadi
+            // pertanyaan interview; jauh lebih murah dibunuh di sini daripada di dokumen jadi
+            'contradictions' => array_values(array_filter($result['contradictions'] ?? [], 'is_string')),
             'confirmed' => false,
         ]);
         $project->update(['wizard_step' => 'understanding', 'complexity' => $result['complexity'] ?? 3]);
@@ -182,7 +188,7 @@ class WizardController extends Controller
         return back();
     }
 
-    public function finishInterview(Request $request, Project $project, SpecEngine $engine)
+    public function finishInterview(Request $request, Project $project)
     {
         ProjectController::authorizeProject($request, $project);
 
@@ -194,42 +200,16 @@ class WizardController extends Controller
                 ]));
         }
 
-        // FR-04: bangun struktur awal dari AI. Guard cek node non-root: node root sisa
+        // FR-04: bangun struktur awal dari AI — async via WizardStepJob (LLM lama, request
+        // sync kena timeout fpm/nginx di production). Guard cek node non-root: node root sisa
         // kegagalan lama tidak boleh memblokir rebuild (struktur kosong = estimasi kosong).
-        if (! $project->structureNodes()->where('kind', '!=', 'root')->exists()) {
-            // AI dipanggil SEBELUM tulis apa pun — gagal di sini = tidak ada state parsial
-            $phases = $engine->buildStructure($project);
-            if (! $phases) {
-                return back()->withErrors(['structure' => 'AI gagal menyusun struktur — coba lagi.']);
-            }
+        if ($project->structureNodes()->where('kind', '!=', 'root')->exists()) {
+            $project->update(['wizard_step' => 'structure']); // struktur sudah ada — tanpa LLM
 
-            DB::transaction(function () use ($project, $phases) {
-                $project->structureNodes()->delete(); // bersihkan sisa parsial (root yatim)
-                $root = $project->structureNodes()->create(['kind' => 'root', 'title' => $project->name, 'sort' => 0]);
-                foreach ($phases as $pi => $phase) {
-                    $phaseNode = $project->structureNodes()->create([
-                        'kind' => 'phase', 'parent_id' => $root->id, 'title' => $phase['title'],
-                        'phase_no' => $pi + 1, 'sort' => $pi,
-                    ]);
-                    foreach ($phase['features'] ?? [] as $fi => $f) {
-                        $featureNode = $project->structureNodes()->create([
-                            'kind' => 'feature', 'parent_id' => $phaseNode->id, 'title' => $f['title'],
-                            'description' => $f['description'] ?? null, 'scope' => $f['scope'] ?? 'mvp',
-                            'est_md' => $f['est_md'] ?? 0, 'sort' => $fi,
-                        ]);
-                        foreach ($f['subfeatures'] ?? [] as $si => $sub) {
-                            $project->structureNodes()->create([
-                                'kind' => 'subfeature', 'parent_id' => $featureNode->id,
-                                'title' => is_array($sub) ? $sub['title'] : $sub,
-                                'description' => is_array($sub) ? ($sub['description'] ?? null) : null,
-                                'est_md' => is_array($sub) ? ($sub['est_md'] ?? 0) : 0, 'sort' => $si,
-                            ]);
-                        }
-                    }
-                }
-            });
+            return back();
         }
-        $project->update(['wizard_step' => 'structure']);
+
+        $this->dispatchStepJob($project, 'structure');
 
         return back();
     }
@@ -272,26 +252,32 @@ class WizardController extends Controller
         return back();
     }
 
-    public function confirmStructure(Request $request, Project $project, SpecEngine $engine)
+    public function confirmStructure(Request $request, Project $project)
     {
         ProjectController::authorizeProject($request, $project);
         $project->update(['scope_mode' => $request->validate(['scope_mode' => 'required|in:mvp,full'])['scope_mode']]);
 
-        // FR-06: rekomendasi stack
-        if (! $project->stackChoices()->exists()) {
-            foreach ($engine->recommendStack($project) as $layer) {
-                $project->stackChoices()->create([
-                    'layer' => $layer['layer'],
-                    'choice' => $layer['choice'],
-                    'justification' => $layer['justification'] ?? null,
-                    'alternatives' => $layer['alternatives'] ?? [],
-                    'source' => 'ai',
-                ]);
-            }
+        // FR-06: rekomendasi stack — async via WizardStepJob (alasan sama finishInterview)
+        if ($project->stackChoices()->exists()) {
+            $project->update(['wizard_step' => 'stack']);
+
+            return back();
         }
-        $project->update(['wizard_step' => 'stack']);
+
+        $this->dispatchStepJob($project, 'stack');
 
         return back();
+    }
+
+    /** Dispatch step wizard async dengan guard anti dobel (klik ganda / dua tab). */
+    private function dispatchStepJob(Project $project, string $step): void
+    {
+        $key = WizardStepJob::statusKey($project->id);
+        if (in_array(Cache::get($key)['status'] ?? null, ['queued', 'running'], true)) {
+            return; // job masih jalan — status error boleh dispatch ulang (retry manual)
+        }
+        Cache::put($key, ['status' => 'queued', 'step' => $step], 900);
+        WizardStepJob::dispatch($project->id, $step);
     }
 
     // Step 5 — FR-06 override
