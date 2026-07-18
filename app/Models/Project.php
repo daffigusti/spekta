@@ -96,4 +96,15 @@ class Project extends Model
 
         return array_values(array_filter(array_merge($fromUnderstanding, $fromInterview)));
     }
+
+    /** FR-12: bahasa utama dokumen ('bilingual' dianggap id). */
+    public function primaryLanguage(): string
+    {
+        return $this->language === 'en' ? 'en' : 'id';
+    }
+
+    public function variantLanguage(): string
+    {
+        return $this->primaryLanguage() === 'id' ? 'en' : 'id';
+    }
 }

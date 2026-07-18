@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DocumentVersion;
 use App\Models\Project;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
@@ -467,6 +468,34 @@ SYS, "INSTRUKSI PERUBAHAN:\n$instruction\n\nKONTEKS PROYEK:\n".$this->documentCo
             'tokens_out' => $to,
             'duration_ms' => (int) ((microtime(true) - $started) * 1000),
             'generated_by' => 'ai-regen',
+        ]];
+    }
+
+    // ---------- FR-12: bilingual ----------
+
+    /** Terjemahkan satu versi dokumen — struktur, nomor FR/BR, tabel, mermaid dipertahankan. Return [md, meta]. */
+    public function translate(Project $project, DocumentVersion $version, string $target): array
+    {
+        if ($this->driver() === 'stub') {
+            return ['[['.strtoupper($target).']] '.$version->content_md,
+                ['model' => 'stub', 'tokens_in' => 0, 'tokens_out' => 0, 'generated_by' => 'ai-translate']];
+        }
+
+        $started = microtime(true);
+        $lang = $target === 'en' ? 'English' : 'Bahasa Indonesia';
+        $md = $this->text('economy', <<<SYS
+Kamu penerjemah dokumen spesifikasi software. Terjemahkan seluruh dokumen ke $lang.
+ATURAN KERAS: struktur heading, penomoran FR/BR, tabel, dan blok kode/mermaid TIDAK berubah;
+istilah teknis (nama API, entity, library, istilah engineering baku) TIDAK diterjemahkan.
+Balas HANYA hasil terjemahan lengkap, tanpa pembuka/penutup.
+SYS, $version->content_md, $ti, $to);
+
+        return [$md, [
+            'model' => config('spekta.llm.models.economy'),
+            'tokens_in' => $ti,
+            'tokens_out' => $to,
+            'duration_ms' => (int) ((microtime(true) - $started) * 1000),
+            'generated_by' => 'ai-translate',
         ]];
     }
 
