@@ -1,0 +1,42 @@
+# Dokploy Compose project. Env diisi lewat tab Environment Dokploy (ditulis sebagai .env).
+# Postgres = Dokploy database service terpisah, tercapai via dokploy-network.
+services:
+  web:
+    build:
+      context: ./spekta-app
+    image: spekta-app
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # serversideup autorun: migrate --force, storage:link, config/route/view cache saat start
+      AUTORUN_ENABLED: "true"
+      PHP_OPCACHE_ENABLE: "1"
+    volumes:
+      - storage_app:/var/www/html/storage/app
+    networks:
+      - dokploy-network
+
+  worker:
+    image: spekta-app
+    restart: unless-stopped
+    # timeout 600 < retry_after 630 (config/queue.php) agar job tidak dobel proses
+    command: ["php", "artisan", "queue:work", "--tries=3", "--timeout=600"]
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - storage_app:/var/www/html/storage/app
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+
+volumes:
+  storage_app:
+
+networks:
+  dokploy-network:
+    external: true
