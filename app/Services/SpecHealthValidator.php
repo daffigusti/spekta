@@ -114,6 +114,29 @@ class SpecHealthValidator
         return $this->recomputeScore($project);
     }
 
+    /**
+     * RTM (Requirement Traceability Matrix): baris per FR dari PRD, kolom dokumen turunan.
+     * Cell true/false = FR disebut/tidak; null = dokumen belum digenerate. Regex sama dengan rule fr_*.
+     */
+    public function traceabilityMatrix(Project $project): array
+    {
+        $docs = $project->documents()->with('currentVersion')->get()
+            ->mapWithKeys(fn ($d) => [$d->doc_key => $d->currentVersion?->content_md ?? '']);
+        preg_match_all('/FR-\d+/', $docs['PRD'] ?? '', $m);
+        $scope = $this->scopeByFr($project);
+
+        $rows = [];
+        foreach (array_unique($m[0]) as $fr) {
+            $cells = [];
+            foreach (['REQUIREMENTS', 'USER_FLOWS', 'API', 'TESTING', 'ROADMAP'] as $key) {
+                $cells[$key] = ($docs[$key] ?? '') === '' ? null : $this->mentions($docs[$key], $fr);
+            }
+            $rows[] = ['fr' => $fr, 'scope' => $scope[$fr] ?? null, 'cells' => $cells];
+        }
+
+        return $rows;
+    }
+
     /** Skor dari seluruh findings tersimpan — termasuk kontradiksi yang diisi async. */
     public function recomputeScore(Project $project): int
     {

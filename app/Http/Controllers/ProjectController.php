@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ContradictionCheckJob;
 use App\Models\Project;
+use App\Services\SpecHealthValidator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -29,29 +30,61 @@ class ProjectController extends Controller
         $this->authorizeProject($request, $project);
 
         // Urut sesuai pipeline (PRD → … → ROADMAP), bukan alfabetis; nomor untuk sidebar
-        $order = array_flip(array_keys(config('spekta.doc_pipeline')));
+        $pipeline = config('spekta.doc_pipeline');
+        $order = array_flip(array_keys($pipeline));
+        $all = $project->documents()->with('currentVersion')->get();
+        // Untuk deteksi STALE & label dependency — termasuk WIREFRAMES walau tak tampil di daftar
+        $currentVersions = $all->mapWithKeys(fn ($d) => [$d->doc_key => $d->currentVersion]);
+        // Grup dokumen untuk section header sidebar (config doc_groups) — presentasi saja
+        $groupByKey = collect(config('spekta.doc_groups'))->flatMap(fn ($keys, $g) => array_fill_keys($keys, $g));
         // WIREFRAMES content JSON — tampil di canvas /wireframes, bukan daftar dokumen markdown
-        $documents = $project->documents()->with('currentVersion')->where('doc_key', '!=', 'WIREFRAMES')->get()
-            ->sortBy(fn ($d) => $order[$d->doc_key] ?? 99)->values()->map(fn ($d, $i) => [
-                'id' => $d->id,
-                'seq' => $i + 1,
-                'doc_key' => $d->doc_key,
-                'title' => $d->title,
-                'status' => $d->status,
-                'version_no' => $d->currentVersion?->version_no,
-                'content_md' => $d->currentVersion?->content_md,
-                'generated_meta' => $d->currentVersion?->generated_meta,
-                // Riwayat versi hanya bahasa primer — baris varian terjemahan lama (fitur sudah dicabut) tidak ikut
-                'versions' => $d->versions()->where('language', $project->primaryLanguage())->get(['id', 'version_no', 'source', 'created_at'])->map(fn ($v) => [
-                    'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source,
-                    'created_at' => $v->created_at->format('d M Y H:i'),
-                ]),
-            ]);
+        $documents = $all->where('doc_key', '!=', 'WIREFRAMES')->values()
+            ->sortBy(fn ($d) => $order[$d->doc_key] ?? 99)->values()->map(function ($d, $i) use ($project, $pipeline, $currentVersions, $groupByKey) {
+                $upstream = collect($pipeline[$d->doc_key] ?? [])->filter(fn ($k) => isset($currentVersions[$k]));
+                $ownAt = $d->currentVersion?->created_at;
+
+                return [
+                    'id' => $d->id,
+                    'seq' => $i + 1,
+                    'doc_key' => $d->doc_key,
+                    'title' => $d->title,
+                    'status' => $d->status,
+                    'group' => $groupByKey[$d->doc_key] ?? 'Lainnya',
+                    'version_no' => $d->currentVersion?->version_no,
+                    'content_md' => $d->currentVersion?->content_md,
+                    'generated_meta' => $d->currentVersion?->generated_meta,
+                    // Dependency dari doc_pipeline, dibatasi dokumen yang ada di proyek ini
+                    'upstream' => $upstream->map(fn ($k) => ['doc_key' => $k, 'version_no' => $currentVersions[$k]?->version_no])->values(),
+                    'downstream' => collect($pipeline)->filter(fn ($deps, $k) => in_array($d->doc_key, $deps) && isset($currentVersions[$k]))->keys()->values(),
+                    // STALE: upstream punya versi lebih baru dari versi dokumen ini (timestamp current version)
+                    'stale' => $ownAt !== null && $upstream->contains(fn ($k) => $currentVersions[$k]?->created_at?->gt($ownAt) ?? false),
+                    // Riwayat versi hanya bahasa primer — baris varian terjemahan lama (fitur sudah dicabut) tidak ikut
+                    'versions' => $d->versions()->where('language', $project->primaryLanguage())->get(['id', 'version_no', 'source', 'created_at'])->map(fn ($v) => [
+                        'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source,
+                        'created_at' => $v->created_at->format('d M Y H:i'),
+                    ]),
+                ];
+            });
+
+        // Dimensi Spec Health: rule_key → nama dimensi (config health_dimensions)
+        $dimByRule = collect(config('spekta.health_dimensions'))
+            ->flatMap(fn ($rules, $dim) => array_fill_keys($rules, $dim));
 
         return Inertia::render('project', [
             'project' => $project->only(['id', 'name', 'client_name', 'status', 'health_score', 'scope_mode', 'complexity']),
             'documents' => $documents,
-            'findings' => $project->healthFindings()->where('resolved', false)->get(),
+            'findings' => $project->healthFindings()->where('resolved', false)->get()
+                ->map(fn ($f) => $f->toArray() + ['dimension' => $dimByRule[$f->rule_key] ?? 'Lainnya']),
+            'health_dimensions' => array_keys(config('spekta.health_dimensions')),
+            // RTM — closure agar tidak ikut dievaluasi saat partial reload polling run/kontradiksi
+            'rtm' => fn () => app(SpecHealthValidator::class)->traceabilityMatrix($project),
+            // Open questions: derived, tanpa tabel baru — pertanyaan interview dilewati,
+            // asumsi understanding, dan kontradiksi input (FR-03)
+            'open_questions' => [
+                'skipped_questions' => $project->interviewItems()->where('skipped', true)->orderBy('seq')->pluck('question'),
+                'assumptions' => $project->understanding?->assumptions ?? [],
+                'contradictions' => $project->understanding?->contradictions ?? [],
+            ],
             'run' => $project->generationRuns()->with('nodes')->latest()->first(),
             'missing_doc_keys' => array_values(array_diff(array_keys(config('spekta.doc_pipeline')), $project->documents()->pluck('doc_key')->all())),
             'share_links' => $project->shareLinks()->latest()->get()->map(fn ($l) => [

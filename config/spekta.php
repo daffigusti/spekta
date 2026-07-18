@@ -88,6 +88,24 @@ return [
         5 => ['PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
     ],
 
+    // Grup dokumen — presentasi (sidebar + README export), bukan pipeline.
+    // Doc key tanpa grup jatuh ke "Lainnya".
+    'doc_groups' => [
+        'Planning' => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'BUSINESS_RULES', 'FEATURES'],
+        'Design' => ['USER_FLOWS', 'WIREFRAMES', 'DESIGN'],
+        'Technical' => ['ARCHITECTURE', 'DATABASE', 'API', 'SECURITY'],
+        'Delivery' => ['TESTING', 'ROADMAP'],
+    ],
+
+    // Dimensi Spec Health — grouping rule_key untuk panel health; bukan rule baru,
+    // hanya presentasi. Rule tanpa mapping jatuh ke "Lainnya" di UI.
+    'health_dimensions' => [
+        'Kelengkapan' => ['fr_has_ac', 'fr_ac_empty', 'prd_assumptions', 'prd_has_fr', 'db_has_erd', 'wireframes_json'],
+        'Konsistensi' => ['fact_drift', 'contradiction', 'fr_duplicate', 'fr_dangling_ref', 'erd_entity_in_api'],
+        'Keterlacakan' => ['fr_in_roadmap', 'fr_has_test'],
+        'Cakupan' => ['wireframes_flow_coverage', 'security_role_coverage'],
+    ],
+
     // BR-20/BR-21
     'estimate' => [
         'integration_overhead_pct' => 10,
