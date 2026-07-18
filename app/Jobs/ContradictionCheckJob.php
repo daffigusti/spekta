@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 
 /** FR-11(f): cek kontradiksi via LLM, replace temuan lama, hitung ulang skor. */
 class ContradictionCheckJob implements ShouldQueue
@@ -21,6 +22,12 @@ class ContradictionCheckJob implements ShouldQueue
     public int $timeout = 540;
 
     public function __construct(public string $projectId) {}
+
+    /** Lock anti dobel-dispatch — dipasang ProjectController::checkContradictions, dilepas di sini. */
+    public static function lockKey(string $projectId): string
+    {
+        return 'contracheck-lock:'.$projectId;
+    }
 
     public function handle(SpecEngine $engine, SpecHealthValidator $validator): void
     {
@@ -38,5 +45,12 @@ class ContradictionCheckJob implements ShouldQueue
             ]);
         }
         $validator->recomputeScore($project);
+        Cache::forget(self::lockKey($this->projectId));
+    }
+
+    // Gagal antar-attempt lock TETAP dipegang (job masih di queue); baru dilepas saat gagal final.
+    public function failed(?\Throwable $e): void
+    {
+        Cache::forget(self::lockKey($this->projectId));
     }
 }

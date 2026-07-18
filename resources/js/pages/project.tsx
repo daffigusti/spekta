@@ -91,6 +91,8 @@ type Props = {
     assistant_messages: AssistantMsg[];
     chat_stream: string | null;
     chat_quota?: { used: number; limit: number | null; plan: string } | null;
+    // FR-11(f): running dari lock job di backend; quota kuota bulanan per plan (limit null = unlimited)
+    contradiction?: { running: boolean; quota: { used: number; limit: number | null } } | null;
     errors: Record<string, string>;
 };
 
@@ -204,6 +206,7 @@ export default function ProjectPage({
     assistant_messages = [],
     chat_stream = null,
     chat_quota = null,
+    contradiction = null,
     errors = {},
 }: Props) {
     const [activeKey, setActiveKey] = useState(documents[0]?.doc_key ?? '');
@@ -236,6 +239,14 @@ export default function ProjectPage({
         return () => clearInterval(t);
     }, [runActive]);
 
+    // FR-11(f): poll selama job cek kontradiksi jalan — selesai saat lock dilepas (running false)
+    const contraRunning = contradiction?.running ?? false;
+    useEffect(() => {
+        if (!contraRunning) return;
+        const t = setInterval(() => router.reload({ only: ['contradiction', 'findings', 'project'] }), 2500);
+        return () => clearInterval(t);
+    }, [contraRunning]);
+
     const html = useMemo(
         () => (doc?.content_md ? DOMPurify.sanitize(marked.parse(doc.content_md) as string) : ''),
         [doc?.content_md],
@@ -243,6 +254,7 @@ export default function ProjectPage({
 
     const health = project.health_score;
     const okFindings = findings.length === 0;
+    const contraExhausted = contradiction?.quota.limit != null && contradiction.quota.used >= contradiction.quota.limit;
 
     const startEdit = () => {
         setDraft(doc?.content_md ?? '');
@@ -835,11 +847,20 @@ export default function ProjectPage({
                         </div>
                         <button
                             type="button"
-                            className="mt-2.5 w-full rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-[12px] font-bold text-teal-700 hover:bg-teal-100"
+                            disabled={contraRunning || contraExhausted}
+                            className="mt-2.5 w-full rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-[12px] font-bold text-teal-700 hover:bg-teal-100 disabled:cursor-not-allowed disabled:opacity-60"
                             onClick={() => router.post(route('projects.health.contradictions', project.id), {}, { preserveScroll: true })}
                         >
-                            Cek kontradiksi
+                            {contraRunning ? 'Memeriksa kontradiksi…' : 'Cek kontradiksi'}
                         </button>
+                        {contradiction?.quota.limit != null && (
+                            <div className={`mt-1 text-center text-[10.5px] font-semibold ${contraExhausted ? 'text-amber-600' : 'text-gray-400'}`}>
+                                {contraExhausted
+                                    ? 'Kuota cek bulan ini habis — upgrade paket'
+                                    : `Sisa kuota bulan ini: ${contradiction.quota.limit - contradiction.quota.used}/${contradiction.quota.limit}`}
+                            </div>
+                        )}
+                        {errors.contradiction && <div className="mt-1 text-[10.5px] font-semibold text-red-600">{errors.contradiction}</div>}
                         <div className="mt-3.5 flex max-h-[180px] flex-col gap-2 overflow-auto border-t border-gray-200 pt-3.5">
                             {okFindings && (
                                 <div className="flex items-start gap-1.5 text-[11.5px] font-semibold text-gray-600">

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\SpecEngine;
 use App\Services\SpecHealthValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -117,5 +118,49 @@ class ContradictionCheckTest extends TestCase
         $this->actingAs($user)->post(route('projects.health.contradictions', $project))->assertForbidden();
 
         Queue::assertNotPushed(ContradictionCheckJob::class);
+    }
+
+    public function test_double_click_dispatches_job_once(): void
+    {
+        // Lock anti dobel-dispatch: klik kedua saat job masih jalan tidak boleh spawn job LLM baru.
+        Queue::fake();
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail();
+
+        $this->actingAs($user)->post(route('projects.health.contradictions', $project))->assertRedirect();
+        $this->actingAs($user)->post(route('projects.health.contradictions', $project))->assertRedirect();
+
+        Queue::assertPushed(ContradictionCheckJob::class, 1);
+        // klik kedua tidak boleh ikut memotong kuota
+        $this->assertSame(1, $project->workspace->contradictionQuota()['used']);
+    }
+
+    public function test_job_completion_releases_lock(): void
+    {
+        $project = $this->projectWithDocs();
+        Cache::add(ContradictionCheckJob::lockKey($project->id), true, 600);
+
+        (new ContradictionCheckJob($project->id))->handle(app(SpecEngine::class), app(SpecHealthValidator::class));
+
+        $this->assertFalse(Cache::has(ContradictionCheckJob::lockKey($project->id)));
+    }
+
+    public function test_blocked_when_monthly_quota_exhausted(): void
+    {
+        // BR-01: kuota bulanan per plan — free = 3; run ke-4 ditolak tanpa dispatch.
+        Queue::fake();
+        config(['spekta.plans.free.contradiction_checks_per_month' => 1]);
+        $project = $this->projectWithDocs();
+        $user = User::firstOrFail();
+
+        $this->actingAs($user)->post(route('projects.health.contradictions', $project))->assertRedirect();
+        // lepas lock manual (Queue::fake — job tidak pernah jalan)
+        Cache::forget(ContradictionCheckJob::lockKey($project->id));
+
+        $this->actingAs($user)->post(route('projects.health.contradictions', $project))
+            ->assertRedirect()->assertSessionHasErrors('contradiction');
+
+        Queue::assertPushed(ContradictionCheckJob::class, 1);
+        $this->assertSame(1, $project->workspace->contradictionQuota()['used']);
     }
 }

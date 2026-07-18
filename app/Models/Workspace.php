@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class Workspace extends Model
 {
@@ -111,5 +112,31 @@ class Workspace extends Model
             ->where('role', 'user')->where('created_at', '>=', now()->startOfMonth())->count();
 
         return ['used' => $used, 'limit' => $limit, 'plan' => config("spekta.plans.{$plan}.label", ucfirst($plan))];
+    }
+
+    /**
+     * BR-01: pemakaian cek kontradiksi bulan berjalan vs kuota paket (limit null = unlimited).
+     * Panggilan LLM reasoning termahal — kuota terpisah dari chat, counter di cache (driver
+     * database, persisten); kunci mengandung Y-m jadi reset otomatis tiap ganti bulan.
+     */
+    public function contradictionQuota(): array
+    {
+        $plan = $this->subscription?->plan ?? 'free';
+
+        return [
+            'used' => (int) Cache::get($this->contradictionUsageKey(), 0),
+            'limit' => config("spekta.plans.{$plan}.contradiction_checks_per_month"),
+        ];
+    }
+
+    public function recordContradictionCheck(): void
+    {
+        Cache::add($this->contradictionUsageKey(), 0, now()->addDays(45));
+        Cache::increment($this->contradictionUsageKey());
+    }
+
+    private function contradictionUsageKey(): string
+    {
+        return 'contracheck-used:'.$this->id.':'.now()->format('Y-m');
     }
 }

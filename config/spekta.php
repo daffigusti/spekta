@@ -23,6 +23,7 @@ return [
             'price_idr' => 0,
             'blueprints_per_month' => 2,
             'ai_chats_per_month' => 10,
+            'contradiction_checks_per_month' => 3,
             'members' => 1,
             'client_portal' => false,
             'estimator' => true, // MD-only tanpa portal; estimator penuh di Pro (BR-01)
@@ -32,6 +33,7 @@ return [
             'price_idr' => 149_000,
             'blueprints_per_month' => 8,
             'ai_chats_per_month' => 100,
+            'contradiction_checks_per_month' => 20,
             'members' => 3,
             'client_portal' => false,
             'estimator' => true,
@@ -41,6 +43,7 @@ return [
             'price_idr' => 399_000,
             'blueprints_per_month' => 25,
             'ai_chats_per_month' => 400,
+            'contradiction_checks_per_month' => 80,
             'members' => 10,
             'client_portal' => true,
             'estimator' => true,
@@ -51,6 +54,7 @@ return [
             'min_seats' => 3,
             'blueprints_per_month' => null, // unlimited sesuai seat
             'ai_chats_per_month' => null,
+            'contradiction_checks_per_month' => null,
             'members' => null,
             'client_portal' => true,
             'estimator' => true,

@@ -67,6 +67,11 @@ class ProjectController extends Controller
                 ->map(fn ($m) => ['id' => $m->id, 'role' => $m->role, 'body' => $m->body]),
             'chat_stream' => Cache::get('chatstream:'.$project->id),
             'chat_quota' => $project->workspace->chatQuota(),
+            // FR-11(f): status tombol Cek kontradiksi — running dari lock job, kuota untuk label sisa
+            'contradiction' => [
+                'running' => Cache::has(ContradictionCheckJob::lockKey($project->id)),
+                'quota' => $project->workspace->contradictionQuota(),
+            ],
             'change_requests' => $project->changeRequests()->orderByDesc('number')->get()->map(fn ($cr) => [
                 'id' => $cr->id,
                 'label' => $cr->label(),
@@ -138,7 +143,22 @@ class ProjectController extends Controller
     public function checkContradictions(Request $request, Project $project)
     {
         $this->authorizeProject($request, $project);
-        $project->workspace->assertAiAllowed();
+        $workspace = $project->workspace;
+        $workspace->assertAiAllowed();
+
+        // BR-01: kuota bulanan terpisah — panggilan LLM reasoning termahal, jangan cuma gate kredit
+        $quota = $workspace->contradictionQuota();
+        if ($quota['limit'] !== null && $quota['used'] >= $quota['limit']) {
+            return back()->withErrors([
+                'contradiction' => "Kuota cek kontradiksi bulan ini habis ({$quota['used']}/{$quota['limit']}). Upgrade paket untuk menambah.",
+            ]);
+        }
+
+        // Anti dobel-dispatch: lock dilepas job saat selesai/gagal; TTL 600 > timeout job 540
+        if (! Cache::add(ContradictionCheckJob::lockKey($project->id), true, 600)) {
+            return back(); // pemeriksaan masih berjalan
+        }
+        $workspace->recordContradictionCheck();
         ContradictionCheckJob::dispatch($project->id);
 
         return back();
