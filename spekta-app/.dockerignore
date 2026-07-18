@@ -1,0 +1,16 @@
+.git
+node_modules
+vendor
+public/build
+public/hot
+public/storage
+storage/logs/*.log
+storage/framework/cache/data
+storage/framework/sessions
+storage/framework/views
+database/database.sqlite
+.env
+.env.*
+Dockerfile
+.dockerignore
+docker-compose.yml

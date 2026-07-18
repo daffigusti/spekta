@@ -1,0 +1,211 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Jobs\ContradictionCheckJob;
+use App\Models\Project;
+use App\Services\SpecHealthValidator;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Inertia\Inertia;
+
+class ProjectController extends Controller
+{
+    public function store(Request $request)
+    {
+        $workspace = $request->user()->currentWorkspace();
+
+        // FR-16: proyek baru mengikuti template perusahaan default
+        $project = $workspace->projects()->create([
+            'name' => 'Proyek '.now()->format('d M H:i'),
+            'created_by' => $request->user()->id,
+            'doc_template_id' => $workspace->defaultDocTemplate()->id,
+        ]);
+
+        return to_route('projects.wizard', $project);
+    }
+
+    public function show(Request $request, Project $project)
+    {
+        $this->authorizeProject($request, $project);
+
+        // Urut sesuai pipeline (PRD → … → ROADMAP), bukan alfabetis; nomor untuk sidebar
+        $pipeline = config('spekta.doc_pipeline');
+        $order = array_flip(array_keys($pipeline));
+        $all = $project->documents()->with('currentVersion')->get();
+        // Untuk deteksi STALE & label dependency — termasuk WIREFRAMES walau tak tampil di daftar
+        $currentVersions = $all->mapWithKeys(fn ($d) => [$d->doc_key => $d->currentVersion]);
+        // Grup dokumen untuk section header sidebar (config doc_groups) — presentasi saja
+        $groupByKey = collect(config('spekta.doc_groups'))->flatMap(fn ($keys, $g) => array_fill_keys($keys, $g));
+        // WIREFRAMES content JSON — tampil di canvas /wireframes, bukan daftar dokumen markdown
+        $documents = $all->where('doc_key', '!=', 'WIREFRAMES')->values()
+            ->sortBy(fn ($d) => $order[$d->doc_key] ?? 99)->values()->map(function ($d, $i) use ($project, $pipeline, $currentVersions, $groupByKey) {
+                $upstream = collect($pipeline[$d->doc_key] ?? [])->filter(fn ($k) => isset($currentVersions[$k]));
+                $ownAt = $d->currentVersion?->created_at;
+
+                return [
+                    'id' => $d->id,
+                    'seq' => $i + 1,
+                    'doc_key' => $d->doc_key,
+                    'title' => $d->title,
+                    'status' => $d->status,
+                    'group' => $groupByKey[$d->doc_key] ?? 'Lainnya',
+                    'version_no' => $d->currentVersion?->version_no,
+                    'content_md' => $d->currentVersion?->content_md,
+                    'generated_meta' => $d->currentVersion?->generated_meta,
+                    // Dependency dari doc_pipeline, dibatasi dokumen yang ada di proyek ini
+                    'upstream' => $upstream->map(fn ($k) => ['doc_key' => $k, 'version_no' => $currentVersions[$k]?->version_no])->values(),
+                    'downstream' => collect($pipeline)->filter(fn ($deps, $k) => in_array($d->doc_key, $deps) && isset($currentVersions[$k]))->keys()->values(),
+                    // STALE: upstream punya versi lebih baru dari versi dokumen ini (timestamp current version)
+                    'stale' => $ownAt !== null && $upstream->contains(fn ($k) => $currentVersions[$k]?->created_at?->gt($ownAt) ?? false),
+                    // Riwayat versi hanya bahasa primer — baris varian terjemahan lama (fitur sudah dicabut) tidak ikut
+                    'versions' => $d->versions()->where('language', $project->primaryLanguage())->get(['id', 'version_no', 'source', 'label', 'created_at'])->map(fn ($v) => [
+                        'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source, 'label' => $v->label,
+                        'created_at' => $v->created_at->format('d M Y H:i'),
+                    ]),
+                ];
+            });
+
+        // Dimensi Spec Health: rule_key → nama dimensi (config health_dimensions)
+        $dimByRule = collect(config('spekta.health_dimensions'))
+            ->flatMap(fn ($rules, $dim) => array_fill_keys($rules, $dim));
+
+        return Inertia::render('project', [
+            'project' => $project->only(['id', 'name', 'client_name', 'status', 'health_score', 'scope_mode', 'complexity']),
+            'documents' => $documents,
+            'findings' => $project->healthFindings()->where('resolved', false)->get()
+                ->map(fn ($f) => $f->toArray() + ['dimension' => $dimByRule[$f->rule_key] ?? 'Lainnya']),
+            'health_dimensions' => array_keys(config('spekta.health_dimensions')),
+            // RTM — closure agar tidak ikut dievaluasi saat partial reload polling run/kontradiksi
+            'rtm' => fn () => app(SpecHealthValidator::class)->traceabilityMatrix($project),
+            // Open questions: sinkron dari sumber derived, dijawab klien via portal
+            'open_questions' => $this->openQuestions($project),
+            'run' => $project->generationRuns()->with('nodes')->latest()->first(),
+            'missing_doc_keys' => array_values(array_diff(array_keys(config('spekta.doc_pipeline')), $project->documents()->pluck('doc_key')->all())),
+            'share_links' => $project->shareLinks()->latest()->get()->map(fn ($l) => [
+                'id' => $l->id,
+                'url' => route('portal.show', $l->token),
+                'approver_email' => $l->approver_email,
+                'expires_at' => $l->expires_at->format('d M Y'),
+                'active' => $l->isActive(),
+                'approvals_count' => $l->approvals()->count(),
+                'doc_count' => count($l->doc_keys),
+            ]),
+            'assistant_messages' => $project->assistantMessages()->latest()->limit(30)->get()->reverse()->values()
+                ->map(fn ($m) => ['id' => $m->id, 'role' => $m->role, 'body' => $m->body]),
+            'chat_stream' => Cache::get('chatstream:'.$project->id),
+            'chat_quota' => $project->workspace->chatQuota(),
+            // FR-11(f): status tombol Cek kontradiksi — running dari lock job, kuota untuk label sisa
+            'contradiction' => [
+                'running' => Cache::has(ContradictionCheckJob::lockKey($project->id)),
+                'quota' => $project->workspace->contradictionQuota(),
+            ],
+            'change_requests' => $project->changeRequests()->orderByDesc('number')->get()->map(fn ($cr) => [
+                'id' => $cr->id,
+                'label' => $cr->label(),
+                'title' => $cr->title,
+                'source' => $cr->source,
+                'requested_by' => $cr->requested_by,
+                'status' => $cr->status,
+                'delta_md' => $cr->delta_md,
+                'delta_cost' => $cr->delta_cost,
+                'affected_doc_keys' => $cr->affected_doc_keys,
+            ]),
+            'baselines' => $project->baselines()->latest('number')->get(['id', 'number', 'hash', 'approver_email', 'approved_at'])
+                ->map(fn ($b) => [
+                    'id' => $b->id, 'number' => $b->number, 'hash' => substr($b->hash, 0, 12),
+                    'approver_email' => $b->approver_email, 'approved_at' => $b->approved_at->format('d M Y H:i'),
+                ]),
+        ]);
+    }
+
+    /** Canvas wireframe (FR-07 WIREFRAMES) — content JSON dirender frame low-fi per user flow. */
+    public function wireframes(Request $request, Project $project)
+    {
+        $this->authorizeProject($request, $project);
+
+        $doc = $project->documents()->with('currentVersion')->where('doc_key', 'WIREFRAMES')->first();
+
+        return Inertia::render('wireframes', [
+            'project' => $project->only(['id', 'name', 'client_name', 'status']),
+            'document' => $doc ? [
+                'id' => $doc->id,
+                'doc_key' => $doc->doc_key,
+                'title' => $doc->title,
+                'version_no' => $doc->currentVersion?->version_no,
+                'content_md' => $doc->currentVersion?->content_md,
+                'versions' => $doc->versions()->get(['id', 'version_no', 'source', 'created_at'])->map(fn ($v) => [
+                    'id' => $v->id, 'version_no' => $v->version_no, 'source' => $v->source,
+                    'created_at' => $v->created_at->format('d M Y H:i'),
+                ]),
+            ] : null,
+            'run' => $project->generationRuns()->with('nodes')->latest()->first(),
+            'assistant_messages' => $project->assistantMessages()->latest()->limit(30)->get()->reverse()->values()
+                ->map(fn ($m) => ['id' => $m->id, 'role' => $m->role, 'body' => $m->body]),
+            'chat_stream' => Cache::get('chatstream:'.$project->id),
+            'chat_quota' => $project->workspace->chatQuota(),
+        ]);
+    }
+
+    public function update(Request $request, Project $project)
+    {
+        $this->authorizeProject($request, $project);
+        $project->update($request->validate([
+            'name' => 'required|string|max:120',
+            'client_name' => 'nullable|string|max:120',
+        ]));
+
+        return back();
+    }
+
+    public function destroy(Request $request, Project $project)
+    {
+        $this->authorizeProject($request, $project);
+        abort_if(in_array($project->status, ['shared', 'approved']), 403, 'Proyek shared/approved tidak dapat dihapus (BR-29).');
+        $project->delete();
+
+        return to_route('dashboard');
+    }
+
+    /** FR-11(f): trigger manual cek kontradiksi — dispatch job LLM, wajib guard billing (BR-05/BR-02). */
+    public function checkContradictions(Request $request, Project $project)
+    {
+        $this->authorizeProject($request, $project);
+        $workspace = $project->workspace;
+        $workspace->assertAiAllowed();
+
+        // BR-01: kuota bulanan terpisah — panggilan LLM reasoning termahal, jangan cuma gate kredit
+        $quota = $workspace->contradictionQuota();
+        if ($quota['limit'] !== null && $quota['used'] >= $quota['limit']) {
+            return back()->withErrors([
+                'contradiction' => "Kuota cek kontradiksi bulan ini habis ({$quota['used']}/{$quota['limit']}). Upgrade paket untuk menambah.",
+            ]);
+        }
+
+        // Anti dobel-dispatch: lock dilepas job saat selesai/gagal; TTL 600 > timeout job 540
+        if (! Cache::add(ContradictionCheckJob::lockKey($project->id), true, 600)) {
+            return back(); // pemeriksaan masih berjalan
+        }
+        $workspace->recordContradictionCheck();
+        ContradictionCheckJob::dispatch($project->id);
+
+        return back();
+    }
+
+    private function openQuestions(Project $project): array
+    {
+        $project->syncOpenQuestions();
+
+        return $project->openQuestions()->orderBy('created_at')->get()
+            ->map(fn ($q) => [
+                'id' => $q->id, 'source' => $q->source, 'question' => $q->question,
+                'status' => $q->status, 'answer_text' => $q->answer_text, 'answered_by' => $q->answered_by,
+            ])->all();
+    }
+
+    public static function authorizeProject(Request $request, Project $project): void
+    {
+        $workspace = $request->user()->currentWorkspace();
+        abort_unless($workspace && $project->workspace_id === $workspace->id, 403);
+    }
+}
