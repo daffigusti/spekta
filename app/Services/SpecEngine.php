@@ -125,13 +125,13 @@ SYS, $ctx);
             $meta = ['model' => 'stub', 'tokens_in' => 0, 'tokens_out' => 0];
         } elseif ($docKey === 'WIREFRAMES') {
             // FR-07: wireframe low-fi per user flow — content JSON, dirender canvas /projects/{id}/wireframes
-            $ctx = $this->documentContext($project, $upstreamDocs);
+            $ctx = $this->documentContext($project, $upstreamDocs, $docKey);
             $md = $this->text('standard', self::WIREFRAME_SYSTEM, $ctx, $tokensIn, $tokensOut, $onDelta);
             $md = preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md)); // buang code fence bila model membungkus
             $meta = ['model' => config('spekta.llm.models.standard'), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
         } else {
             $class = in_array($docKey, ['PRD', 'ARCHITECTURE', 'SECURITY']) ? 'reasoning' : 'standard';
-            $ctx = $this->documentContext($project, $upstreamDocs);
+            $ctx = $this->documentContext($project, $upstreamDocs, $docKey);
             // Bahasa: blueprint proyek menang, lalu template perusahaan, lalu default id
             $langLine = match ($project->blueprint['language'] ?? $project->docTemplate?->language ?? 'id') {
                 'en' => 'Write entirely in English.',
@@ -423,7 +423,7 @@ SYS, implode("\n\n", $ctx), $ti, $to, $onDelta);
 Kamu technical writer software house Indonesia. Dokumen $docKey gagal validasi spec health.
 Perbaiki HANYA bagian yang berkaitan dengan temuan di bawah; DILARANG mengubah, meringkas, atau menghapus bagian lain.
 $format
-SYS, "TEMUAN VALIDASI:\n$list\n\nKONTEKS PROYEK:\n".$this->documentContext($project, [])
+SYS, "TEMUAN VALIDASI:\n$list\n\nKONTEKS PROYEK:\n".$this->documentContext($project, [], $docKey)
             ."\n\n=== DOKUMEN SAAT INI ($docKey) ===\n".$currentMd, $ti, $to);
 
         if ($docKey === 'WIREFRAMES') {
@@ -459,7 +459,7 @@ Kamu technical writer software house Indonesia. Revisi dokumen $docKey sesuai IN
 Revisi = salin seluruh dokumen lalu ubah bagian yang terdampak; DILARANG meringkas, memotong, atau menghapus seksi yang tidak berkaitan.
 Jaga konsistensi nomor FR/BR, entity, dan istilah dengan dokumen upstream di konteks.
 $format
-SYS, "INSTRUKSI PERUBAHAN:\n$instruction\n\nKONTEKS PROYEK:\n".$this->documentContext($project, $upstreamDocs)
+SYS, "INSTRUKSI PERUBAHAN:\n$instruction\n\nKONTEKS PROYEK:\n".$this->documentContext($project, $upstreamDocs, $docKey)
             ."\n\n=== DOKUMEN SAAT INI ($docKey) ===\n".$currentMd, $ti, $to, $onDelta);
 
         if ($docKey === 'WIREFRAMES') {
@@ -500,7 +500,8 @@ SYS, $ctx);
         return array_values(array_filter($out['contradictions'] ?? [], 'is_array'));
     }
 
-    private function documentContext(Project $project, array $upstreamDocs): string
+    /** $forDocKey: dokumen yang sedang di-generate — REQUIREMENTS dilewati supaya regen-nya tidak terjangkar fakta lama. */
+    private function documentContext(Project $project, array $upstreamDocs, ?string $forDocKey = null): string
     {
         $u = $project->understanding;
         $parts = [
@@ -514,11 +515,57 @@ SYS, $ctx);
             "INPUT ASLI USER:\n".$this->rawInput($project, 6000),
             'HASIL INTERVIEW (klarifikasi user): '.json_encode($this->interviewAnswers($project), JSON_UNESCAPED_UNICODE),
         ];
+        // Fact-sheet kanonik: sumber kontradiksi paling umum = angka geser antar dokumen,
+        // karena tiap panggilan LLM buta terhadap dokumen saudara. Suntik daftar fakta yang sama
+        // ke SEMUA generate/regen/repair — pencegahan di hulu, pelengkap cek kontradiksi di hilir.
+        if ($forDocKey !== 'REQUIREMENTS' && ($facts = $this->factSheet($project)) !== []) {
+            $parts[] = "FAKTA KANONIK dari REQUIREMENTS (WAJIB dipatuhi persis — jangan ubah angka/limit/aturan):\n- ".implode("\n- ", $facts);
+        }
+
         foreach ($upstreamDocs as $key => $content) {
             $parts[] = "=== UPSTREAM $key.md ===\n".$content;
         }
 
         return implode("\n\n", $parts);
+    }
+
+    /**
+     * Fakta kanonik (angka, limit, kuota, aturan keras) dari REQUIREMENTS versi current.
+     * Lazy per versi: hasil disimpan di generated_meta versi ybs — edit manual/regen membuat
+     * versi baru tanpa fact_sheet sehingga otomatis diekstrak ulang; tidak pernah basi.
+     */
+    public function factSheet(Project $project): array
+    {
+        $version = $project->documents()->where('doc_key', 'REQUIREMENTS')->first()?->currentVersion;
+        if (! $version || ! $version->content_md) {
+            return [];
+        }
+
+        $meta = $version->generated_meta ?? [];
+        if (array_key_exists('fact_sheet', $meta)) {
+            return is_array($meta['fact_sheet']) ? $meta['fact_sheet'] : [];
+        }
+
+        $facts = $this->extractFacts((string) $version->content_md);
+        $version->update(['generated_meta' => array_merge($meta, ['fact_sheet' => $facts])]);
+
+        return $facts;
+    }
+
+    private function extractFacts(string $md): array
+    {
+        if ($this->driver() === 'stub') {
+            return [];
+        }
+
+        $out = $this->json('standard', <<<'SYS'
+Kamu ekstraktor fakta spesifikasi software. Dari dokumen berikut keluarkan FAKTA KANONIK:
+angka, limit, kuota, persen, durasi, dan aturan bisnis keras — hal yang bila berbeda
+di dokumen lain menjadi kontradiksi. Satu fakta = satu kalimat pendek deklaratif,
+sebut kode FR/BR bila ada. Maksimal 30 fakta terpenting. Balas JSON: {"facts":["…"]}
+SYS, Str::limit($md, 15000, '… [dipotong]'));
+
+        return array_values(array_filter($out['facts'] ?? [], 'is_string'));
     }
 
     /** Gabungan seluruh raw input proyek, dipotong dari depan (bagian awal paling padat konteks). */
