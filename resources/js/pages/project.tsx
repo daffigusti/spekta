@@ -4,6 +4,7 @@ import { marked } from 'marked';
 import { useEffect, useMemo, useState } from 'react';
 
 import AssistantDrawer, { AssistantButton } from '@/components/assistant-drawer';
+import ImpactDialog from '@/components/impact-dialog';
 import MarkdownPreview from '@/components/markdown-preview';
 import { confirmDialog, promptDialog } from '@/components/system-dialog';
 import SpektaLayout from '@/layouts/spekta-layout';
@@ -210,6 +211,8 @@ export default function ProjectPage({
     const [draft, setDraft] = useState('');
     const [chatOpen, setChatOpen] = useState(false);
     const [chatPrefill, setChatPrefill] = useState<string | null>(null);
+    // FR-09/FR-10: dialog "Usulkan perubahan" — analisa dampak lalu regenerate dokumen terpilih
+    const [impactOpen, setImpactOpen] = useState(false);
     // modal pilih dokumen lanjutan — default tidak ada yang tercentang
     const [genModal, setGenModal] = useState(false);
     const [genSel, setGenSel] = useState<Set<string>>(new Set());
@@ -367,6 +370,13 @@ export default function ProjectPage({
                         Estimasi &amp; RAB
                     </Link>
                     <button
+                        type="button"
+                        className="inline-flex items-center gap-1.5 rounded-[10px] border border-gray-200 bg-white px-4 py-2 text-[13px] font-bold text-gray-700 hover:bg-gray-50"
+                        onClick={() => setImpactOpen(true)}
+                    >
+                        Usulkan perubahan
+                    </button>
+                    <button
                         className="inline-flex items-center gap-1.5 rounded-[10px] border-2 border-teal-600 bg-white px-4 py-2 text-[13px] font-bold text-teal-800 hover:bg-teal-50"
                         onClick={async () => {
                             // ponytail: prompt-flow, form modal nanti kalau perlu
@@ -509,6 +519,12 @@ export default function ProjectPage({
                                             }}
                                         >
                                             Isi impact
+                                        </button>
+                                        <button
+                                            className="font-bold text-teal-700 hover:text-teal-900"
+                                            onClick={() => router.post(route('projects.cr.impact-ai', [project.id, cr.id]), {}, { preserveScroll: true })}
+                                        >
+                                            ✦ Impact AI
                                         </button>
                                         <button
                                             className="font-bold text-gray-400 hover:text-red-600"
@@ -916,6 +932,9 @@ export default function ProjectPage({
                     </div>
                 </div>
             )}
+
+            {/* FR-09/FR-10: dialog "Usulkan perubahan" — analisa dampak + regenerate dokumen terpilih */}
+            <ImpactDialog projectId={project.id} open={impactOpen} onClose={() => setImpactOpen(false)} creditsError={errors.credits} />
 
             {/* drawer chat asisten dari kanan */}
             <AssistantDrawer
