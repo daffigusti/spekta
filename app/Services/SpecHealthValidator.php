@@ -223,8 +223,10 @@ class SpecHealthValidator
             if (in_array($key, ['REQUIREMENTS', 'WIREFRAMES']) || $md === '') {
                 continue; // REQUIREMENTS = sumber kanon; WIREFRAMES = JSON layout, koordinatnya bukan klaim
             }
-            // buang blok kode/mermaid — angka di dalamnya bukan klaim requirement
+            // buang blok kode/mermaid + baris heading — angka di dalamnya bukan klaim requirement
+            // (heading "### 1.7 Pagination" = nomor bab, bukan fakta angka)
             $clean = preg_replace('/^```.*?^```/ms', '', $md) ?? $md;
+            $clean = preg_replace('/^#{1,6}[^\n]*$/m', '', $clean) ?? $clean;
             foreach (self::numberKeywordPairs($clean) as [$num, $kw]) {
                 if (! isset($canon[$kw]) || isset($canon[$kw][$num]) || isset($seen["$key|$kw"])) {
                     continue;
@@ -251,7 +253,8 @@ class SpecHealthValidator
         $stop = ['dan', 'atau', 'yang', 'dari', 'untuk', 'pada', 'dengan', 'per', 'tiap', 'setiap', 'paling',
             'lebih', 'kurang', 'maksimal', 'maksimum', 'minimal', 'minimum', 'maks', 'min', 'hingga', 'sampai',
             'adalah', 'harus', 'wajib', 'bila', 'jika', 'the', 'and', 'max', 'most', 'least', 'atas', 'bawah'];
-        $codePrefix = ['fr', 'br', 'adr', 'v', 'versi', 'version', 'fase', 'phase', 'sprint', 'p'];
+        $codePrefix = ['fr', 'br', 'adr', 'v', 'versi', 'version', 'fase', 'phase', 'sprint', 'p',
+            'bagian', 'section', 'bab', 'nomor', 'no'];
 
         $pairs = [];
         foreach ($tokens as $i => $t) {
@@ -260,6 +263,10 @@ class SpecHealthValidator
             }
             // bukan klaim angka: kode FR-12/BR-05/v2/Fase 1, dan tahun
             if (in_array($tokens[$i - 1] ?? '', $codePrefix)) {
+                continue;
+            }
+            // leading zero ("04", "01") = penomoran section/file, bukan kuantitas
+            if (preg_match('/^0\d/', $t)) {
                 continue;
             }
             $n = (int) $t;

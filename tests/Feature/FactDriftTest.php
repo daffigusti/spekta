@@ -56,6 +56,21 @@ class FactDriftTest extends TestCase
         ]));
     }
 
+    public function test_heading_numbers_and_section_numbering_not_flagged(): void
+    {
+        // "1.7 Pagination" di heading = nomor bab, bukan klaim; "04" leading-zero = penomoran
+        $facts = ['Bagian 04 Pagination: default 10 item per halaman (FR-04)'];
+
+        $this->assertSame([], SpecHealthValidator::factDriftFindings($facts, [
+            'API' => "### 1.7 Pagination\n\nDefault 10 item per halaman, lihat bagian 04 pagination.",
+        ]));
+
+        // angka di badan teks tetap kena bila menyimpang dari kanon
+        $this->assertCount(1, SpecHealthValidator::factDriftFindings($facts, [
+            'API' => "### 1.7 Pagination\n\nDefault 50 item per halaman.",
+        ]));
+    }
+
     public function test_validator_run_persists_fact_drift_finding(): void
     {
         config(['spekta.llm.driver' => 'stub']);
