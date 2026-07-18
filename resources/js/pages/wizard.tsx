@@ -1,11 +1,11 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import MarkdownPreview from '@/components/markdown-preview';
 import { confirmDialog, promptDialog, selectDialog } from '@/components/system-dialog';
-import SpektaLayout from '@/layouts/spekta-layout';
+import WorkspaceLayout from '@/layouts/workspace-layout';
 import {
     Building2,
     CalendarCheck,
@@ -2054,9 +2054,16 @@ export default function Wizard(props: Props) {
     }, [emptyDraft, props.project.id]);
 
     return (
-        <SpektaLayout crumb={props.project.name} active="projects">
+        <WorkspaceLayout>
             <Head title={`${props.project.name} — Wizard`} />
             <div className="w-full">
+                <div className="mb-3 flex items-center gap-2 text-[13px]">
+                    <Link href={route('dashboard')} className="font-bold text-gray-500 hover:text-teal-700">
+                        ← Proyek
+                    </Link>
+                    <span className="text-gray-300">/</span>
+                    <span className="font-extrabold text-gray-900">{props.project.name}</span>
+                </div>
                 <Stepper current={step} />
                 {step === 'input' && <StepInput project={props.project} input={props.input} />}
                 {step === 'understanding' && <StepUnderstanding project={props.project} understanding={props.understanding} />}
@@ -2074,6 +2081,6 @@ export default function Wizard(props: Props) {
                     <StepGenerate project={props.project} run={props.run} stream={props.stream} credits={props.credits} errors={props.errors} />
                 )}
             </div>
-        </SpektaLayout>
+        </WorkspaceLayout>
     );
 }

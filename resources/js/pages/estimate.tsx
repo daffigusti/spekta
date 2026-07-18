@@ -5,7 +5,7 @@ import { confirmDialog } from '@/components/system-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import SpektaLayout from '@/layouts/spekta-layout';
+import WorkspaceLayout from '@/layouts/workspace-layout';
 import { fmtMoneyCompact } from '@/lib/currency';
 
 type Line = {
@@ -185,7 +185,7 @@ export default function EstimatePage({ project, estimates, workModes }: Props) {
     const team = est?.team_composition?.map((t) => `${t.md} ${t.role}`).join(' · ');
 
     return (
-        <SpektaLayout crumb={`${project.name} · Estimasi`} active="projects">
+        <WorkspaceLayout>
             <Head title={`${project.name} — Estimasi & RAB`} />
 
             <div className="mb-4">
@@ -464,6 +464,6 @@ export default function EstimatePage({ project, estimates, workModes }: Props) {
             )}
 
             {overriding && <OverrideDialog line={overriding} busy={busy} onSubmit={submitOverride} onClose={() => setOverriding(null)} />}
-        </SpektaLayout>
+        </WorkspaceLayout>
     );
 }

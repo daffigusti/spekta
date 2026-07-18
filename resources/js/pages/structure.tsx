@@ -1,6 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 
-import SpektaLayout from '@/layouts/spekta-layout';
+import WorkspaceLayout from '@/layouts/workspace-layout';
 import { StepStructure, type Node, type StepJob } from '@/pages/wizard';
 
 type Props = {
@@ -12,10 +12,9 @@ type Props = {
 // FR-04/FR-05: canvas struktur sebagai halaman sendiri, full body (di luar wizard)
 export default function Structure({ project, nodes, step_job }: Props) {
     return (
-        <SpektaLayout crumb={project.name} active="projects">
+        <WorkspaceLayout fullBleed>
             <Head title={`Struktur — ${project.name}`} />
-            {/* -m-7 batalkan padding <main>; 60px = tinggi topbar */}
-            <div className="-m-7 flex h-[calc(100vh-60px)] flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex flex-none items-center gap-3 border-b border-gray-200 bg-white px-6 py-3">
                     <Link href={route('projects.show', project.id)} className="text-[13px] font-bold text-gray-500 hover:text-teal-700">
                         ← {project.name}
@@ -27,6 +26,6 @@ export default function Structure({ project, nodes, step_job }: Props) {
                     <StepStructure project={project} nodes={nodes} step_job={step_job} fullHeight />
                 </div>
             </div>
-        </SpektaLayout>
+        </WorkspaceLayout>
     );
 }

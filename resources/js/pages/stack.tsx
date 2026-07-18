@@ -1,6 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 
-import SpektaLayout from '@/layouts/spekta-layout';
+import WorkspaceLayout from '@/layouts/workspace-layout';
 import { StepStack, type StackLayer, type Understanding } from '@/pages/wizard';
 
 type Props = {
@@ -12,7 +12,7 @@ type Props = {
 // FR-06: rekomendasi stack sebagai halaman sendiri (bukan bagian wizard)
 export default function Stack({ project, stack, understanding }: Props) {
     return (
-        <SpektaLayout crumb={project.name} active="projects">
+        <WorkspaceLayout>
             <Head title={`Stack — ${project.name}`} />
             <div className="w-full px-6 py-6">
                 <Link href={route('projects.show', project.id)} className="text-[13px] font-bold text-gray-500 hover:text-teal-700">
@@ -22,6 +22,6 @@ export default function Stack({ project, stack, understanding }: Props) {
                     <StepStack project={project} stack={stack} understanding={understanding} />
                 </div>
             </div>
-        </SpektaLayout>
+        </WorkspaceLayout>
     );
 }

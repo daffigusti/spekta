@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import AssistantDrawer from '@/components/assistant-drawer';
 import { confirmDialog } from '@/components/system-dialog';
-import SpektaLayout from '@/layouts/spekta-layout';
+import WorkspaceLayout from '@/layouts/workspace-layout';
 
 // ---- skema wireframe (lihat SpecEngine::WIREFRAME_SYSTEM) ----
 type Field = { el: string; label?: string; variant?: string };
@@ -363,10 +363,9 @@ export default function WireframesPage({
     const wireframeNode = run?.nodes.find((n) => n.doc_key === 'WIREFRAMES');
 
     return (
-        <SpektaLayout crumb={project.name} active="projects">
+        <WorkspaceLayout fullBleed>
             <Head title={`Wireframe — ${project.name}`} />
-            {/* -m-7 batalkan padding <main>; 60px = tinggi topbar */}
-            <div className="-m-7 flex h-[calc(100vh-60px)] flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex flex-none flex-wrap items-center gap-3 border-b border-gray-200 bg-white px-6 py-3">
                     <Link href={route('projects.show', project.id)} className="text-[13px] font-bold text-gray-500 hover:text-teal-700">
                         ← {project.name}
@@ -664,6 +663,6 @@ export default function WireframesPage({
                     'Minta perubahan wireframe — mis. "Tambah kolom No. Telepon di form registrasi" atau "Tambah layar konfirmasi setelah checkout".'
                 }
             />
-        </SpektaLayout>
+        </WorkspaceLayout>
     );
 }
