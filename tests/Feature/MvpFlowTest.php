@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Project;
 use App\Models\User;
+use App\Services\Exporter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -135,6 +136,17 @@ class MvpFlowTest extends TestCase
         // 11. Export ZIP + agent pack (FR-21)
         $this->get("/projects/{$project->id}/export/zip")->assertOk()->assertDownload();
         $this->get("/projects/{$project->id}/export/agent_pack")->assertOk()->assertDownload();
+
+        // tasks.md ber-nomor FR + pointer AC & skenario uji — WBS siap dieksekusi AI agent
+        $path = app(Exporter::class)->zip($project, 'agent_pack');
+        $zip = new \ZipArchive;
+        $zip->open($path);
+        $tasksMd = $zip->getFromName('tasks.md');
+        $zip->close();
+        unlink($path);
+        $this->assertStringContainsString('FR-01 —', $tasksMd);
+        $this->assertStringContainsString('AC: REQUIREMENTS.md §FR-01', $tasksMd);
+        $this->assertStringContainsString('Uji: TESTING.md §TS-FR-01', $tasksMd); // kompleksitas 3 → TESTING ada
 
         // 12. Kredit habis → generate ditolak (BR-02 enforcement)
         $this->post('/projects');

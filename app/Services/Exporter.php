@@ -170,11 +170,28 @@ $assumptions
 - Perubahan scope memerlukan Change Request — jangan implementasi di luar spec.
 MD;
 
-        $tasks = "# tasks.md — breakdown eksekusi\n\n";
+        // Nomor FR = urutan fitur di struktur (konsisten dgn scopeByFr/template PRD) — pointer
+        // deterministik ke AC & skenario uji; konsumen (AI agent) baca dokumen lengkap sendiri, tanpa LLM di sini
+        $docKeys = $project->documents->pluck('doc_key')->all();
+        $tasks = "# tasks.md — breakdown eksekusi\n\n"
+            ."Urutan fase = urutan pengerjaan. Task selesai bila acceptance criteria (AC) terpenuhi dan skenario ujinya hijau.\n\n";
+        $i = 1;
         foreach (app(SpecEngine::class)->structureArray($project) as $phase) {
             $tasks .= "## {$phase['phase']}\n\n";
             foreach ($phase['features'] as $f) {
-                $tasks .= "- [ ] **{$f['title']}** ({$f['est_md']} MD, scope {$f['scope']})\n";
+                $fr = sprintf('FR-%02d', $i++);
+                $prio = strtoupper($f['scope']) === 'MVP' ? 'P0' : 'P1';
+                $tasks .= "- [ ] **{$fr} — {$f['title']}** ({$f['est_md']} MD, {$prio})\n";
+                $refs = [];
+                if (in_array('REQUIREMENTS', $docKeys)) {
+                    $refs[] = "AC: REQUIREMENTS.md §{$fr}";
+                }
+                if (in_array('TESTING', $docKeys)) {
+                    $refs[] = "Uji: TESTING.md §TS-{$fr}";
+                }
+                if ($refs) {
+                    $tasks .= '      '.implode(' · ', $refs)."\n";
+                }
                 foreach ($f['subfeatures'] as $sub) {
                     $tasks .= "  - [ ] {$sub['title']}\n";
                 }
