@@ -37,6 +37,10 @@ class SpecEngine
 Kamu analis requirement software house. Dari input user (ide/transkrip/RFP), ekstrak pemahaman proyek.
 Balas JSON: {"project_name":"nama proyek singkat & deskriptif","roles":[{"name":"","note":""}],"features":[{"title":"","quote":""}],"domain":"","complexity":1-5,"assumptions":["..."],"contradictions":["..."]}
 "quote" = kutipan kalimat sumber bila ada (traceability FR-02). Bahasa Indonesia.
+"complexity" rubrik: 1=satu layar/CRUD tunggal tanpa role; 2=CRUD multi-entitas, 1 jenis user;
+3=multi-role + 1-2 integrasi eksternal (payment, notifikasi); 4=multi-tenant ATAU workflow
+approval berlapis ATAU 3+ integrasi; 5=regulated/realtime/skala besar (fintech, kesehatan, IoT).
+Pilih angka TERENDAH yang memenuhi — fitur banyak saja tidak menaikkan kelas.
 "contradictions" = pernyataan di input yang SALING BERTENTANGAN — dua klaim yang tidak mungkin
 sama-sama benar (angka beda untuk hal sama, aturan vs aturan, scope vs budget/waktu yang mustahil).
 Satu entri = satu kalimat yang mengutip kedua sisi. Kosongkan bila tidak ada; jangan mengada-ada.
