@@ -92,6 +92,9 @@ class Project extends Model
     /**
      * Sinkronkan open questions dari sumber derived (interview skip, asumsi,
      * kontradiksi input). Idempoten via question_hash; item answered tidak disentuh.
+     * Item derived yang belum terjawab dan sudah hilang dari sumbernya (mis. asumsi
+     * lama setelah regenerate understanding) ikut dihapus — tanpa ini regenerate
+     * menumpuk duplikat topik dengan kalimat beda.
      */
     public function syncOpenQuestions(): void
     {
@@ -100,17 +103,24 @@ class Project extends Model
             'assumption' => $this->understanding?->assumptions ?? [],
             'contradiction' => $this->understanding?->contradictions ?? [],
         ];
+        $hashes = [];
         foreach ($sources as $source => $questions) {
             foreach ($questions as $q) {
                 if (! is_string($q) || $q === '') {
                     continue;
                 }
+                $hashes[] = $hash = sha1("$source|$q");
                 $this->openQuestions()->firstOrCreate(
-                    ['question_hash' => sha1("$source|$q")],
+                    ['question_hash' => $hash],
                     ['source' => $source, 'question' => $q],
                 );
             }
         }
+        $this->openQuestions()
+            ->whereIn('source', array_keys($sources))
+            ->where('status', 'open')
+            ->whereNotIn('question_hash', $hashes)
+            ->delete();
     }
 
     public function estimates()

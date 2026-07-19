@@ -83,4 +83,30 @@ class OpenQuestionPortalTest extends TestCase
                 ->where('open_questions.0.status', 'answered')
                 ->where('open_questions.0.answer_text', 'Ya, WhatsApp Business API'));
     }
+
+    /** Regenerate understanding mengganti asumsi — sync harus hapus OQ stale yang belum
+     *  terjawab, tapi OQ answered tetap dipertahankan (jejak jawaban klien). */
+    public function test_sync_removes_stale_unanswered_open_questions(): void
+    {
+        [$project] = $this->makeShared();
+
+        $project->understanding()->create([
+            'roles' => [], 'features' => [], 'domain' => 'x', 'complexity' => 2,
+            'assumptions' => ['Asumsi baru setelah regenerate'], 'contradictions' => [],
+        ]);
+        $project->openQuestions()->create([
+            'source' => 'assumption', 'question' => 'Asumsi lama sudah dijawab',
+            'question_hash' => sha1('assumption|Asumsi lama sudah dijawab'),
+            'status' => 'answered', 'answer_text' => 'Sudah', 'answered_by' => 'k@a.co', 'answered_at' => now(),
+        ]);
+
+        $project->syncOpenQuestions();
+
+        $questions = $project->openQuestions()->pluck('status', 'question');
+        // stale unanswered (dari makeShared) terhapus
+        $this->assertArrayNotHasKey('Apakah perlu integrasi WhatsApp?', $questions);
+        // stale answered dipertahankan, asumsi terkini dibuat
+        $this->assertSame('answered', $questions['Asumsi lama sudah dijawab']);
+        $this->assertSame('open', $questions['Asumsi baru setelah regenerate']);
+    }
 }
