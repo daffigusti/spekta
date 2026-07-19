@@ -2,13 +2,14 @@ import AppLogoIcon from '@/components/app-logo-icon';
 import { Link } from '@inertiajs/react';
 import { PropsWithChildren, useState } from 'react';
 
+// Palet "CetakBiru App Dark - Midnight" — sama dengan dark mode app.css
 const teal = {
-    bg: '#031716',
-    card: 'rgba(4,47,46,0.6)',
-    line: 'rgba(94,234,212,0.2)',
-    lineSoft: 'rgba(94,234,212,0.12)',
-    text: '#D1FAF5',
-    muted: '#99F6E4',
+    bg: '#090D14',
+    card: 'rgba(16,22,35,0.7)',
+    line: 'rgba(148,163,184,0.2)',
+    lineSoft: 'rgba(148,163,184,0.1)',
+    text: '#E2E8F0',
+    muted: '#94A3B8',
     accent: '#2DD4BF',
     accent2: '#5EEAD4',
 };
@@ -54,7 +55,7 @@ export function SpektaAuthShell({ children, active }: PropsWithChildren<{ active
                     position: 'absolute',
                     inset: 0,
                     pointerEvents: 'none',
-                    background: 'radial-gradient(640px 420px at 50% -80px,rgba(20,184,166,0.25),transparent 70%)',
+                    background: 'radial-gradient(640px 420px at 50% -80px,rgba(20,184,166,0.18),transparent 70%)',
                 }}
             />
             <div
@@ -64,14 +65,15 @@ export function SpektaAuthShell({ children, active }: PropsWithChildren<{ active
                     pointerEvents: 'none',
                     opacity: 0.3,
                     backgroundImage:
-                        'linear-gradient(rgba(94,234,212,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(94,234,212,0.07) 1px,transparent 1px)',
+                        'linear-gradient(rgba(148,163,184,0.06) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,0.06) 1px,transparent 1px)',
                     backgroundSize: '56px 56px',
                     maskImage: 'radial-gradient(700px 560px at 50% 30%,#000 30%,transparent 100%)',
                     WebkitMaskImage: 'radial-gradient(700px 560px at 50% 30%,#000 30%,transparent 100%)',
                 }}
             />
 
-            <Link href="/" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 30, textDecoration: 'none' }}>
+            {/* landing "/" = Blade non-Inertia — wajib <a> biasa, bukan <Link> */}
+            <a href="/" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 30, textDecoration: 'none' }}>
                 <div
                     style={{
                         width: 34,
@@ -89,7 +91,7 @@ export function SpektaAuthShell({ children, active }: PropsWithChildren<{ active
                 <span style={{ fontSize: 17, fontWeight: 800, color: '#fff', fontFamily: "'Sora',sans-serif", letterSpacing: '-0.01em' }}>
                     Spekta<span style={{ color: '#F5A623' }}>.</span>
                 </span>
-            </Link>
+            </a>
 
             <div
                 style={{
@@ -170,9 +172,9 @@ export function SpektaAuthShell({ children, active }: PropsWithChildren<{ active
                     </svg>
                     Spec Anda milik Anda
                 </span>
-                <Link href="/" style={{ color: teal.accent2 }}>
+                <a href="/" style={{ color: teal.accent2 }}>
                     ← Beranda
-                </Link>
+                </a>
             </div>
         </div>
     );
@@ -181,7 +183,7 @@ export function SpektaAuthShell({ children, active }: PropsWithChildren<{ active
 export const authField: React.CSSProperties = {
     width: '100%',
     boxSizing: 'border-box',
-    border: '1px solid rgba(94,234,212,0.25)',
+    border: '1px solid rgba(148,163,184,0.28)',
     borderRadius: 10,
     padding: '11px 13px',
     fontSize: 13.5,
@@ -194,7 +196,7 @@ export const authField: React.CSSProperties = {
 export const authLabel: React.CSSProperties = {
     fontSize: 12,
     fontWeight: 700,
-    color: '#CCFBF1',
+    color: '#E2E8F0',
     marginBottom: 6,
 };
 
@@ -271,9 +273,9 @@ export function GoogleDivider() {
                 Lanjutkan dengan Google <span style={{ fontSize: 10, fontWeight: 800, color: '#0D9488' }}>SEGERA</span>
             </button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
-                <div style={{ flex: 1, height: 1, background: 'rgba(94,234,212,0.15)' }} />
+                <div style={{ flex: 1, height: 1, background: 'rgba(148,163,184,0.15)' }} />
                 <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', color: '#5EEAD4', opacity: 0.7 }}>ATAU DENGAN EMAIL</span>
-                <div style={{ flex: 1, height: 1, background: 'rgba(94,234,212,0.15)' }} />
+                <div style={{ flex: 1, height: 1, background: 'rgba(148,163,184,0.15)' }} />
             </div>
         </>
     );

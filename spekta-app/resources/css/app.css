@@ -114,39 +114,39 @@
     --sidebar-ring: hsl(217.2, 91.2%, 59.8%);
 }
 
-/* Dark mode "CetakBiru App Dark" (desain claude.ai/design) — teal gelap, bukan abu-abu netral */
+/* Dark mode "CetakBiru App Dark - Midnight" (desain claude.ai/design) — navy slate, aksen teal */
 .dark {
-    --background: #031716;
-    --foreground: #d1faf5;
-    --card: #04211f;
-    --card-foreground: #d1faf5;
-    --popover: #04211f;
-    --popover-foreground: #d1faf5;
+    --background: #090d14;
+    --foreground: #e2e8f0;
+    --card: #101623;
+    --card-foreground: #e2e8f0;
+    --popover: #101623;
+    --popover-foreground: #e2e8f0;
     --primary: #2dd4bf;
     --primary-foreground: #042f2e;
     --secondary: rgba(45, 212, 191, 0.12);
-    --secondary-foreground: #99f6e4;
-    --muted: rgba(255, 255, 255, 0.05);
-    --muted-foreground: rgba(153, 246, 228, 0.65);
+    --secondary-foreground: #5eead4;
+    --muted: rgba(255, 255, 255, 0.04);
+    --muted-foreground: #94a3b8;
     --accent: rgba(45, 212, 191, 0.12);
     --accent-foreground: #5eead4;
     --destructive: hsl(0, 84%, 60%);
     --destructive-foreground: hsl(0, 0%, 98%);
-    --border: rgba(94, 234, 212, 0.18);
-    --input: rgba(94, 234, 212, 0.25);
+    --border: rgba(148, 163, 184, 0.2);
+    --input: rgba(148, 163, 184, 0.28);
     --ring: #2dd4bf;
     --chart-1: hsl(220, 70%, 50%);
     --chart-2: hsl(160, 60%, 45%);
     --chart-3: hsl(30, 80%, 55%);
     --chart-4: hsl(280, 65%, 60%);
     --chart-5: hsl(340, 75%, 55%);
-    --sidebar-background: #04211f;
-    --sidebar-foreground: rgba(153, 246, 228, 0.75);
+    --sidebar-background: #101623;
+    --sidebar-foreground: rgba(203, 213, 225, 0.78);
     --sidebar-primary: #2dd4bf;
     --sidebar-primary-foreground: #042f2e;
     --sidebar-accent: rgba(45, 212, 191, 0.12);
     --sidebar-accent-foreground: #5eead4;
-    --sidebar-border: rgba(94, 234, 212, 0.18);
+    --sidebar-border: rgba(148, 163, 184, 0.2);
     --sidebar-ring: #2dd4bf;
 }
 
@@ -154,20 +154,20 @@
   Remap skala warna Tailwind di dark mode. Halaman member memakai kelas literal
   (bg-white, text-gray-700, dst) — utility Tailwind v4 dikompilasi ke var(--color-*),
   jadi satu blok ini men-skin semua halaman tanpa menyentuh ribuan className.
-  Nilai diambil dari desain "CetakBiru App Dark".
+  Nilai diambil dari desain "CetakBiru App Dark - Midnight".
 */
 .dark {
-    --color-white: #04211f; /* panel/kartu; text-white di tombol teal jadi gelap — sesuai desain */
-    --color-gray-50: #031716; /* latar halaman */
-    --color-gray-100: rgba(255, 255, 255, 0.05);
-    --color-gray-200: rgba(94, 234, 212, 0.18); /* border utama */
-    --color-gray-300: rgba(153, 246, 228, 0.28);
-    --color-gray-400: rgba(153, 246, 228, 0.5);
-    --color-gray-500: rgba(153, 246, 228, 0.62);
-    --color-gray-600: rgba(153, 246, 228, 0.75);
-    --color-gray-700: #d1faf5;
-    --color-gray-800: #e4fbf6;
-    --color-gray-900: #f0fdfa;
+    --color-white: #101623; /* panel/kartu; text-white di tombol teal jadi gelap — sesuai desain */
+    --color-gray-50: #090d14; /* latar halaman */
+    --color-gray-100: rgba(148, 163, 184, 0.1);
+    --color-gray-200: rgba(148, 163, 184, 0.2); /* border utama */
+    --color-gray-300: rgba(148, 163, 184, 0.42);
+    --color-gray-400: rgba(203, 213, 225, 0.55);
+    --color-gray-500: #94a3b8;
+    --color-gray-600: rgba(203, 213, 225, 0.78);
+    --color-gray-700: #cbd5e1;
+    --color-gray-800: #e2e8f0;
+    --color-gray-900: #f1f5f9;
 
     --color-teal-50: rgba(45, 212, 191, 0.12);
     --color-teal-100: rgba(45, 212, 191, 0.2);
@@ -216,22 +216,22 @@
 
 /* Preview markdown: plugin typography pakai var --tw-prose-* sendiri (bukan --color-*) */
 .dark .prose {
-    --tw-prose-body: #d1faf5;
-    --tw-prose-headings: #f0fdfa;
-    --tw-prose-lead: rgba(153, 246, 228, 0.75);
+    --tw-prose-body: #cbd5e1;
+    --tw-prose-headings: #f1f5f9;
+    --tw-prose-lead: rgba(203, 213, 225, 0.78);
     --tw-prose-links: #5eead4;
-    --tw-prose-bold: #f0fdfa;
-    --tw-prose-counters: rgba(153, 246, 228, 0.55);
-    --tw-prose-bullets: rgba(153, 246, 228, 0.45);
-    --tw-prose-hr: rgba(94, 234, 212, 0.18);
-    --tw-prose-quotes: #d1faf5;
-    --tw-prose-quote-borders: rgba(94, 234, 212, 0.35);
-    --tw-prose-captions: rgba(153, 246, 228, 0.55);
+    --tw-prose-bold: #f1f5f9;
+    --tw-prose-counters: rgba(203, 213, 225, 0.55);
+    --tw-prose-bullets: rgba(148, 163, 184, 0.45);
+    --tw-prose-hr: rgba(148, 163, 184, 0.2);
+    --tw-prose-quotes: #cbd5e1;
+    --tw-prose-quote-borders: rgba(148, 163, 184, 0.42);
+    --tw-prose-captions: rgba(203, 213, 225, 0.55);
     --tw-prose-code: #99f6e4;
-    --tw-prose-pre-code: #d1faf5;
-    --tw-prose-pre-bg: rgba(255, 255, 255, 0.06);
-    --tw-prose-th-borders: rgba(94, 234, 212, 0.35);
-    --tw-prose-td-borders: rgba(94, 234, 212, 0.18);
+    --tw-prose-pre-code: #cbd5e1;
+    --tw-prose-pre-bg: rgba(255, 255, 255, 0.05);
+    --tw-prose-th-borders: rgba(148, 163, 184, 0.42);
+    --tw-prose-td-borders: rgba(148, 163, 184, 0.2);
 }
 
 /* Pengecualian: pemakaian minoritas yang rusak oleh remap var di atas */
