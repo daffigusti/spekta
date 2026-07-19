@@ -101,11 +101,11 @@ export default function Register() {
                     <input type="checkbox" required style={{ marginTop: 2, accentColor: '#2DD4BF', width: 15, height: 15, flex: 'none' }} />
                     <span>
                         Saya setuju dengan{' '}
-                        <a href="#" style={{ color: '#2DD4BF' }}>
+                        <a href="/syarat-layanan" target="_blank" style={{ color: '#2DD4BF' }}>
                             Syarat Layanan
                         </a>{' '}
                         dan{' '}
-                        <a href="#" style={{ color: '#2DD4BF' }}>
+                        <a href="/kebijakan-privasi" target="_blank" style={{ color: '#2DD4BF' }}>
                             Kebijakan Privasi
                         </a>{' '}
                         Spekta.

@@ -20,6 +20,9 @@ use App\Http\Middleware\EnsureWorkspace;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'landing')->name('home');
+Route::view('syarat-layanan', 'legal.syarat')->name('legal.terms');
+Route::view('kebijakan-privasi', 'legal.privasi')->name('legal.privacy');
+Route::redirect('legal', 'syarat-layanan');
 
 Route::middleware(['auth', EnsureWorkspace::class])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
