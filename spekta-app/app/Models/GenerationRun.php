@@ -20,6 +20,8 @@ class GenerationRun extends Model
 
     public function nodes()
     {
-        return $this->hasMany(GenerationNode::class, 'run_id');
+        // Tanpa ORDER BY, Postgres mengembalikan tuple urut update terakhir (MVCC) —
+        // panel generate jadi acak. id = UUIDv7 ordered → urutan pembuatan = urutan topo.
+        return $this->hasMany(GenerationNode::class, 'run_id')->orderBy('id');
     }
 }
