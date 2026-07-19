@@ -722,7 +722,7 @@ function UnderstandingCard({
                 </div>
                 <span>Enterprise</span>
             </div>
-            {editable && <div className="mt-1.5 text-[11px] text-gray-400">Menentukan jumlah dokumen (4–11) dan kelas arsitektur (BR-16).</div>}
+            {editable && <div className="mt-1.5 text-[11px] text-gray-400">Menentukan jumlah dokumen (6–14) dan kelas arsitektur (BR-16).</div>}
 
             {u.assumptions.length > 0 && (
                 <div className="mt-4 rounded-[10px] border-l-[3px] border-amber-500 bg-amber-100/60 px-3.5 py-3">
