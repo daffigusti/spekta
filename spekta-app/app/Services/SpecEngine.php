@@ -56,7 +56,8 @@ SYS, $input);
     {
         $u = $project->understanding;
         $ctx = json_encode(['roles' => $u->roles, 'features' => $u->features, 'domain' => $u->domain,
-            'kontradiksi_input' => $u->contradictions ?? []], JSON_UNESCAPED_UNICODE)
+            'kontradiksi_input' => $u->contradictions ?? [],
+            'asumsi' => $u->assumptions ?? []], JSON_UNESCAPED_UNICODE)
             ."\n\nINPUT ASLI USER (cuplikan):\n".$this->rawInput($project, 3000);
 
         if ($this->driver() === 'stub') {
@@ -64,8 +65,11 @@ SYS, $input);
         }
 
         $out = $this->json('standard', <<<'SYS'
-Kamu analis requirement. Berdasarkan pemahaman proyek, buat maksimal 10 pertanyaan klarifikasi HANYA untuk gap informasi.
-Bila "kontradiksi_input" tidak kosong, WAJIB buat satu pertanyaan klarifikasi untuk tiap kontradiksi (prioritas tertinggi).
+Kamu analis requirement. Berdasarkan pemahaman proyek, buat maksimal 10 pertanyaan klarifikasi.
+Prioritas: (1) tiap entri "kontradiksi_input" WAJIB satu pertanyaan klarifikasi; (2) gap informasi pada fitur yang
+sudah disebut; (3) fitur yang LAZIM WAJIB ada di domain ini tapi belum disebut user maupun di "asumsi" —
+tanyakan apakah masuk scope (mis. untuk kasir: tutup shift/rekonsiliasi kas, diskon/promo).
+Jangan menanyakan hal yang sudah terjawab di "asumsi".
 Balas JSON: {"questions":[{"question":"","reason":"ditanya karena…","options":["opsi a","opsi b"]}]}
 Sertakan opsi multiple-choice bila memungkinkan. Bahasa Indonesia.
 SYS, $ctx);
