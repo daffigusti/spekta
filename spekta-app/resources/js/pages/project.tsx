@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import AssistantDrawer, { AssistantButton } from '@/components/assistant-drawer';
 import ImpactDialog from '@/components/impact-dialog';
 import MarkdownPreview from '@/components/markdown-preview';
+import ShareDialog from '@/components/share-dialog';
 import { confirmDialog, promptDialog } from '@/components/system-dialog';
 import ThemeToggle from '@/components/theme-toggle';
 import WorkspaceLayout from '@/layouts/workspace-layout';
@@ -114,6 +115,8 @@ type Props = {
     chat_quota?: { used: number; limit: number | null; plan: string } | null;
     // FR-11(f): running dari lock job di backend; quota kuota bulanan per plan (limit null = unlimited)
     contradiction?: { running: boolean; quota: { used: number; limit: number | null } } | null;
+    // BR-30: share hanya Owner/Admin — enforcement asli di server (ShareController)
+    can_share?: boolean;
     errors: Record<string, string>;
 };
 
@@ -262,6 +265,7 @@ export default function ProjectPage({
     chat_stream = null,
     chat_quota = null,
     contradiction = null,
+    can_share = false,
     errors = {},
 }: Props) {
     const [activeKey, setActiveKey] = useState(documents[0]?.doc_key ?? '');
@@ -271,6 +275,7 @@ export default function ProjectPage({
     const [chatPrefill, setChatPrefill] = useState<string | null>(null);
     // FR-09/FR-10: dialog "Usulkan perubahan" — analisa dampak lalu regenerate dokumen terpilih
     const [impactOpen, setImpactOpen] = useState(false);
+    const [shareOpen, setShareOpen] = useState(false);
     // modal pilih dokumen lanjutan — default tidak ada yang tercentang
     const [genModal, setGenModal] = useState(false);
     const [genSel, setGenSel] = useState<Set<string>>(new Set());
@@ -509,18 +514,10 @@ export default function ProjectPage({
                         Usulkan perubahan
                     </button>
                     <button
-                        className="inline-flex items-center gap-1.5 rounded-[10px] border-2 border-teal-600 bg-white px-4 py-2 text-[13px] font-bold text-teal-800 hover:bg-teal-50"
-                        onClick={async () => {
-                            // ponytail: prompt-flow, form modal nanti kalau perlu
-                            const email = await promptDialog('Email approver utama klien (BR-27):');
-                            if (!email) return;
-                            if (!(await confirmDialog('Internal review selesai? (BR-30 — wajib sebelum share)'))) return;
-                            router.post(
-                                route('projects.share', project.id),
-                                { approver_email: email, doc_keys: documents.map((d) => d.doc_key), internal_review_done: true },
-                                { preserveScroll: true },
-                            );
-                        }}
+                        className="inline-flex items-center gap-1.5 rounded-[10px] border-2 border-teal-600 bg-white px-4 py-2 text-[13px] font-bold text-teal-800 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={!can_share}
+                        title={can_share ? undefined : 'Hanya Owner/Admin yang dapat share ke klien.'}
+                        onClick={() => setShareOpen(true)}
                     >
                         <svg
                             width="15"
@@ -605,7 +602,8 @@ export default function ProjectPage({
                                         <button
                                             className="font-bold text-gray-400 hover:text-red-600"
                                             onClick={async () =>
-                                                (await confirmDialog('Cabut link? Komentar & approval tetap tersimpan (BR-28).')) &&
+                                                // BR-28
+                                                (await confirmDialog('Cabut link? Komentar & approval tetap tersimpan.')) &&
                                                 router.delete(route('projects.share.revoke', [project.id, l.id]), { preserveScroll: true })
                                             }
                                         >
@@ -1399,6 +1397,13 @@ export default function ProjectPage({
 
             {/* FR-09/FR-10: dialog "Usulkan perubahan" — analisa dampak + regenerate dokumen terpilih */}
             <ImpactDialog projectId={project.id} open={impactOpen} onClose={() => setImpactOpen(false)} creditsError={errors.credits} />
+            <ShareDialog
+                projectId={project.id}
+                docKeys={documents.map((d) => d.doc_key)}
+                open={shareOpen}
+                onClose={() => setShareOpen(false)}
+                errors={errors}
+            />
 
             {/* drawer chat asisten dari kanan */}
             <AssistantDrawer

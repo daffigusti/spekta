@@ -14,6 +14,9 @@ class ShareController extends Controller
     public function store(Request $request, Project $project)
     {
         ProjectController::authorizeProject($request, $project);
+        // BR-30: empat mata — hanya Owner/Admin yang boleh menandai internal review & share
+        $role = $project->workspace->members()->where('user_id', $request->user()->id)->value('role');
+        abort_unless(in_array($role, ['owner', 'admin'], true), 403, 'Hanya Owner/Admin yang dapat share ke klien.');
         $data = $request->validate([
             'approver_email' => 'required|email',
             'contact_emails' => 'nullable|array|max:4', // BR-40: total maks 5 kontak termasuk approver

@@ -722,7 +722,7 @@ function UnderstandingCard({
                 </div>
                 <span>Enterprise</span>
             </div>
-            {editable && <div className="mt-1.5 text-[11px] text-gray-400">Menentukan jumlah dokumen (6–14) dan kelas arsitektur (BR-16).</div>}
+            {editable && <div className="mt-1.5 text-[11px] text-gray-400">Menentukan jumlah dokumen (6–14) dan kelas arsitektur.</div>}
 
             {u.assumptions.length > 0 && (
                 <div className="mt-4 rounded-[10px] border-l-[3px] border-amber-500 bg-amber-100/60 px-3.5 py-3">
@@ -1549,7 +1549,7 @@ export function StepStack({ project, stack, understanding }: Pick<Props, 'projec
                         <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
                     </svg>
                     <div className="text-[13px] leading-relaxed font-medium text-amber-800">
-                        <b className="font-bold">Complexity governor (BR-16):</b> kompleksitas proyek {understanding?.complexity ?? '—'}/5 — AI
+                        <b className="font-bold">Complexity governor:</b> kompleksitas proyek {understanding?.complexity ?? '—'}/5 — AI
                         merekomendasikan <b className="font-bold">{arch.choice}</b>. Arsitektur disesuaikan skala nyata klien, bukan template generik.
                     </div>
                 </div>
@@ -1828,7 +1828,7 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                         ))}
                     </div>
                     <div className="mt-3.5 rounded-[10px] border border-gray-200 bg-gray-50 px-3 py-2.5 text-[11.5px] leading-relaxed font-medium text-gray-500">
-                        Model routing aktif per kelas node (BR-50): <b className="font-bold text-gray-700">reasoning</b> (PRD/Arch) ·{' '}
+                        Model routing aktif per kelas node: <b className="font-bold text-gray-700">reasoning</b> (PRD/Arch) ·{' '}
                         <b className="font-bold text-gray-700">standard</b> (docs) · <b className="font-bold text-gray-700">economy</b> (API/DB)
                     </div>
                 </div>
@@ -1845,8 +1845,7 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                         <div className="flex min-h-[380px] flex-col items-center justify-center text-center">
                             <div className="text-lg font-extrabold text-gray-900">Generate blueprint</div>
                             <div className="mt-1.5 max-w-[380px] text-[13px] leading-relaxed font-medium text-gray-500">
-                                Pipeline DAG — dokumen digenerate berurutan sesuai dependensi, berjalan di background (FR-07). 1 kredit per pipeline
-                                (BR-02).
+                                Pipeline DAG — dokumen digenerate berurutan sesuai dependensi, berjalan di background. 1 kredit per pipeline.
                             </div>
                             <div className="mt-4 text-sm text-gray-600">
                                 Kredit tersedia: <span className="font-mono font-bold text-gray-900">{credits}</span>
@@ -1966,7 +1965,7 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                         <div className="flex min-h-[380px] flex-col items-center justify-center text-center">
                             <div className="text-lg font-extrabold text-red-600">Generate terhenti</div>
                             <div className="mt-1.5 max-w-[380px] text-[13px] font-medium text-gray-500">
-                                Node gagal setelah 2× retry (BR-11). Lanjutkan hanya menjalankan ulang node yang gagal — tidak memakai kredit baru.
+                                Node gagal setelah 2× retry. Lanjutkan hanya menjalankan ulang node yang gagal — tidak memakai kredit baru.
                             </div>
                             <button className={`${btn} mt-5`} disabled={starting} onClick={() => startRun('projects.generate.resume')}>
                                 {starting && <Spinner stroke="#fff" />}

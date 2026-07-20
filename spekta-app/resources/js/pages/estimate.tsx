@@ -340,7 +340,8 @@ export default function EstimatePage({ project, estimates, workModes }: Props) {
                                 {est.duration_weeks} <span className="text-[13px] font-semibold text-gray-500">minggu</span>
                             </div>
                             <div className="mt-1 truncate text-[11.5px] font-medium text-gray-400">
-                                {team ? `Tim (MD): ${team}` : 'termasuk buffer UAT 15% (BR-20)'}
+                                {/* BR-20: buffer UAT 15% */}
+                                {team ? `Tim (MD): ${team}` : 'termasuk buffer UAT 15%'}
                             </div>
                         </div>
                     </div>

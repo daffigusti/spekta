@@ -72,6 +72,8 @@ class ProjectController extends Controller
 
         return Inertia::render('project', [
             'project' => $project->only(['id', 'name', 'client_name', 'status', 'health_score', 'scope_mode', 'complexity']),
+            // BR-30: tombol share hanya untuk Owner/Admin — enforcement server di ShareController
+            'can_share' => in_array($project->workspace->members()->where('user_id', $request->user()->id)->value('role'), ['owner', 'admin'], true),
             'documents' => $documents,
             'findings' => $project->healthFindings()->where('resolved', false)->get()
                 ->map(fn ($f) => $f->toArray() + ['dimension' => $dimByRule[$f->rule_key] ?? 'Lainnya']),

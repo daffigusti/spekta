@@ -102,6 +102,22 @@ class ClientPortalTest extends TestCase
         $this->delete("/projects/{$project->id}")->assertForbidden();
     }
 
+    public function test_member_role_cannot_share(): void
+    {
+        $project = $this->readyProject();
+
+        // BR-30: member biasa (bukan Owner/Admin) tidak boleh share ke klien
+        $member = User::factory()->create(['current_workspace_id' => $project->workspace_id]);
+        $project->workspace->members()->create(['user_id' => $member->id, 'role' => 'member']);
+
+        $this->actingAs($member)->post("/projects/{$project->id}/share", [
+            'approver_email' => 'budi@majujaya.co.id',
+            'doc_keys' => $project->documents()->pluck('doc_key')->all(),
+            'internal_review_done' => true,
+        ])->assertForbidden();
+        $this->assertSame(0, ShareLink::count());
+    }
+
     public function test_non_approver_contact_cannot_approve_but_can_comment(): void
     {
         $project = $this->readyProject();
