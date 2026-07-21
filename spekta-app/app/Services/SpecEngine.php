@@ -158,16 +158,27 @@ SYS, $ctx);
                 'casual' => 'Gunakan tone santai namun tetap presisi.',
                 default => '',
             };
-            $template = self::DOC_TEMPLATES[$docKey] ?? '';
+            $depth = $project->blueprint['depth'] ?? 'auto';
+            // Mode dokumen tunggal: satu PRD gabungan menggantikan seluruh set dokumen
+            $template = $depth === 'single' && $docKey === 'PRD'
+                ? self::PRD_SINGLE_TEMPLATE
+                : (self::DOC_TEMPLATES[$docKey] ?? '');
             // Soft cap panjang: target sebagai sinyal prioritas, bukan gunting — max_tokens tetap jaring pengaman
-            $depthLine = ($project->blueprint['depth'] ?? 'auto') === 'concise'
-                ? 'Kedalaman: RINGKAS — poin esensial saja, tanpa penjelasan panjang. Target maksimal ±1.500 kata.'
-                : <<<'DEPTH'
+            $depthLine = match (true) {
+                $depth === 'single' && $docKey === 'PRD' => <<<'DEPTH'
+Kedalaman: DOKUMEN TUNGGAL — ini SATU-SATUNYA dokumen proyek, cakup semua aspek tapi tetap ringkas. Target ±2.000-3.000 kata, aturan alokasi:
+- Functional Requirements maksimal ~40% isi dokumen; sisanya untuk flow, aturan bisnis, model data, dan roadmap.
+- Tiap bagian padat: poin dan tabel, bukan paragraf panjang. Fitur CRUD standar cukup 1-2 kalimat.
+- Asumsi ditulis SEKALI di section Assumptions, di tempat lain cukup tanda "(asumsi)".
+DEPTH,
+                $depth === 'concise' => 'Kedalaman: RINGKAS — poin esensial saja, tanpa penjelasan panjang. Target maksimal ±1.500 kata.',
+                default => <<<'DEPTH'
 Kedalaman: LENGKAP — isi tiap section konkret dan spesifik proyek ini, bukan placeholder generik. Target ±3.000-5.000 kata, dengan aturan alokasi:
 - Detail proporsional kompleksitas: fitur berisiko/kompleks (pembayaran, integrasi eksternal, keamanan) boleh dalam; fitur CRUD standar cukup 3-5 poin.
 - JANGAN ulang isi dokumen upstream — cukup rujuk nomornya (FR-xx/BR-xx). Duplikasi = sumber inkonsistensi.
 - Asumsi ditulis SEKALI di section Assumptions, di tempat lain cukup tanda "(asumsi)".
-DEPTH;
+DEPTH,
+            };
             $md = $this->text($class, <<<SYS
 Kamu technical writer software house Indonesia. Tulis dokumen $docKey.md lengkap dalam markdown untuk proyek berikut.
 Konsisten dengan dokumen upstream yang diberikan (penomoran FR/BR, istilah, entity).
@@ -175,6 +186,7 @@ Gunakan INPUT ASLI USER dan HASIL INTERVIEW sebagai sumber kebenaran detail.
 Boleh menambah kebutuhan yang wajar untuk domain ini, tapi WAJIB tandai "(asumsi)" di tempatnya DAN catat di section Assumptions —
 jangan pernah menampilkan tambahan sebagai fakta dari user.
 Rujukan silang section tulis "Bagian N" (mis. "REQUIREMENTS Bagian 3", "lihat Bagian 5"), JANGAN pakai simbol §.
+HINDARI bahasa kabur tanpa angka ("cepat", "mudah", "intuitif", "user-friendly") — ganti kriteria terukur (mis. "halaman termuat < 2 detik", "checkout maksimal 3 langkah").
 $template
 $depthLine
 $langLine $toneLine Hanya markdown, tanpa pembuka/penutup, JANGAN bungkus seluruh dokumen dalam code fence (```).
@@ -199,6 +211,27 @@ SYS, $ctx, $tokensIn, $tokensOut, $onDelta);
         return $md;
     }
 
+    /** Mode dokumen tunggal (blueprint.depth = single): satu PRD ringkas menggantikan seluruh set dokumen. */
+    private const PRD_SINGLE_TEMPLATE = <<<'TPL'
+Struktur wajib PRD.md versi DOKUMEN TUNGGAL — satu file mencakup seluruh spesifikasi proyek secara ringkas:
+1. "Visi Produk" — masalah, solusi, nilai bisnis untuk klien (singkat).
+2. "Problem Statement" — 1-2 kalimat format: [jenis user] mengalami [masalah] ketika [situasi], yang menyebabkan [dampak]. Spesifik dan terukur, dari INPUT ASLI USER.
+3. "Goals & Success Metrics" — 3-5 tujuan terukur + tabel metric/target. Baseline dan angka target yang tidak disebut user WAJIB bertanda "(asumsi)" atau "(diisi klien)".
+4. "Target User & Roles" — tabel: role, kebutuhan utama, hak akses.
+5. "Functional Requirements" — SEMUA fitur dari FITUR & STRUKTUR jadi FR bernomor (FR-01, FR-02, …) urut mengikuti struktur; tabel per FR: judul, deskripsi 1-2 kalimat, role terkait, priority (Must/Should/Could), scope (mvp/full). Tiap FR priority Must sertakan 1-2 acceptance criteria satu baris yang bisa diuji.
+6. "User Flow Utama" — flow inti per role sebagai langkah bernomor singkat (aksi user → respons sistem); cukup flow mvp terpenting, tanpa diagram.
+7. "Layar Utama" — tabel: nama layar, tujuan, informasi/aksi kunci yang tampil, role yang mengakses; sebut state penting (kosong/loading/error) hanya bila krusial. TANPA mockup/wireframe.
+8. "Aturan Bisnis Kunci" — aturan bernomor (BR-01, …) untuk validasi, batasan, perhitungan, dan hak akses terpenting; rujuk FR terkait.
+9. "Edge Cases Kunci" — kondisi tidak normal terpenting per area (duplikasi data, input kosong, akses bersamaan, kegagalan integrasi); daftar singkat, rujuk FR terkait.
+10. "Model Data Ringkas" — daftar entity utama + atribut kunci + relasi, sebagai daftar atau tabel; TANPA DDL.
+11. "Arsitektur & Stack Ringkas" — tabel dari STACK: layer, pilihan, alasan 1 kalimat; plus 2-3 kalimat gambaran arsitektur (monolith/API, hosting, integrasi eksternal). TANPA diagram, TANPA detail deployment.
+12. "Non-Functional Requirements" — performa, keamanan, kompatibilitas seperlunya sesuai kompleksitas.
+13. "Roadmap" — fase pengerjaan dengan fitur per fase (rujuk FR), tandai mvp vs full.
+14. "Risks & Mitigations" — tabel: risiko utama proyek (teknis + bisnis), dampak, mitigasi; maksimal 5 baris.
+15. "Out of Scope" — hal yang eksplisit TIDAK dikerjakan.
+16. "Assumptions" — SELURUH asumsi proyek (wajib ada, BR-13).
+TPL;
+
     /** Outline wajib per tipe dokumen — tanpa ini model menebak sendiri isi tiap dokumen. */
     private const DOC_TEMPLATES = [
         'PROJECT_BRIEF' => <<<'TPL'
@@ -214,11 +247,14 @@ TPL,
         'PRD' => <<<'TPL'
 Struktur wajib PRD.md:
 1. "Visi Produk" — masalah, solusi, nilai bisnis untuk klien.
-2. "Target User & Roles" — tabel: role, kebutuhan utama, hak akses.
-3. "Functional Requirements" — SEMUA fitur dari FITUR & STRUKTUR jadi FR bernomor (FR-01, FR-02, …) urut mengikuti struktur; tiap FR: judul, deskripsi 2-3 kalimat, role terkait, scope (mvp/full).
-4. "Non-Functional Requirements" — performa, keamanan, skalabilitas, kompatibilitas, sesuai kompleksitas proyek.
-5. "Out of Scope" — hal yang eksplisit TIDAK dikerjakan (dari jawaban interview & asumsi).
-6. "Assumptions" — SELURUH asumsi proyek (wajib ada, BR-13).
+2. "Problem Statement" — 1-2 kalimat format: [jenis user] mengalami [masalah] ketika [situasi], yang menyebabkan [dampak]. Spesifik dan terukur, dari INPUT ASLI USER.
+3. "Goals & Success Metrics" — 3-5 tujuan terukur + tabel metric/target. Baseline dan angka target yang tidak disebut user WAJIB bertanda "(asumsi)" atau "(diisi klien)".
+4. "Target User & Roles" — tabel: role, kebutuhan utama, hak akses.
+5. "Functional Requirements" — SEMUA fitur dari FITUR & STRUKTUR jadi FR bernomor (FR-01, FR-02, …) urut mengikuti struktur; tiap FR: judul, deskripsi 2-3 kalimat, role terkait, priority (Must/Should/Could), scope (mvp/full).
+6. "Non-Functional Requirements" — performa, keamanan, skalabilitas, kompatibilitas, sesuai kompleksitas proyek.
+7. "Risks & Mitigations" — tabel: risiko utama proyek (teknis + bisnis), dampak, mitigasi; maksimal 5 baris. Detail per-fitur biar di dokumen hilir.
+8. "Out of Scope" — hal yang eksplisit TIDAK dikerjakan (dari jawaban interview & asumsi).
+9. "Assumptions" — SELURUH asumsi proyek (wajib ada, BR-13).
 TPL,
         'REQUIREMENTS' => <<<'TPL'
 Struktur wajib REQUIREMENTS.md: satu section per FR dari PRD (heading "### FR-xx: judul", nomor WAJIB sama persis dengan PRD).

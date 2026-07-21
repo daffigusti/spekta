@@ -520,8 +520,8 @@ export default function WireframesPage({
                     ref={canvasRef}
                     className="relative min-h-0 flex-1 cursor-grab overflow-hidden active:cursor-grabbing"
                     style={{
-                        backgroundColor: '#F8FAFC',
-                        backgroundImage: 'radial-gradient(#CBD5E1 1px, transparent 1px)',
+                        backgroundColor: 'var(--color-gray-50)',
+                        backgroundImage: 'radial-gradient(var(--color-gray-300) 1px, transparent 1px)',
                         backgroundSize: `${22 * view.k}px ${22 * view.k}px`,
                         backgroundPosition: `${view.x}px ${view.y}px`,
                     }}

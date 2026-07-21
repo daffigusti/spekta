@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import MarkdownPreview from '@/components/markdown-preview';
 import { confirmDialog, promptDialog, selectDialog } from '@/components/system-dialog';
-import WorkspaceLayout from '@/layouts/workspace-layout';
+import SpektaLayout from '@/layouts/spekta-layout';
 import {
     Building2,
     CalendarCheck,
@@ -466,6 +466,7 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                         <div className={sectionLabel}>Kedalaman dokumen</div>
                         <div className="mt-2 flex flex-wrap gap-1.5">
                             {[
+                                { v: 'single', l: 'Dokumen tunggal (1 doc)' },
                                 { v: 'concise', l: 'Ringkas (5 docs)' },
                                 { v: 'auto', l: 'Otomatis' },
                                 { v: 'full', l: 'Lengkap (13 docs)' },
@@ -477,6 +478,13 @@ function StepInput({ project, input }: Pick<Props, 'project' | 'input'>) {
                         </div>
                         {/* Help dinamis mengikuti pilihan — dokumen yang tak digenerate bisa ditambah nanti (1 kredit) */}
                         <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2.5 text-[11.5px] leading-relaxed font-medium text-gray-500">
+                            {data.depth === 'single' && (
+                                <>
+                                    <b className="text-gray-700">Dokumen tunggal</b> — 1 PRD ringkas yang mencakup semua aspek: overview, kebutuhan
+                                    (FR), user flow utama, aturan bisnis, model data, dan roadmap. Cocok untuk proyek kecil atau klien yang butuh satu
+                                    file saja.
+                                </>
+                            )}
                             {data.depth === 'concise' && (
                                 <>
                                     <b className="text-gray-700">Ringkas</b> — 5 dokumen inti: PRD, Requirements, User Flows, Wireframes, Roadmap.
@@ -979,12 +987,7 @@ export function StepStructure({
 
     const featuresOf = (pid: string) => nodes.filter((n) => n.parent_id === pid && n.kind === 'feature' && n.scope !== 'parked');
 
-    // ---- limit sub-fitur tampil per kartu (estimasi tetap hitung semua) ----
-    const SUB_LIMIT = 3;
-    const [expandedSubs, setExpandedSubs] = useState<Record<string, boolean>>({});
     const [detail, setDetail] = useState<Node | null>(null);
-    const visibleSubsOf = (fid: string) => (expandedSubs[fid] ? subsOf(fid) : subsOf(fid).slice(0, SUB_LIMIT));
-    const hiddenSubsOf = (fid: string) => Math.max(subsOf(fid).length - SUB_LIMIT, 0);
     const subsOf = (fid: string) => nodes.filter((n) => n.parent_id === fid && n.kind === 'subfeature');
     const mdOf = (f: Node) => {
         const subs = subsOf(f.id);
@@ -1013,10 +1016,13 @@ export function StepStructure({
         setCollapsedOverride({});
     };
 
-    // ---- layout mind map: root → fase (kolom tengah) → fitur (kolom kanan) ----
+    // ---- layout mind map: root → fase → fitur → sub-fitur (4 kolom) ----
     const CARD_W = 200;
-    const featH = (f: Node) =>
-        66 + (!isCollapsed(f.id) && subsOf(f.id).length ? 24 + visibleSubsOf(f.id).length * 25 + (hiddenSubsOf(f.id) ? 24 : 0) : 0);
+    const FEAT_W = 250; // kartu fitur lebih lebar — judul berbagi baris dengan chip MVP
+    // ponytail: estimasi baris judul dari panjang teks (±26 huruf/baris di lebar kartu 200px)
+    const titleLines = (t: string) => Math.max(1, Math.ceil(t.length / 26));
+    const featH = (f: Node) => 50 + titleLines(f.title) * 17;
+    const subH = (s: Node) => 16 + titleLines(s.title) * 16;
     const layout = useMemo(() => {
         const pos: Record<string, { x: number; y: number }> = {};
         let y = 70;
@@ -1024,8 +1030,16 @@ export function StepStructure({
             const feats = featuresOf(p.id);
             const blockTop = y;
             for (const f of feats) {
-                pos[f.id] = { x: 620, y };
-                y += featH(f) + 16;
+                const subs = isCollapsed(f.id) ? [] : subsOf(f.id);
+                const fTop = y;
+                let sy = y;
+                for (const s of subs) {
+                    pos[s.id] = { x: 960, y: sy };
+                    sy += subH(s) + 10;
+                }
+                const subBlockH = subs.length ? sy - 10 - fTop : 0;
+                pos[f.id] = { x: 620, y: fTop + Math.max((subBlockH - featH(f)) / 2, 0) };
+                y = Math.max(fTop + featH(f), sy) + 16;
             }
             const blockH = Math.max(y - blockTop - 16, 60);
             pos[p.id] = { x: 330, y: blockTop + blockH / 2 - 30 };
@@ -1034,7 +1048,7 @@ export function StepStructure({
         pos.__root = { x: 40, y: Math.max((y - 34) / 2 - 30, 70) };
         return { pos, height: Math.max(y + 60, 560) };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [nodes, allCollapsed, collapsedOverride, expandedSubs]);
+    }, [nodes, allCollapsed, collapsedOverride]);
 
     // posisi hasil drag menimpa auto-layout; node baru tetap dapat posisi otomatis
     const [dragged, setDragged] = useState<Record<string, { x: number; y: number }>>({});
@@ -1159,8 +1173,8 @@ export function StepStructure({
         pan.current = null;
     };
 
-    const wire = (a: { x: number; y: number }, b: { x: number; y: number }, dy1 = 30, dy2 = 30) => {
-        const x1 = a.x + CARD_W,
+    const wire = (a: { x: number; y: number }, b: { x: number; y: number }, dy1 = 30, dy2 = 30, w = CARD_W) => {
+        const x1 = a.x + w,
             y1 = a.y + dy1,
             x2 = b.x,
             y2 = b.y + dy2;
@@ -1177,7 +1191,7 @@ export function StepStructure({
                     ref={viewRef}
                     className={`relative cursor-grab overflow-hidden select-none ${fullHeight ? 'h-full' : 'h-[560px]'}`}
                     style={{
-                        backgroundImage: 'radial-gradient(#E5E7EB 1px,transparent 1px)',
+                        backgroundImage: 'radial-gradient(var(--color-gray-200) 1px,transparent 1px)',
                         backgroundSize: `${22 * cam.z}px ${22 * cam.z}px`,
                         backgroundPosition: `${cam.x}px ${cam.y}px`,
                     }}
@@ -1199,12 +1213,25 @@ export function StepStructure({
                                 featuresOf(p.id).map((f) => (
                                     <path
                                         key={f.id}
-                                        d={wire(animOf(p.id), animOf(f.id), 30, 32)}
+                                        d={wire(animOf(p.id), animOf(f.id), 30, featH(f) / 2)}
                                         stroke={inScope(f) ? '#99F6E4' : '#FDE68A'}
                                         strokeWidth="2"
                                         fill="none"
                                     />
                                 )),
+                            )}
+                            {phases.flatMap((p) =>
+                                featuresOf(p.id).flatMap((f) =>
+                                    (isCollapsed(f.id) ? [] : subsOf(f.id)).map((s) => (
+                                        <path
+                                            key={s.id}
+                                            d={wire(animOf(f.id), animOf(s.id), featH(f) / 2, subH(s) / 2, FEAT_W)}
+                                            stroke={inScope(f) ? '#99F6E4' : '#FDE68A'}
+                                            strokeWidth="1.5"
+                                            fill="none"
+                                        />
+                                    )),
+                                ),
                             )}
                         </svg>
 
@@ -1262,7 +1289,7 @@ export function StepStructure({
                                     key={f.id}
                                     data-node
                                     className={`${card} cursor-grab border-gray-200 px-3 py-2.5 active:cursor-grabbing ${inScope(f) ? '' : 'opacity-40'}`}
-                                    style={{ left: animOf(f.id).x, top: animOf(f.id).y }}
+                                    style={{ left: animOf(f.id).x, top: animOf(f.id).y, width: FEAT_W }}
                                     onMouseDown={startDrag(f.id)}
                                 >
                                     <div className="flex items-center gap-2">
@@ -1276,7 +1303,7 @@ export function StepStructure({
                                             {f.scope === 'mvp' ? 'MVP' : 'POST-MVP'}
                                         </button>
                                         <span
-                                            className="min-w-0 flex-1 cursor-pointer truncate text-[12.5px] font-bold text-gray-800 hover:text-teal-700"
+                                            className="min-w-0 flex-1 cursor-pointer text-[12.5px] font-bold text-gray-800 hover:text-teal-700"
                                             title={f.title + (f.description ? ` — ${f.description}` : '')}
                                             onClick={() => setDetail(f)}
                                         >
@@ -1317,31 +1344,31 @@ export function StepStructure({
                                             <span className="ml-1.5 text-gray-400">· {subsOf(f.id).length} sub</span>
                                         )}
                                     </div>
-                                    {!isCollapsed(f.id) && subsOf(f.id).length > 0 && (
-                                        <div className="mt-1.5 flex flex-col gap-1">
-                                            <div className="text-[10px] font-bold tracking-[0.08em] text-gray-400">SUB-FITUR</div>
-                                            {visibleSubsOf(f.id).map((s) => (
-                                                <span
-                                                    key={s.id}
-                                                    className="cursor-pointer truncate rounded-md border border-gray-200 bg-gray-50 px-2 py-[3px] text-[11.5px] font-semibold text-gray-600 hover:border-teal-300 hover:bg-teal-50"
-                                                    title={s.title + (s.description ? ` — ${s.description}` : '')}
-                                                    onClick={() => setDetail(s)}
-                                                >
-                                                    {s.title} <span className="font-mono text-gray-400">({Number(s.est_md).toFixed(0)})</span>
-                                                </span>
-                                            ))}
-                                            {hiddenSubsOf(f.id) > 0 && (
-                                                <button
-                                                    className="rounded-md border border-dashed border-teal-300 bg-teal-50/70 px-2 py-[3px] text-[11px] font-bold text-teal-700 hover:bg-teal-100"
-                                                    onClick={() => setExpandedSubs((prev) => ({ ...prev, [f.id]: !prev[f.id] }))}
-                                                >
-                                                    {expandedSubs[f.id] ? 'Tampilkan lebih sedikit' : `Lihat semua · ${hiddenSubsOf(f.id)} lagi`}
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
                             )),
+                        )}
+
+                        {/* node sub-fitur (kolom ke-4) */}
+                        {phases.flatMap((p) =>
+                            featuresOf(p.id).flatMap((f) =>
+                                (isCollapsed(f.id) ? [] : subsOf(f.id)).map((s) => (
+                                    <div
+                                        key={s.id}
+                                        data-node
+                                        className={`absolute w-[200px] cursor-grab rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 shadow-[0_1px_4px_rgba(0,0,0,0.05)] hover:border-teal-300 active:cursor-grabbing ${inScope(f) ? '' : 'opacity-40'}`}
+                                        style={{ left: animOf(s.id).x, top: animOf(s.id).y }}
+                                        onMouseDown={startDrag(s.id)}
+                                    >
+                                        <span
+                                            className="cursor-pointer text-[11.5px] font-semibold text-gray-600 hover:text-teal-700"
+                                            title={s.title + (s.description ? ` — ${s.description}` : '')}
+                                            onClick={() => setDetail(s)}
+                                        >
+                                            {s.title} <span className="font-mono text-gray-400">({Number(s.est_md).toFixed(0)})</span>
+                                        </span>
+                                    </div>
+                                )),
+                            ),
                         )}
                     </div>
                 </div>
@@ -1880,7 +1907,10 @@ function StepGenerate({ project, run, stream, credits, errors }: Pick<Props, 'pr
                                 <div
                                     ref={streamRef}
                                     className="mt-3 max-h-[420px] min-h-[330px] overflow-auto rounded-xl border border-gray-200 p-[18px]"
-                                    style={{ backgroundImage: 'radial-gradient(#E2E8F0 1px, transparent 1px)', backgroundSize: '18px 18px' }}
+                                    style={{
+                                        backgroundImage: 'radial-gradient(var(--color-gray-200) 1px, transparent 1px)',
+                                        backgroundSize: '18px 18px',
+                                    }}
                                 >
                                     <div className="mb-3 flex items-center gap-2 text-[13px] font-bold text-teal-800">
                                         <Spinner />
@@ -2053,7 +2083,7 @@ export default function Wizard(props: Props) {
     }, [emptyDraft, props.project.id]);
 
     return (
-        <WorkspaceLayout>
+        <SpektaLayout crumb={props.project.name} active="projects">
             <Head title={`${props.project.name} — Wizard`} />
             <div className="w-full">
                 <div className="mb-3 flex items-center gap-2 text-[13px]">
@@ -2080,6 +2110,6 @@ export default function Wizard(props: Props) {
                     <StepGenerate project={props.project} run={props.run} stream={props.stream} credits={props.credits} errors={props.errors} />
                 )}
             </div>
-        </WorkspaceLayout>
+        </SpektaLayout>
     );
 }

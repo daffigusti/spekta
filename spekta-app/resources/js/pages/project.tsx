@@ -277,6 +277,8 @@ export default function ProjectPage({
     const [impactOpen, setImpactOpen] = useState(false);
     const [shareOpen, setShareOpen] = useState(false);
     // modal pilih dokumen lanjutan — default tidak ada yang tercentang
+    const [oqAnswering, setOqAnswering] = useState<string | null>(null);
+    const [oqNote, setOqNote] = useState('');
     const [genModal, setGenModal] = useState(false);
     const [genSel, setGenSel] = useState<Set<string>>(new Set());
     const toggleGenSel = (k: string) =>
@@ -1304,22 +1306,64 @@ export default function ProjectPage({
                                                     <div key={q.id} className="text-[11.5px] font-semibold text-emerald-700">
                                                         ✓ {q.question}
                                                         <div className="font-medium text-gray-500">
-                                                            {q.answered_by}: {q.answer_text}
+                                                            {q.answered_by}
+                                                            {q.answer_text ? `: ${q.answer_text}` : ''}
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <button
-                                                        key={q.id}
-                                                        type="button"
-                                                        className="text-left text-[11.5px] font-semibold text-gray-600 hover:text-teal-700"
-                                                        title="Klik untuk buat pertanyaan klarifikasi di chat — atau share ke portal, klien bisa jawab langsung"
-                                                        onClick={() => {
-                                                            setChatPrefill(`Buat pertanyaan klarifikasi untuk klien terkait: ${q.question}`);
-                                                            setChatOpen(true);
-                                                        }}
-                                                    >
-                                                        · {q.question}
-                                                    </button>
+                                                    <div key={q.id} className="group flex flex-col gap-1">
+                                                        <div className="flex items-start gap-1.5">
+                                                            <button
+                                                                type="button"
+                                                                className="flex-1 text-left text-[11.5px] font-semibold text-gray-600 hover:text-teal-700"
+                                                                title="Klik untuk buat pertanyaan klarifikasi di chat — atau share ke portal, klien bisa jawab langsung"
+                                                                onClick={() => {
+                                                                    setChatPrefill(`Buat pertanyaan klarifikasi untuk klien terkait: ${q.question}`);
+                                                                    setChatOpen(true);
+                                                                }}
+                                                            >
+                                                                · {q.question}
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                className="shrink-0 rounded px-1 text-[11px] font-bold text-gray-400 opacity-0 transition group-hover:opacity-100 hover:text-emerald-600"
+                                                                title="Tandai terjawab (jawaban dari luar portal, mis. meeting/WA)"
+                                                                onClick={() => {
+                                                                    setOqAnswering(oqAnswering === q.id ? null : q.id);
+                                                                    setOqNote('');
+                                                                }}
+                                                            >
+                                                                ✓
+                                                            </button>
+                                                        </div>
+                                                        {oqAnswering === q.id && (
+                                                            <form
+                                                                className="flex items-center gap-1.5 pl-2.5"
+                                                                onSubmit={(e) => {
+                                                                    e.preventDefault();
+                                                                    router.post(
+                                                                        route('projects.oq.answer', [project.id, q.id]),
+                                                                        { answer_text: oqNote || null },
+                                                                        { preserveScroll: true, onSuccess: () => setOqAnswering(null) },
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <input
+                                                                    autoFocus
+                                                                    value={oqNote}
+                                                                    onChange={(e) => setOqNote(e.target.value)}
+                                                                    placeholder="Catatan jawaban (opsional)"
+                                                                    className="w-full rounded border border-gray-200 bg-white px-2 py-1 text-[11px] focus:border-teal-400 focus:outline-none"
+                                                                />
+                                                                <button
+                                                                    type="submit"
+                                                                    className="shrink-0 rounded bg-emerald-600 px-2 py-1 text-[10.5px] font-bold text-white hover:bg-emerald-700"
+                                                                >
+                                                                    Simpan
+                                                                </button>
+                                                            </form>
+                                                        )}
+                                                    </div>
                                                 ),
                                             )}
                                         </div>

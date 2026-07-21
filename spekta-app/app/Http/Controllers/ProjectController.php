@@ -160,6 +160,21 @@ class ProjectController extends Controller
         return back();
     }
 
+    /** Tandai open question terjawab dari internal (jawaban dari meeting/WA klien di luar portal). */
+    public function answerOpenQuestion(Request $request, Project $project, string $oqId)
+    {
+        $this->authorizeProject($request, $project);
+        $data = $request->validate(['answer_text' => 'nullable|string|max:1000']);
+        $project->openQuestions()->where('status', 'open')->findOrFail($oqId)->update([
+            'status' => 'answered',
+            'answer_text' => $data['answer_text'] ?? null,
+            'answered_by' => $request->user()->name.' (internal)',
+            'answered_at' => now(),
+        ]);
+
+        return back();
+    }
+
     public function destroy(Request $request, Project $project)
     {
         $this->authorizeProject($request, $project);

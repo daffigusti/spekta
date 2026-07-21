@@ -33,6 +33,7 @@ Route::middleware(['auth', EnsureWorkspace::class])->group(function () {
     Route::get('projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
     Route::patch('projects/{project}', [ProjectController::class, 'update'])->name('projects.update');
     Route::delete('projects/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+    Route::post('projects/{project}/open-questions/{oqId}/answer', [ProjectController::class, 'answerOpenQuestion'])->name('projects.oq.answer');
 
     // Wizard (FR-01..FR-07)
     Route::get('projects/{project}/wizard', [WizardController::class, 'show'])->name('projects.wizard');

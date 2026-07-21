@@ -16,18 +16,7 @@ class GenerationPipeline
 {
     public function start(Project $project): GenerationRun
     {
-        $complexity = $project->understanding?->complexity ?? 3;
-        // Set dokumen template perusahaan hanya bila user memilih "Standar workspace" di wizard;
-        // pilihan "Default" tetap scale-adaptive kompleksitas (FR-07).
-        // Kedalaman eksplisit (concise/full) menimpa keduanya.
-        $tplKinds = ($project->blueprint['template'] ?? 'default') === 'workspace'
-            ? $project->docTemplate?->doc_kinds
-            : null;
-        $docKeys = match ($project->blueprint['depth'] ?? 'auto') {
-            'concise' => config('spekta.doc_sets.1'),
-            'full' => config('spekta.doc_sets.3'),
-            default => $tplKinds ?: config('spekta.doc_sets.'.$complexity),
-        };
+        $docKeys = $this->resolveDocKeys($project);
         $graph = config('spekta.doc_pipeline');
         // Buang doc key basi (mis. template menyimpan kind yang sudah tak ada di pipeline)
         $docKeys = array_values(array_intersect($docKeys, array_keys($graph)));
@@ -48,11 +37,33 @@ class GenerationPipeline
         return $run;
     }
 
+    /**
+     * Set dokumen efektif proyek: kedalaman eksplisit (single/concise/full) menimpa
+     * template workspace dan set adaptif kompleksitas (FR-07).
+     */
+    private function resolveDocKeys(Project $project): array
+    {
+        $complexity = $project->understanding?->complexity ?? 3;
+        // Set dokumen template perusahaan hanya bila user memilih "Standar workspace" di wizard;
+        // pilihan "Default" tetap scale-adaptive kompleksitas (FR-07).
+        $tplKinds = ($project->blueprint['template'] ?? 'default') === 'workspace'
+            ? $project->docTemplate?->doc_kinds
+            : null;
+
+        return match ($project->blueprint['depth'] ?? 'auto') {
+            'single' => ['PRD'],
+            'concise' => config('spekta.doc_sets.1'),
+            'full' => config('spekta.doc_sets.3'),
+            default => $tplKinds ?: config('spekta.doc_sets.'.$complexity),
+        };
+    }
+
     /** Generate hanya dokumen yang belum ada (set lengkap pipeline) — upstream dibaca dari dokumen tersimpan. */
     public function startMissing(Project $project, ?array $only = null): ?GenerationRun
     {
         $graph = config('spekta.doc_pipeline');
         $existing = $project->documents()->pluck('doc_key')->all();
+        // Mode single juga boleh nambah dokumen di sini — escape hatch upgrade ke multi-doc (1 kredit/doc)
         $missing = array_values(array_diff(array_keys($graph), $existing));
         if ($only !== null) {
             $missing = array_values(array_intersect($missing, $only));

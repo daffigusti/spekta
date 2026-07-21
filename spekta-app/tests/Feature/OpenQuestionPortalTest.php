@@ -84,6 +84,31 @@ class OpenQuestionPortalTest extends TestCase
                 ->where('open_questions.0.answer_text', 'Ya, WhatsApp Business API'));
     }
 
+    /** Tim internal menandai OQ terjawab (jawaban dari meeting/WA di luar portal). */
+    public function test_internal_user_marks_open_question_answered(): void
+    {
+        [$project, , $oq] = $this->makeShared();
+        $user = User::firstOrFail();
+
+        $this->actingAs($user)
+            ->post(route('projects.oq.answer', [$project->id, $oq->id]), ['answer_text' => 'Ya, konfirmasi via meeting 21 Jul'])
+            ->assertSessionHasNoErrors();
+
+        $oq->refresh();
+        $this->assertSame('answered', $oq->status);
+        $this->assertSame('Ya, konfirmasi via meeting 21 Jul', $oq->answer_text);
+        $this->assertSame('M (internal)', $oq->answered_by);
+
+        // sudah answered → endpoint internal juga tidak bisa menimpa
+        $this->actingAs($user)
+            ->post(route('projects.oq.answer', [$project->id, $oq->id]), ['answer_text' => 'Timpa'])
+            ->assertNotFound();
+
+        // sync tidak menghidupkan lagi: hash sama, row answered dipertahankan
+        $project->syncOpenQuestions();
+        $this->assertSame('answered', $oq->fresh()->status);
+    }
+
     /** Regenerate understanding mengganti asumsi — sync harus hapus OQ stale yang belum
      *  terjawab, tapi OQ answered tetap dipertahankan (jejak jawaban klien). */
     public function test_sync_removes_stale_unanswered_open_questions(): void
