@@ -176,7 +176,7 @@ Boleh menambah kebutuhan yang wajar untuk domain ini, tapi WAJIB tandai "(asumsi
 jangan pernah menampilkan tambahan sebagai fakta dari user.
 $template
 $depthLine
-$langLine $toneLine Hanya markdown, tanpa pembuka/penutup.
+$langLine $toneLine Hanya markdown, tanpa pembuka/penutup, JANGAN bungkus seluruh dokumen dalam code fence (```).
 SYS, $ctx, $tokensIn, $tokensOut, $onDelta);
             $meta = ['model' => config('spekta.llm.models.'.$class), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
         }
@@ -184,7 +184,18 @@ SYS, $ctx, $tokensIn, $tokensOut, $onDelta);
         $meta['duration_ms'] = (int) ((microtime(true) - $started) * 1000);
         $meta['generated_by'] = 'ai'; // BR-53
 
-        return [$md, $meta];
+        return [$this->stripWrappingFence($md), $meta];
+    }
+
+    /** LLM kadang membungkus seluruh dokumen dalam ```markdown — Rich Preview jadi satu code block raksasa. */
+    private function stripWrappingFence(string $md): string
+    {
+        $t = trim($md);
+        if (preg_match('/^```[a-z]*\n(.*)\n```$/s', $t, $m)) {
+            return $m[1];
+        }
+
+        return $md;
     }
 
     /** Outline wajib per tipe dokumen — tanpa ini model menebak sendiri isi tiap dokumen. */
@@ -453,9 +464,9 @@ $format
 SYS, "TEMUAN VALIDASI:\n$list\n\nKONTEKS PROYEK:\n".$this->documentContext($project, [], $docKey)
             ."\n\n=== DOKUMEN SAAT INI ($docKey) ===\n".$currentMd, $ti, $to);
 
-        if ($docKey === 'WIREFRAMES') {
-            $md = preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md));
-        }
+        $md = $docKey === 'WIREFRAMES'
+            ? preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md))
+            : $this->stripWrappingFence($md);
 
         return [$md, [
             'model' => config('spekta.llm.models.standard'),
@@ -489,9 +500,9 @@ $format
 SYS, "INSTRUKSI PERUBAHAN:\n$instruction\n\nKONTEKS PROYEK:\n".$this->documentContext($project, $upstreamDocs, $docKey)
             ."\n\n=== DOKUMEN SAAT INI ($docKey) ===\n".$currentMd, $ti, $to, $onDelta);
 
-        if ($docKey === 'WIREFRAMES') {
-            $md = preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md));
-        }
+        $md = $docKey === 'WIREFRAMES'
+            ? preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md))
+            : $this->stripWrappingFence($md);
 
         return [$md, [
             'model' => config('spekta.llm.models.standard'),

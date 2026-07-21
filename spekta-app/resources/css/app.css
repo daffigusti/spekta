@@ -285,3 +285,62 @@
         opacity: 0;
     }
 }
+
+/* ---- Markdown preview ala GitHub — override @tailwindcss/typography (.prose) ---- */
+.prose h1,
+.prose h2 {
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--border);
+}
+.prose table {
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border-spacing: 0;
+    border-collapse: collapse;
+}
+.prose th,
+.prose td {
+    border: 1px solid var(--border);
+    padding: 0.4em 0.85em;
+}
+.prose thead th {
+    background: var(--muted);
+}
+.prose tbody tr:nth-child(2n) {
+    background: color-mix(in oklab, var(--muted) 45%, transparent);
+}
+.prose :not(pre) > code {
+    background: color-mix(in oklab, var(--muted) 80%, transparent);
+    padding: 0.2em 0.4em;
+    border-radius: 6px;
+    font-weight: 500;
+}
+.prose :not(pre) > code::before,
+.prose :not(pre) > code::after {
+    content: none; /* buang backtick dekoratif bawaan typography */
+}
+.prose pre {
+    background: var(--muted);
+    color: var(--foreground);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+.prose blockquote {
+    border-left: 0.25em solid var(--border);
+    color: var(--muted-foreground);
+    font-style: normal;
+    font-weight: 400;
+}
+.prose blockquote p::before,
+.prose blockquote p::after {
+    content: none;
+}
+.prose hr {
+    border-top: 2px solid var(--border);
+}
+.prose input[type='checkbox'] {
+    accent-color: var(--primary);
+    margin-right: 0.4em;
+}
