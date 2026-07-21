@@ -227,6 +227,8 @@ class SpecHealthValidator
             // (heading "### 1.7 Pagination" = nomor bab, bukan fakta angka)
             $clean = preg_replace('/^```.*?^```/ms', '', $md) ?? $md;
             $clean = preg_replace('/^#{1,6}[^\n]*$/m', '', $clean) ?? $clean;
+            // marker ordered-list ("3. **SKU** opsional") = penomoran, bukan klaim angka
+            $clean = preg_replace('/^\s*\d+[.)]\s+/m', '', $clean) ?? $clean;
             foreach (self::numberKeywordPairs($clean) as [$num, $kw]) {
                 if (! isset($canon[$kw]) || isset($canon[$kw][$num]) || isset($seen["$key|$kw"])) {
                     continue;
@@ -250,6 +252,9 @@ class SpecHealthValidator
     /** Pasangan (angka, keyword terdekat) dari teks — keyword non-stopword dalam jendela 2 token, prioritas setelah angka. */
     private static function numberKeywordPairs(string $text): array
     {
+        // kode "FR-02" / "EA-2" / "EC-03" dibuang utuh — tokenizer memecahnya jadi angka lepas
+        // yang lalu dipasangkan ke keyword di dekatnya ("EA-2: Karakter" ≠ klaim "2 karakter")
+        $text = preg_replace('/\b\p{Lu}{1,5}-\d+(?:\.\d+)*\b/u', ' ', $text) ?? $text;
         $tokens = preg_split('/[^\p{L}\p{N}%,.]+/u', mb_strtolower($text), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $tokens = array_values(array_map(fn ($t) => trim($t, '.,'), $tokens));
         $stop = ['dan', 'atau', 'yang', 'dari', 'untuk', 'pada', 'dengan', 'per', 'tiap', 'setiap', 'paling',

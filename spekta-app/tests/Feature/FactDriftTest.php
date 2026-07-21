@@ -71,6 +71,26 @@ class FactDriftTest extends TestCase
         ]));
     }
 
+    public function test_code_id_adjacent_to_keyword_not_flagged(): void
+    {
+        // "EA-2: Karakter terlalu panjang" — angka 2 milik kode EA-2, bukan klaim "2 karakter"
+        $facts = ['Password minimal 8 karakter (FR-02/EC-03)'];
+
+        $this->assertSame([], SpecHealthValidator::factDriftFindings($facts, [
+            'USER_FLOWS' => "Password (min. 8 karakter, FR-02/EC-03).\n- **EA-2: Karakter terlalu panjang pada footer** → validasi menolak.",
+        ]));
+    }
+
+    public function test_ordered_list_marker_not_flagged(): void
+    {
+        // "3. **SKU** opsional" — angka 3 adalah penomoran list, bukan klaim "3 sku"
+        $facts = ['Pencarian ≤ 200 ms untuk ≤ 1.000 SKU (NFR-01)'];
+
+        $this->assertSame([], SpecHealthValidator::factDriftFindings($facts, [
+            'ROADMAP' => "1. Login wajib.\n2. Pencarian ≤ 200 ms untuk 1.000 SKU.\n3. **SKU/kode produk** bersifat opsional.",
+        ]));
+    }
+
     public function test_validator_run_persists_fact_drift_finding(): void
     {
         config(['spekta.llm.driver' => 'stub']);
