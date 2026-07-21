@@ -174,6 +174,7 @@ Konsisten dengan dokumen upstream yang diberikan (penomoran FR/BR, istilah, enti
 Gunakan INPUT ASLI USER dan HASIL INTERVIEW sebagai sumber kebenaran detail.
 Boleh menambah kebutuhan yang wajar untuk domain ini, tapi WAJIB tandai "(asumsi)" di tempatnya DAN catat di section Assumptions —
 jangan pernah menampilkan tambahan sebagai fakta dari user.
+Rujukan silang section tulis "Bagian N" (mis. "REQUIREMENTS Bagian 3", "lihat Bagian 5"), JANGAN pakai simbol §.
 $template
 $depthLine
 $langLine $toneLine Hanya markdown, tanpa pembuka/penutup, JANGAN bungkus seluruh dokumen dalam code fence (```).
@@ -312,10 +313,14 @@ Balas HANYA JSON valid (tanpa code fence) dengan skema:
   ]
 }]}
 Aturan:
-- Kelompokkan layar per "flow" persis mengikuti dokumen USER_FLOWS; urutan array = urutan langkah flow (digambar panah antar layar).
-- 3-7 layar per flow, tiap layar 2-6 section. Fokus struktur & hirarki, bukan copywriting.
+- Kelompokkan layar per "flow" persis mengikuti dokumen USER_FLOWS; urutan array = urutan flow lalu urutan langkah dalam flow (digambar panah antar layar).
+- 3-7 layar per flow, tiap layar 2-6 section. Flow inti bisnis (mis. transaksi/checkout) wajib paling lengkap: setiap langkahnya dapat layar sendiri. Flow sederhana (logout, pengaturan tunggal) boleh 1-2 layar.
+- Jangan duplikasi layar yang sama di flow berbeda — gambar sekali di flow pertamanya; flow lain cukup layar yang unik untuk flow itu.
+- "note" berbahasa awam untuk klien; DILARANG menulis kode internal (FR-xx, AC-xx, BR-xx, EA-x, dsb).
 - "device":"mobile" hanya bila flow memang mobile-first; selain itu "desktop".
+- Layar mobile pakai pola UI mobile: konten satu kolom bertumpuk, navigasi utama via "footer" (bottom nav) atau "navbar" (app bar: item pertama = judul layar), hindari tabel berkolom banyak (maks 2-3 kolom) dan grid lebar.
 - Label dalam Bahasa Indonesia, istilah teknis Inggris.
+- Fokus struktur & hirarki, bukan copywriting.
 SYS;
 
     // ---------- FR-09: impact analysis ----------

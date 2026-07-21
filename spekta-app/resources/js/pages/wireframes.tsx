@@ -63,9 +63,23 @@ function parseWireframes(raw: string | null): { screens: Screen[]; error: string
 // ---- primitif low-fi ----
 const Ph = ({ w = '100%', h = 8 }: { w?: string | number; h?: number }) => <div className="rounded bg-gray-200" style={{ width: w, height: h }} />;
 
-function SectionView({ s }: { s: Section }) {
+function SectionView({ s, mobile = false }: { s: Section; mobile?: boolean }) {
     switch (s.type) {
         case 'navbar':
+            if (mobile) {
+                // app bar mobile: hamburger + judul + avatar, item lain masuk drawer
+                return (
+                    <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+                        <div className="flex h-5 w-5 flex-none flex-col justify-center gap-[3px]">
+                            <span className="h-[2px] rounded bg-gray-500" />
+                            <span className="h-[2px] rounded bg-gray-500" />
+                            <span className="h-[2px] rounded bg-gray-500" />
+                        </div>
+                        <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-gray-700">{(s.items ?? [])[0] ?? 'Judul'}</span>
+                        <div className="h-5 w-5 flex-none rounded-full bg-gray-300" />
+                    </div>
+                );
+            }
             return (
                 <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
                     <div className="h-5 w-5 flex-none rounded bg-gray-400" />
@@ -121,6 +135,25 @@ function SectionView({ s }: { s: Section }) {
                 </div>
             );
         case 'table':
+            if (mobile) {
+                // mobile: tabel lebar tak muat — jadi kartu baris bertumpuk (pola list-detail)
+                return (
+                    <div>
+                        {s.title && <div className="mb-1 text-[10.5px] font-extrabold text-gray-700">{s.title}</div>}
+                        <div className="flex flex-col gap-1">
+                            {Array.from({ length: Math.min(s.rows ?? 3, 5) }).map((_, r) => (
+                                <div key={r} className="rounded-md border border-gray-200 px-2 py-1.5">
+                                    <div className="mb-1 flex items-center justify-between gap-2">
+                                        <Ph h={7} w={`${45 + (r % 3) * 12}%`} />
+                                        <Ph h={7} w="18%" />
+                                    </div>
+                                    <Ph h={5} w={`${60 - (r % 2) * 15}%`} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
             return (
                 <div>
                     {s.title && <div className="mb-1 text-[10.5px] font-extrabold text-gray-700">{s.title}</div>}
@@ -185,7 +218,7 @@ function SectionView({ s }: { s: Section }) {
             );
         case 'stats':
             return (
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className={`grid gap-1.5 ${mobile ? 'grid-cols-2' : 'grid-cols-3'}`}>
                     {(s.items ?? []).slice(0, 6).map((it, i) => (
                         <div key={i} className="rounded-md border border-gray-200 p-1.5">
                             <div className="mb-1">
@@ -234,6 +267,19 @@ function SectionView({ s }: { s: Section }) {
                 </div>
             );
         case 'footer':
+            if (mobile) {
+                // mobile: footer = bottom navigation bar
+                return (
+                    <div className="flex items-center justify-around border-t border-gray-200 pt-2">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                            <div key={i} className="flex flex-col items-center gap-0.5">
+                                <div className={`h-4 w-4 rounded ${i === 0 ? 'bg-gray-500' : 'bg-gray-300'}`} />
+                                <Ph h={3} w={16} />
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
             return (
                 <div className="flex items-center justify-between border-t border-gray-200 pt-2">
                     <div className="h-4 w-4 rounded bg-gray-300" />
@@ -255,28 +301,11 @@ function SectionView({ s }: { s: Section }) {
 
 function ScreenFrame({ screen, selected, onSelect }: { screen: Screen; selected: boolean; onSelect: () => void }) {
     const mobile = screen.device === 'mobile';
-    return (
-        <div
-            onClick={(e) => {
-                e.stopPropagation();
-                onSelect();
-            }}
-            className={`flex-none cursor-pointer overflow-hidden rounded-xl border-2 bg-white shadow-[0_4px_16px_rgba(15,23,42,.08)] transition-shadow ${
-                selected ? 'border-teal-500 shadow-[0_4px_20px_rgba(13,148,136,.25)]' : 'border-gray-200 hover:border-gray-300'
-            }`}
-            style={{ width: mobile ? 220 : 340 }}
-        >
-            <div className="flex items-center gap-1.5 border-b border-gray-200 bg-gray-50 px-3 py-2">
-                <span className="h-2 w-2 rounded-full bg-gray-300" />
-                <span className="h-2 w-2 rounded-full bg-gray-300" />
-                <span className="min-w-0 flex-1 truncate text-center text-[10px] font-bold text-gray-600">{screen.name}</span>
-                <span className="rounded bg-gray-200 px-1.5 py-px text-[8px] font-extrabold tracking-wide text-gray-500 uppercase">
-                    {mobile ? 'Mobile' : 'Desktop'}
-                </span>
-            </div>
+    const body = (
+        <>
             <div className="flex flex-col gap-2.5 p-3">
                 {(screen.sections ?? []).map((s, i) => (
-                    <SectionView key={i} s={s} />
+                    <SectionView key={i} s={s} mobile={mobile} />
                 ))}
             </div>
             {screen.note && (
@@ -284,6 +313,57 @@ function ScreenFrame({ screen, selected, onSelect }: { screen: Screen; selected:
                     {screen.note}
                 </div>
             )}
+        </>
+    );
+
+    if (mobile) {
+        // mockup HP: bezel membulat, notch, home indicator — bukan chrome browser
+        return (
+            <div
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onSelect();
+                }}
+                className="w-[220px] flex-none cursor-pointer"
+            >
+                <div className="mb-1.5 flex items-center justify-center gap-1.5 px-1">
+                    <span className="min-w-0 truncate text-[10px] font-bold text-gray-600">{screen.name}</span>
+                    <span className="rounded bg-gray-200 px-1.5 py-px text-[8px] font-extrabold tracking-wide text-gray-500 uppercase">Mobile</span>
+                </div>
+                <div
+                    className={`overflow-hidden rounded-[26px] border-[3px] bg-white shadow-[0_4px_16px_rgba(15,23,42,.08)] transition-shadow ${
+                        selected ? 'border-teal-500 shadow-[0_4px_20px_rgba(13,148,136,.25)]' : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                >
+                    <div className="flex justify-center bg-gray-50 pt-2 pb-1.5">
+                        <span className="h-[7px] w-16 rounded-full bg-gray-300" />
+                    </div>
+                    {body}
+                    <div className="flex justify-center pt-1 pb-2">
+                        <span className="h-1 w-14 rounded-full bg-gray-300" />
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            onClick={(e) => {
+                e.stopPropagation();
+                onSelect();
+            }}
+            className={`w-[340px] flex-none cursor-pointer overflow-hidden rounded-xl border-2 bg-white shadow-[0_4px_16px_rgba(15,23,42,.08)] transition-shadow ${
+                selected ? 'border-teal-500 shadow-[0_4px_20px_rgba(13,148,136,.25)]' : 'border-gray-200 hover:border-gray-300'
+            }`}
+        >
+            <div className="flex items-center gap-1.5 border-b border-gray-200 bg-gray-50 px-3 py-2">
+                <span className="h-2 w-2 rounded-full bg-gray-300" />
+                <span className="h-2 w-2 rounded-full bg-gray-300" />
+                <span className="min-w-0 flex-1 truncate text-center text-[10px] font-bold text-gray-600">{screen.name}</span>
+                <span className="rounded bg-gray-200 px-1.5 py-px text-[8px] font-extrabold tracking-wide text-gray-500 uppercase">Desktop</span>
+            </div>
+            {body}
         </div>
     );
 }
@@ -305,7 +385,7 @@ export default function WireframesPage({
 
     const { screens, error: parseError } = useMemo(() => parseWireframes(doc?.content_md ?? null), [doc?.content_md]);
 
-    // grup per flow, urutan kemunculan dipertahankan (urutan array = urutan langkah)
+    // grup per flow; antar-flow diurut by angka pada nama (LLM kadang acak), dalam flow urutan array = urutan langkah
     const flows = useMemo(() => {
         const m = new Map<string, Screen[]>();
         for (const s of screens) {
@@ -313,7 +393,11 @@ export default function WireframesPage({
             if (!m.has(key)) m.set(key, []);
             m.get(key)!.push(s);
         }
-        return [...m.entries()];
+        const num = (name: string) => {
+            const d = name.match(/\d+/);
+            return d ? parseInt(d[0], 10) : Number.MAX_SAFE_INTEGER;
+        };
+        return [...m.entries()].sort((a, b) => num(a[0]) - num(b[0]));
     }, [screens]);
 
     const selected = screens.find((s) => s.id === selectedId) ?? null;
