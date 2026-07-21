@@ -84,7 +84,9 @@ export default function Dashboard({ projects }: { projects: ProjectCard[] }) {
                             className="group rounded-xl border border-gray-200 bg-white p-[18px] transition hover:-translate-y-px hover:shadow-lg"
                         >
                             <div className="flex items-start justify-between gap-2.5">
-                                <div className="text-sm leading-tight font-bold text-gray-800">{p.name}</div>
+                                <div className="line-clamp-2 text-sm leading-tight font-bold text-gray-800" title={p.name}>
+                                    {p.name}
+                                </div>
                                 <div className="flex flex-none items-center gap-1.5">
                                     <span
                                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wide ${b.cls}`}
