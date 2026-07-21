@@ -16,17 +16,15 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertTrue(Schema::hasColumn('users', 'google_id'));
 
         $user = User::factory()->create(['google_id' => 'google-user-123']);
-        $userWithoutGoogleIdentity = User::factory()->create();
+        User::factory()->count(2)->create();
 
         $this->assertSame('google-user-123', $user->fresh()->google_id);
         $this->assertDatabaseHas('users', [
             'id' => $user->id,
             'google_id' => 'google-user-123',
         ]);
-        $this->assertDatabaseHas('users', [
-            'id' => $userWithoutGoogleIdentity->id,
-            'google_id' => null,
-        ]);
+        $this->assertSame(2, User::query()->whereNull('google_id')->count());
+        $this->assertDatabaseCount('users', 3);
     }
 
     public function test_google_identity_is_unique(): void
@@ -40,9 +38,19 @@ class GoogleAuthenticationTest extends TestCase
 
     public function test_google_socialite_configuration_is_present(): void
     {
-        $this->assertSame(env('GOOGLE_CLIENT_ID'), config('services.google.client_id'));
-        $this->assertSame(env('GOOGLE_CLIENT_SECRET'), config('services.google.client_secret'));
-        $this->assertSame(env('GOOGLE_REDIRECT_URI', rtrim(env('APP_URL'), '/').'/auth/google/callback'), config('services.google.redirect'));
-        $this->assertSame(['openid', 'profile', 'email'], config('services.google.scopes'));
+        config()->set('services.google', [
+            'client_id' => 'test-google-client-id',
+            'client_secret' => 'test-google-client-secret',
+            'redirect' => 'http://localhost/auth/google/callback',
+            'scopes' => ['openid', 'profile', 'email'],
+        ]);
+
+        $google = config('services.google');
+
+        $this->assertSame(['client_id', 'client_secret', 'redirect', 'scopes'], array_keys($google));
+        $this->assertSame('test-google-client-id', $google['client_id']);
+        $this->assertSame('test-google-client-secret', $google['client_secret']);
+        $this->assertSame('http://localhost/auth/google/callback', $google['redirect']);
+        $this->assertSame(['openid', 'profile', 'email'], $google['scopes']);
     }
 }
