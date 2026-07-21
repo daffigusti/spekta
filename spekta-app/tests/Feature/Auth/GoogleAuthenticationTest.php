@@ -38,19 +38,9 @@ class GoogleAuthenticationTest extends TestCase
 
     public function test_google_socialite_configuration_is_present(): void
     {
-        config()->set('services.google', [
-            'client_id' => 'test-google-client-id',
-            'client_secret' => 'test-google-client-secret',
-            'redirect' => 'http://localhost/auth/google/callback',
-            'scopes' => ['openid', 'profile', 'email'],
-        ]);
-
-        $google = config('services.google');
-
-        $this->assertSame(['client_id', 'client_secret', 'redirect', 'scopes'], array_keys($google));
-        $this->assertSame('test-google-client-id', $google['client_id']);
-        $this->assertSame('test-google-client-secret', $google['client_secret']);
-        $this->assertSame('http://localhost/auth/google/callback', $google['redirect']);
-        $this->assertSame(['openid', 'profile', 'email'], $google['scopes']);
+        $this->assertSame('test-google-client-id', config('services.google.client_id'));
+        $this->assertSame('test-google-client-secret', config('services.google.client_secret'));
+        $this->assertSame('http://localhost/auth/google/callback', config('services.google.redirect'));
+        $this->assertSame(['openid', 'profile', 'email'], config('services.google.scopes'));
     }
 }
