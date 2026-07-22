@@ -77,8 +77,13 @@ class GoogleAuthenticatedSessionController extends Controller
                 $result = DB::transaction(function () use ($googleId, $email) {
                     $identityOwner = User::where('google_id', $googleId)->lockForUpdate()->first();
 
-                    if ($identityOwner && $identityOwner->email === $email) {
-                        return ['user' => $identityOwner];
+                    if ($identityOwner) {
+                        // Never acquire the email-row lock after finding a mismatched
+                        // identity. A concurrent request can hold those two rows in
+                        // the opposite order.
+                        return $identityOwner->email === $email
+                            ? ['user' => $identityOwner]
+                            : ['status' => 'conflict'];
                     }
 
                     $emailOwner = User::where('email', $email)->lockForUpdate()->first();
@@ -118,11 +123,17 @@ class GoogleAuthenticatedSessionController extends Controller
             return false;
         }
 
-        $message = Str::lower($exception->getMessage());
+        $columns = array_values($exception->columns);
 
-        return Str::contains($message, 'users')
-            && (Str::contains($message, 'google_id')
-                || Str::contains($message, 'email'));
+        if (count($columns) !== 1 || ! in_array($columns[0], ['email', 'google_id'], true)) {
+            return false;
+        }
+
+        // SQLite does not expose an index name. PostgreSQL does, and accepting
+        // only these known users indexes prevents users_pkey/unrelated uniques
+        // from being mistaken for an OAuth creation race.
+        return $exception->index === null
+            || in_array($exception->index, ['users_email_unique', 'users_google_id_unique'], true);
     }
 
     protected function createGoogleUser($googleUser, string $email, string $googleId): User

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Http\Controllers\Auth\GoogleAuthenticatedSessionController;
 use App\Models\User;
+use App\Models\Workspace;
 use App\Services\WorkspaceProvisioner;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -202,31 +204,68 @@ class GoogleAuthenticationTest extends TestCase
             $workspace = app(WorkspaceProvisioner::class)->provision($winner, 'Workspace Committed Winner');
             $winner->forceFill(['current_workspace_id' => $workspace->id])->save();
 
-            fwrite($writer, '1');
-            usleep(750000);
+            // Do not commit until parent has entered createGoogleUser. This
+            // proves recovery handles the unique violation, rather than merely
+            // logging in a row that was already committed before the attempt.
+            fwrite($writer, 'r');
+            if (fread($writer, 1) !== 'a') {
+                DB::rollBack();
+                exit(1);
+            }
             DB::commit();
+            fwrite($writer, 'c');
             fclose($writer);
             exit(0);
         }
 
         fclose($writer);
-        $this->assertSame('1', fread($reader, 1));
-        fclose($reader);
-        DB::reconnect();
-        DB::beginTransaction();
+        try {
+            $this->assertSame('r', fread($reader, 1));
+            DB::reconnect();
+            DB::beginTransaction();
 
-        Socialite::fake('google', SocialiteUser::fake([
-            'id' => 'collision-google', 'email' => 'collision@example.com', 'email_verified' => true,
-        ]));
+            $this->app->instance(GoogleAuthenticatedSessionController::class, new class($reader) extends GoogleAuthenticatedSessionController
+            {
+                public function __construct(private $socket) {}
 
-        $this->get(route('google.callback'))
-            ->assertRedirect(route('dashboard', absolute: false));
+                protected function createGoogleUser($googleUser, string $email, string $googleId): User
+                {
+                    fwrite($this->socket, 'a');
+                    if (fread($this->socket, 1) !== 'c') {
+                        throw new \RuntimeException('OAuth race barrier failed.');
+                    }
 
-        pcntl_waitpid($pid, $status);
+                    return parent::createGoogleUser($googleUser, $email, $googleId);
+                }
+            });
 
-        $this->assertAuthenticatedAs(User::where('google_id', 'collision-google')->firstOrFail());
-        $this->assertSame(1, User::where('google_id', 'collision-google')->count());
-        $this->assertSame(1, DB::table('workspaces')->where('name', 'Workspace Committed Winner')->count());
+            Socialite::fake('google', SocialiteUser::fake([
+                'id' => 'collision-google', 'email' => 'collision@example.com', 'email_verified' => true,
+            ]));
+
+            $this->get(route('google.callback'))
+                ->assertRedirect(route('dashboard', absolute: false));
+
+            pcntl_waitpid($pid, $status);
+
+            $this->assertAuthenticatedAs(User::where('google_id', 'collision-google')->firstOrFail());
+            $this->assertSame(1, User::where('google_id', 'collision-google')->count());
+            $this->assertSame(1, DB::table('workspaces')->where('name', 'Workspace Committed Winner')->count());
+        } finally {
+            // Child committed outside RefreshDatabase's transaction. Roll back
+            // parent first, then remove all child-owned durable rows.
+            if (DB::connection()->transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
+            $workspaceIds = Workspace::where('name', 'Workspace Committed Winner')->pluck('id');
+            if ($workspaceIds->isNotEmpty()) {
+                Workspace::whereKey($workspaceIds)->delete();
+            }
+            User::where('email', 'collision@example.com')->delete();
+
+            fclose($reader);
+        }
     }
 
     public function test_google_login_requires_canonical_boolean_email_verified_claim(): void
