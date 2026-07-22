@@ -23,10 +23,12 @@ export default function Profile({
     mustVerifyEmail,
     status,
     googleLinked = false,
+    googleStatus = '',
 }: {
     mustVerifyEmail: boolean;
     status?: string;
     googleLinked?: boolean;
+    googleStatus?: string;
 }) {
     const { auth } = usePage<SharedData>().props;
 
@@ -133,6 +135,19 @@ export default function Profile({
                         >
                             Hubungkan Google
                         </Link>
+                    )}
+
+                    {googleStatus && (
+                        <p
+                            role={googleStatus === 'Google berhasil terhubung.' ? 'status' : 'alert'}
+                            className={
+                                googleStatus === 'Google berhasil terhubung.'
+                                    ? 'text-sm font-medium text-green-600'
+                                    : 'text-sm font-medium text-red-600'
+                            }
+                        >
+                            {googleStatus}
+                        </p>
                     )}
                 </div>
 
