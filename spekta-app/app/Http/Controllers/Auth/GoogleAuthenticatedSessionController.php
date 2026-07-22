@@ -58,10 +58,6 @@ class GoogleAuthenticatedSessionController extends Controller
                 $emailOwner = User::where('email', $email)->lockForUpdate()->first();
 
                 if ($identityOwner) {
-                    if ($emailOwner && $emailOwner->isNot($identityOwner)) {
-                        return ['status' => 'conflict'];
-                    }
-
                     return ['user' => $identityOwner];
                 }
 
@@ -69,26 +65,14 @@ class GoogleAuthenticatedSessionController extends Controller
                     return ['status' => 'link_required'];
                 }
 
-                $user = User::create([
-                    'name' => $googleUser->getName() ?: $email,
-                    'email' => $email,
-                    'google_id' => $googleId,
-                    'password' => Hash::make(Str::random(64)),
-                ]);
-
-                $user->forceFill(['email_verified_at' => now()])->save();
-
-                $workspace = app(WorkspaceProvisioner::class)->provision($user, "Workspace {$user->name}");
-                $user->forceFill(['current_workspace_id' => $workspace->id])->save();
-
-                return ['user' => $user];
+                return ['user' => $this->createGoogleUser($googleUser, $email, $googleId)];
             });
         } catch (UniqueConstraintViolationException $exception) {
             $result = DB::transaction(function () use ($googleId, $email) {
                 $identityOwner = User::where('google_id', $googleId)->lockForUpdate()->first();
                 $emailOwner = User::where('email', $email)->lockForUpdate()->first();
 
-                if ($identityOwner && (! $emailOwner || $emailOwner->is($identityOwner))) {
+                if ($identityOwner && $emailOwner && $emailOwner->is($identityOwner)) {
                     return ['user' => $identityOwner];
                 }
 
@@ -114,5 +98,22 @@ class GoogleAuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard', absolute: false));
+    }
+
+    protected function createGoogleUser($googleUser, string $email, string $googleId): User
+    {
+        $user = User::create([
+            'name' => $googleUser->getName() ?: $email,
+            'email' => $email,
+            'google_id' => $googleId,
+            'password' => Hash::make(Str::random(64)),
+        ]);
+
+        $user->forceFill(['email_verified_at' => now()])->save();
+
+        $workspace = app(WorkspaceProvisioner::class)->provision($user, "Workspace {$user->name}");
+        $user->forceFill(['current_workspace_id' => $workspace->id])->save();
+
+        return $user;
     }
 }

@@ -127,6 +127,7 @@ class GoogleAuthenticationTest extends TestCase
             ->assertSessionHas('status', 'Masuk dengan kata sandi lalu hubungkan Google dari Pengaturan.');
 
         $this->assertSame(null, $user->fresh()->google_id);
+        $this->assertSame(0, User::where('google_id', 'google-existing')->count());
         $this->assertDatabaseCount('workspaces', 0);
     }
 
@@ -143,7 +144,7 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertSame('google-original', $user->fresh()->google_id);
     }
 
-    public function test_google_login_rejects_conflicting_identity_and_email_mappings(): void
+    public function test_google_login_uses_google_identity_when_email_maps_to_another_user(): void
     {
         $identityOwner = User::factory()->create(['email' => 'identity@example.com', 'google_id' => 'google-conflict']);
         $emailOwner = User::factory()->create(['email' => 'email@example.com', 'google_id' => null]);
@@ -152,39 +153,52 @@ class GoogleAuthenticationTest extends TestCase
         ]));
 
         $this->get(route('google.callback'))
+            ->assertRedirect(route('dashboard', absolute: false));
+
+        $this->assertAuthenticatedAs($identityOwner->fresh());
+        $this->assertSame('google-conflict', $identityOwner->fresh()->google_id);
+        $this->assertNull($emailOwner->fresh()->google_id);
+    }
+
+    public function test_google_login_recovers_unique_creation_collision_safely(): void
+    {
+        Socialite::fake('google', SocialiteUser::fake([
+            'id' => 'collision-google', 'email' => 'collision@example.com', 'email_verified' => true,
+        ]));
+
+        $this->partialMock(\App\Http\Controllers\Auth\GoogleAuthenticatedSessionController::class, function ($mock) {
+            $mock->shouldAllowMockingProtectedMethods();
+            $mock->shouldReceive('createGoogleUser')->once()->andReturnUsing(function (SocialiteUser $googleUser, string $email, string $googleId) {
+                User::create([
+                    'name' => 'Collision Owner',
+                    'email' => $email,
+                    'google_id' => $googleId,
+                    'password' => Hash::make('collision-password'),
+                ]);
+
+                return User::create([
+                    'name' => $googleUser->getName() ?: $email,
+                    'email' => $email,
+                    'google_id' => $googleId,
+                    'password' => Hash::make('collision-password'),
+                ]);
+            });
+        });
+
+        $this->get(route('google.callback'))
             ->assertRedirect(route('login', absolute: false))
             ->assertSessionHas('status', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.');
 
         $this->assertGuest();
-        $this->assertSame('google-conflict', $identityOwner->fresh()->google_id);
-    }
-
-    public function test_repeated_google_callback_keeps_single_workspace(): void
-    {
-        Socialite::fake('google', SocialiteUser::fake([
-            'id' => 'repeat-google', 'email' => 'repeat@example.com', 'email_verified' => true,
-        ]));
-
-        $this->get(route('google.callback'))
-            ->assertRedirect(route('dashboard', absolute: false));
-        $this->post(route('logout'));
-
-        Socialite::fake('google', SocialiteUser::fake([
-            'id' => 'repeat-google', 'email' => 'repeat@example.com', 'email_verified' => true,
-        ]));
-        $this->get(route('google.callback'))
-            ->assertRedirect(route('dashboard', absolute: false));
-
-        $this->assertAuthenticatedAs(User::where('google_id', 'repeat-google')->firstOrFail());
-        $this->assertSame(1, User::where('google_id', 'repeat-google')->count());
-        $this->assertDatabaseCount('workspaces', 1);
+        $this->assertSame(0, User::where('google_id', 'collision-google')->count());
+        $this->assertDatabaseCount('workspaces', 0);
     }
 
     public function test_google_login_requires_canonical_boolean_email_verified_claim(): void
     {
         Socialite::fake('google', SocialiteUser::fake([
             'id' => 'google-legacy-claim', 'email' => 'legacy@example.com',
-            'verified_email' => true, 'email_verified' => 'true',
+            'email_verified' => 'true',
         ]));
 
         $this->get(route('google.callback'))
