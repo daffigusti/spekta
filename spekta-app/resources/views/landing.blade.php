@@ -112,7 +112,7 @@ a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var
       <p style="margin:22px auto 0;max-width:600px;font-size:17px;line-height:1.7;color:var(--muted);text-wrap:pretty">Tempel transkrip meeting klien — Spekta mengekstrak requirement, menanyakan yang belum jelas, lalu men-generate 11 dokumen spesifikasi + estimasi man-days &amp; RAB dari rate card Anda.</p>
       <div style="display:flex;gap:12px;justify-content:center;margin-top:32px;flex-wrap:wrap">
         <a class="btn-primary" href="{{ route('register') }}">Buat blueprint pertama →</a>
-        <a class="btn-ghost" href="#demo">Lihat demo live</a>
+        <a class="btn-ghost" href="#video">Lihat demo live</a>
       </div>
       <div style="display:flex;gap:32px;justify-content:center;margin-top:40px;flex-wrap:wrap">
         <div><div class="mono" style="font-size:26px;font-weight:700;color:var(--heading)">15 mnt</div><div style="font-size:12px;font-weight:600;color:var(--accent-2);margin-top:3px;letter-spacing:0.04em">MEETING → PROPOSAL</div></div>
@@ -249,6 +249,17 @@ a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var
         <div class="sora" style="font-size:15px;font-weight:700;color:var(--heading);margin-top:12px">Estimasi</div>
         <div style="font-size:12.5px;line-height:1.6;color:var(--muted);margin-top:5px;opacity:0.85">MD, RAB &amp; proposal siap kirim</div>
       </div>
+    </div>
+  </section>
+
+  <!-- VIDEO DEMO -->
+  <section id="video" style="max-width:1100px;margin:0 auto;padding:80px 24px 20px">
+    <div style="text-align:center;max-width:560px;margin:0 auto">
+      <div class="mono" style="font-size:12px;font-weight:700;letter-spacing:0.12em;color:var(--accent)">// DEMO</div>
+      <h2 class="sora" style="margin:14px 0 0;font-size:36px;font-weight:800;letter-spacing:-0.025em;color:var(--heading);text-wrap:balance">Lihat Spekta bekerja</h2>
+    </div>
+    <div class="demo-panel" style="max-width:900px;margin:36px auto 0;border:1px solid var(--line-strong);border-radius:18px;background:var(--panel-bg);box-shadow:var(--shadow-panel);overflow:hidden">
+      <iframe src="https://www.youtube-nocookie.com/embed/p87E8QHXQfk" title="Demo Spekta" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="display:block;width:100%;aspect-ratio:16/9;border:0"></iframe>
     </div>
   </section>
 
