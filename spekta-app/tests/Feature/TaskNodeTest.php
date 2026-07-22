@@ -111,6 +111,20 @@ class TaskNodeTest extends TestCase
         $this->assertEqualsWithDelta($mdSebelum - $delta, $mdSesudah, 0.05);
     }
 
+    public function test_generate_task_ai_untuk_struktur_existing(): void
+    {
+        $project = $this->projectDenganStruktur();
+        $project->structureNodes()->where('kind', 'task')->delete();
+        $sub = $project->structureNodes()->where('kind', 'subfeature')->firstOrFail();
+
+        // queue sync di test — job generate langsung jalan
+        $this->post("/projects/{$project->id}/tasks/generate")->assertSessionHasNoErrors();
+
+        $tasks = $project->structureNodes()->where('kind', 'task')->where('parent_id', $sub->id)->get();
+        $this->assertNotEmpty($tasks);
+        $this->assertEqualsWithDelta((float) $sub->est_md, $tasks->sum('est_md'), 0.001);
+    }
+
     public function test_halaman_tasks_terrender_dengan_nodes(): void
     {
         $project = $this->projectDenganStruktur();

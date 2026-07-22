@@ -101,6 +101,53 @@ SYS, $ctx);
         return $out['phases'] ?? [];
     }
 
+    /**
+     * Generate task untuk sub-fitur yang belum punya task — proyek existing yang
+     * strukturnya dibuat sebelum ada level task. Balik: [['id' => subfeatureId, 'tasks' => [...]]].
+     */
+    public function buildTasks(Project $project): array
+    {
+        $nodes = $project->structureNodes;
+        $subs = $nodes->where('kind', 'subfeature')->where('scope', '!=', 'parked')
+            ->filter(fn ($s) => $nodes->where('parent_id', $s->id)->isEmpty())->values();
+        if ($subs->isEmpty()) {
+            return [];
+        }
+
+        if ($this->driver() === 'stub') {
+            // Dua task per sub-fitur, est menjumlah persis ke est parent
+            return $subs->map(function ($s) {
+                $half = round(((float) $s->est_md) / 2, 1);
+
+                return ['id' => $s->id, 'tasks' => [
+                    ['title' => 'Implementasi '.$s->title, 'description' => 'Kerjakan '.$s->title.'.', 'est_md' => $half],
+                    ['title' => 'Test & rapikan '.$s->title, 'description' => 'Uji dan rapikan hasil.', 'est_md' => (float) $s->est_md - $half],
+                ]];
+            })->all();
+        }
+
+        $ctx = json_encode($subs->map(fn ($s, $i) => [
+            'i' => $i,
+            'fitur' => $nodes->firstWhere('id', $s->parent_id)?->title,
+            'sub_fitur' => $s->title,
+            'description' => $s->description,
+            'est_md' => $s->est_md,
+        ])->all(), JSON_UNESCAPED_UNICODE);
+
+        $out = $this->json('standard', <<<'SYS'
+Pecah tiap sub-fitur berikut menjadi 2-3 task konkret (unit kerja developer).
+Balas JSON: {"items":[{"i":0,"tasks":[{"title":"","description":"","est_md":0}]}]}
+"i" = index sub-fitur dari input, wajib ada untuk SEMUA sub-fitur.
+description task maksimal 1 kalimat pendek. est_md maksimal 2; jumlah est_md task ≈ est_md sub-fiturnya.
+est_md = baseline konvensional tanpa AI coding tools. Bahasa Indonesia.
+SYS, $ctx);
+
+        return collect($out['items'] ?? [])
+            ->filter(fn ($it) => isset($it['i']) && $subs->has($it['i']))
+            ->map(fn ($it) => ['id' => $subs[$it['i']]->id, 'tasks' => $it['tasks'] ?? []])
+            ->values()->all();
+    }
+
     // ---------- FR-06: Stack recommendation ----------
     public function recommendStack(Project $project): array
     {

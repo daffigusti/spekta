@@ -57,7 +57,17 @@ class WizardController extends Controller
         return Inertia::render('tasks', [
             'project' => $project->only(['id', 'name', 'client_name', 'status', 'wizard_step', 'scope_mode']),
             'nodes' => $project->structureNodes,
+            'step_job' => Cache::get(WizardStepJob::statusKey($project->id)),
         ]);
+    }
+
+    // Generate task AI untuk proyek existing (struktur lama tanpa level task)
+    public function tasksGenerate(Request $request, Project $project)
+    {
+        ProjectController::authorizeProject($request, $project);
+        $this->dispatchStepJob($project, 'tasks');
+
+        return back();
     }
 
     // FR-06: stack sebagai halaman sendiri (di luar wizard)

@@ -42,9 +42,11 @@ class WizardStepJob implements ShouldQueue
         Cache::put($key, ['status' => 'running', 'step' => $this->step], 900);
 
         try {
-            $this->step === 'structure'
-                ? $this->buildStructure($project, $engine)
-                : $this->recommendStack($project, $engine);
+            match ($this->step) {
+                'structure' => $this->buildStructure($project, $engine),
+                'tasks' => $this->generateTasks($project, $engine),
+                default => $this->recommendStack($project, $engine),
+            };
             Cache::forget($key);
         } catch (\Throwable $e) {
             Cache::put($key, [
@@ -109,6 +111,21 @@ class WizardStepJob implements ShouldQueue
         });
 
         $project->update(['wizard_step' => 'structure']);
+    }
+
+    /** Generate task AI untuk struktur existing yang sub-fiturnya belum punya task. */
+    private function generateTasks(Project $project, SpecEngine $engine): void
+    {
+        foreach ($engine->buildTasks($project) as $item) {
+            foreach ($item['tasks'] as $ti => $t) {
+                $project->structureNodes()->create([
+                    'kind' => 'task', 'parent_id' => $item['id'],
+                    'title' => $t['title'] ?? 'Task',
+                    'description' => $t['description'] ?? null,
+                    'est_md' => $t['est_md'] ?? 0, 'sort' => $ti,
+                ]);
+            }
+        }
     }
 
     /** FR-06: rekomendasi stack (dipindah dari WizardController::confirmStructure). */

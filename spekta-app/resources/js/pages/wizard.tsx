@@ -118,7 +118,7 @@ const Spinner = ({ stroke = '#0D9488' }: { stroke?: string }) => (
 
 // Job step async (WizardStepJob): poll reload ringan sampai selesai (wizard_step maju) / error.
 // Selesai = cache dihapus server → stepJob null → parent otomatis render step berikutnya.
-function useStepJob(stepJob: StepJob | undefined, step: 'structure' | 'stack') {
+export function useStepJob(stepJob: StepJob | undefined, step: 'structure' | 'stack' | 'tasks') {
     const mine = !!stepJob && stepJob.step === step;
     const active = mine && ['queued', 'running'].includes(stepJob.status);
     const error = mine && stepJob.status === 'error' ? (stepJob.error ?? 'AI gagal — coba lagi.') : null;
