@@ -19,7 +19,15 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Profile({ mustVerifyEmail, status }: { mustVerifyEmail: boolean; status?: string }) {
+export default function Profile({
+    mustVerifyEmail,
+    status,
+    googleLinked = false,
+}: {
+    mustVerifyEmail: boolean;
+    status?: string;
+    googleLinked?: boolean;
+}) {
     const { auth } = usePage<SharedData>().props;
 
     const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
@@ -111,6 +119,21 @@ export default function Profile({ mustVerifyEmail, status }: { mustVerifyEmail: 
                             </Transition>
                         </div>
                     </form>
+                </div>
+
+                <div className="border-border/60 bg-muted/20 space-y-3 rounded-lg border p-4">
+                    <HeadingSmall title="Akun Google" description="Hubungkan akun Google untuk akses masuk yang lebih mudah." />
+
+                    {googleLinked ? (
+                        <p className="text-sm font-medium text-green-600">Google terhubung</p>
+                    ) : (
+                        <Link
+                            href={route('google.link.redirect')}
+                            className="text-primary text-sm font-medium underline underline-offset-4 hover:no-underline focus:ring-2 focus:ring-offset-2 focus:outline-hidden"
+                        >
+                            Hubungkan Google
+                        </Link>
+                    )}
                 </div>
 
                 <DeleteUser />
