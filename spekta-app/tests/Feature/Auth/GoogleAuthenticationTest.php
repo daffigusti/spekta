@@ -51,6 +51,7 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertSame('test-google-client-secret', config('services.google.client_secret'));
         $this->assertSame('http://localhost/auth/google/callback', config('services.google.redirect'));
         $this->assertSame(['openid', 'profile', 'email'], config('services.google.scopes'));
+        $this->assertSame('http://localhost/settings/profile/google/callback', config('services.google.link_redirect'));
     }
 
     public function test_google_redirect_starts_oauth_flow(): void
@@ -289,5 +290,105 @@ class GoogleAuthenticationTest extends TestCase
             ->assertRedirect(route('login', absolute: false))
             ->assertSessionHas('status', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.')
             ->assertSessionMissing('exception');
+    }
+
+    public function test_google_link_redirect_requires_authentication(): void
+    {
+        $this->get(route('google.link.redirect'))->assertRedirect(route('login', absolute: false));
+        $this->get(route('google.link.callback'))->assertRedirect(route('login', absolute: false));
+    }
+
+    public function test_authenticated_user_can_start_google_link_and_session_binds_user(): void
+    {
+        $user = User::factory()->create(['google_id' => null]);
+        Socialite::fake('google');
+
+        $this->actingAs($user)
+            ->get(route('google.link.redirect'))
+            ->assertRedirect();
+
+        $this->assertSame($user->id, session('google_link_user_id'));
+    }
+
+    public function test_google_link_rejects_missing_or_mismatched_session_user(): void
+    {
+        $user = User::factory()->create(['google_id' => null]);
+
+        $this->actingAs($user)
+            ->withSession(['google_link_user_id' => $user->id + 1])
+            ->get(route('google.link.callback'))
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('status', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.')
+            ->assertSessionMissing('google_link_user_id');
+    }
+
+    public function test_authenticated_user_can_link_google_identity(): void
+    {
+        $user = User::factory()->create(['google_id' => null]);
+        Socialite::fake('google', SocialiteUser::fake([
+            'id' => 'google-linked', 'email' => 'linked@example.com', 'email_verified' => true,
+        ]));
+
+        $this->actingAs($user)
+            ->withSession(['google_link_user_id' => $user->id])
+            ->get(route('google.link.callback'))
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('status', 'Google berhasil terhubung.')
+            ->assertSessionMissing('google_link_user_id');
+
+        $this->assertSame('google-linked', $user->fresh()->google_id);
+        $this->assertAuthenticatedAs($user->fresh());
+    }
+
+    public function test_google_link_rejects_identity_owned_by_another_user(): void
+    {
+        $user = User::factory()->create(['google_id' => null]);
+        $owner = User::factory()->create(['google_id' => 'google-owned']);
+        Socialite::fake('google', SocialiteUser::fake([
+            'id' => $owner->google_id, 'email' => 'other@example.com', 'email_verified' => true,
+        ]));
+
+        $this->actingAs($user)
+            ->withSession(['google_link_user_id' => $user->id])
+            ->get(route('google.link.callback'))
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('status', 'Google sudah terhubung ke akun lain.')
+            ->assertSessionMissing('google_link_user_id');
+
+        $this->assertNull($user->fresh()->google_id);
+    }
+
+    public function test_google_link_never_replaces_callers_existing_identity(): void
+    {
+        $user = User::factory()->create(['google_id' => 'google-original']);
+        Socialite::fake('google', SocialiteUser::fake([
+            'id' => 'google-other', 'email' => 'other@example.com', 'email_verified' => true,
+        ]));
+
+        $this->actingAs($user)
+            ->withSession(['google_link_user_id' => $user->id])
+            ->get(route('google.link.callback'))
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('status', 'Akun ini sudah memiliki tautan Google.')
+            ->assertSessionMissing('google_link_user_id');
+
+        $this->assertSame('google-original', $user->fresh()->google_id);
+    }
+
+    public function test_google_link_rejects_unverified_email_and_clears_session(): void
+    {
+        $user = User::factory()->create(['google_id' => null]);
+        Socialite::fake('google', SocialiteUser::fake([
+            'id' => 'google-unverified-link', 'email' => 'unverified@example.com', 'email_verified' => false,
+        ]));
+
+        $this->actingAs($user)
+            ->withSession(['google_link_user_id' => $user->id])
+            ->get(route('google.link.callback'))
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('status', 'Email Google harus terverifikasi untuk digunakan.')
+            ->assertSessionMissing('google_link_user_id');
+
+        $this->assertNull($user->fresh()->google_id);
     }
 }

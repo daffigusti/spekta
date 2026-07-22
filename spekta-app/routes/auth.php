@@ -42,6 +42,12 @@ Route::middleware('guest')->group(function () {
 });
 
 Route::middleware('auth')->group(function () {
+    Route::get('settings/profile/google', [GoogleAuthenticatedSessionController::class, 'linkRedirect'])
+        ->name('google.link.redirect');
+
+    Route::get('settings/profile/google/callback', [GoogleAuthenticatedSessionController::class, 'linkCallback'])
+        ->name('google.link.callback');
+
     Route::get('verify-email', EmailVerificationPromptController::class)
         ->name('verification.notice');
 

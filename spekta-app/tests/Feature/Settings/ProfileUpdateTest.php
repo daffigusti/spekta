@@ -18,7 +18,16 @@ class ProfileUpdateTest extends TestCase
             ->actingAs($user)
             ->get('/settings/profile');
 
-        $response->assertOk();
+        $response->assertOk()->assertInertia(fn ($page) => $page->where('googleLinked', false));
+    }
+
+    public function test_profile_page_reports_google_link_status(): void
+    {
+        $user = User::factory()->create(['google_id' => 'google-linked']);
+
+        $this->actingAs($user)
+            ->get('/settings/profile')
+            ->assertInertia(fn ($page) => $page->where('googleLinked', true));
     }
 
     public function test_profile_information_can_be_updated()

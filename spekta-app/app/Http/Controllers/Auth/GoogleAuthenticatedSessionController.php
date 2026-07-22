@@ -20,9 +20,86 @@ use Throwable;
 
 class GoogleAuthenticatedSessionController extends Controller
 {
+    private const LINK_SESSION_KEY = 'google_link_user_id';
+
     public function redirect(): RedirectResponse
     {
         return Socialite::driver('google')->redirect();
+    }
+
+    public function linkRedirect(Request $request): RedirectResponse
+    {
+        $request->session()->put(self::LINK_SESSION_KEY, $request->user()->getAuthIdentifier());
+
+        return Socialite::driver('google')
+            ->redirectUrl(config('services.google.link_redirect'))
+            ->redirect();
+    }
+
+    public function linkCallback(Request $request): RedirectResponse
+    {
+        $expectedUserId = $request->session()->pull(self::LINK_SESSION_KEY);
+        $currentUser = $request->user();
+
+        if ($expectedUserId === null || (string) $expectedUserId !== (string) $currentUser->getAuthIdentifier()) {
+            return to_route('profile.edit')->with('status', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.');
+        }
+
+        try {
+            $googleUser = Socialite::driver('google')
+                ->redirectUrl(config('services.google.link_redirect'))
+                ->user();
+        } catch (InvalidStateException $exception) {
+            return to_route('profile.edit')->with('status', 'Tautan Google tidak dapat dilanjutkan. Silakan coba lagi.');
+        } catch (DriverMissingConfigurationException $exception) {
+            report($exception);
+
+            return to_route('profile.edit')->with('status', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return to_route('profile.edit')->with('status', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
+        }
+
+        $googleId = (string) $googleUser->getId();
+
+        if ($googleId === '') {
+            return to_route('profile.edit')->with('status', 'Google tidak memberikan identitas akun yang dapat digunakan.');
+        }
+
+        if (data_get($googleUser->user, 'email_verified') !== true) {
+            return to_route('profile.edit')->with('status', 'Email Google harus terverifikasi untuk digunakan.');
+        }
+
+        try {
+            DB::transaction(function () use ($currentUser, $googleId): void {
+                $user = User::whereKey($currentUser->getAuthIdentifier())->lockForUpdate()->firstOrFail();
+
+                if ($user->google_id !== null) {
+                    throw new \LogicException('Google identity already linked.');
+                }
+
+                $owner = User::where('google_id', $googleId)->lockForUpdate()->first();
+
+                if ($owner !== null && (string) $owner->getAuthIdentifier() !== (string) $user->getAuthIdentifier()) {
+                    throw new \DomainException('Google identity belongs to another user.');
+                }
+
+                $user->forceFill(['google_id' => $googleId])->save();
+            });
+        } catch (\DomainException) {
+            return to_route('profile.edit')->with('status', 'Google sudah terhubung ke akun lain.');
+        } catch (\LogicException) {
+            return to_route('profile.edit')->with('status', 'Akun ini sudah memiliki tautan Google.');
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return to_route('profile.edit')->with('status', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
+        }
+
+        $request->session()->regenerate();
+
+        return to_route('profile.edit')->with('status', 'Google berhasil terhubung.');
     }
 
     public function callback(Request $request): RedirectResponse

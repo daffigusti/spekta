@@ -39,6 +39,7 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => env('GOOGLE_REDIRECT_URI', rtrim(env('APP_URL'), '/').'/auth/google/callback'),
+        'link_redirect' => env('GOOGLE_LINK_REDIRECT_URI', rtrim(env('APP_URL'), '/').'/settings/profile/google/callback'),
         'scopes' => ['openid', 'profile', 'email'],
     ],
 
