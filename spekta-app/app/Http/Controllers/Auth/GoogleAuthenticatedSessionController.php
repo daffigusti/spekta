@@ -115,8 +115,10 @@ class GoogleAuthenticatedSessionController extends Controller
 
     private function isGoogleIdentityUniqueViolation(UniqueConstraintViolationException $exception): bool
     {
-        return $exception->index === 'users_google_id_unique'
-            && $exception->columns === ['google_id'];
+        $hasExpectedIndex = $exception->index === 'users_google_id_unique';
+        $hasExpectedColumns = array_values($exception->columns) === ['google_id'];
+
+        return $hasExpectedIndex || $hasExpectedColumns;
     }
 
     public function callback(Request $request): RedirectResponse

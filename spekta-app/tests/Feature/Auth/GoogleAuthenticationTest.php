@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\GoogleAuthenticatedSessionController;
 use App\Models\User;
 use App\Models\Workspace;
 use App\Services\WorkspaceProvisioner;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
@@ -413,6 +414,48 @@ class GoogleAuthenticationTest extends TestCase
             ->assertSessionMissing('google_link_user_id');
 
         $this->assertNull($user->fresh()->google_id);
+    }
+
+    public function test_google_link_handles_identity_race_without_mutating_caller(): void
+    {
+        $user = User::factory()->create(['google_id' => null]);
+        $raceGoogleId = 'google-race';
+        $raceTriggered = false;
+
+        DB::listen(function (QueryExecuted $query) use (&$raceTriggered, $raceGoogleId): void {
+            if ($raceTriggered || ! str_contains($query->sql, '"google_id" = ?')) {
+                return;
+            }
+
+            if ($query->bindings !== [$raceGoogleId]) {
+                return;
+            }
+
+            $raceTriggered = true;
+            DB::table('users')->insert([
+                'name' => 'Concurrent Owner',
+                'email' => 'concurrent-owner@example.com',
+                'google_id' => $raceGoogleId,
+                'password' => Hash::make('concurrent-password'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        Socialite::fake('google', SocialiteUser::fake([
+            'id' => $raceGoogleId, 'email' => 'race@example.com', 'email_verified' => true,
+        ]));
+
+        $this->actingAs($user)
+            ->withSession(['google_link_user_id' => $user->id])
+            ->get(route('google.link.callback'))
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('googleStatus', 'Google sudah terhubung ke akun lain.')
+            ->assertSessionMissing('google_link_user_id');
+
+        $this->assertNull($user->fresh()->google_id);
+        $this->assertTrue($raceTriggered);
+        $this->assertSame(0, User::where('google_id', $raceGoogleId)->count());
     }
 
     public function test_google_link_never_replaces_callers_existing_identity(): void
