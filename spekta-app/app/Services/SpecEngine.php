@@ -87,10 +87,12 @@ SYS, $ctx);
             return $this->stubStructure($u->features ?? []);
         }
 
+        // FR-04: task = unit kerja konkret di bawah sub-fitur; cap keras menjaga ukuran output JSON
         $out = $this->json('reasoning', <<<'SYS'
-Susun struktur proyek software: fase → fitur → sub-fitur, dengan estimasi man-days kasar per sub-fitur.
-Balas JSON: {"phases":[{"title":"","features":[{"title":"","description":"","est_md":0,"scope":"mvp|full","subfeatures":[{"title":"","description":"","est_md":0}]}]}]}
-description = 1-2 kalimat penjelasan lingkup fitur/sub-fitur.
+Susun struktur proyek software: fase → fitur → sub-fitur → task, dengan estimasi man-days kasar.
+Balas JSON: {"phases":[{"title":"","features":[{"title":"","description":"","est_md":0,"scope":"mvp|full","subfeatures":[{"title":"","description":"","est_md":0,"tasks":[{"title":"","description":"","est_md":0}]}]}]}]}
+description fitur/sub-fitur = 1-2 kalimat penjelasan lingkup. description task = maksimal 1 kalimat pendek.
+Tiap sub-fitur pecah menjadi 2-3 task konkret (unit kerja developer, est_md maksimal 2); jumlah est_md task ≈ est_md sub-fiturnya.
 est_md = BASELINE KONVENSIONAL: effort 1 developer level menengah bekerja manual tanpa AI coding tools
 (penyesuaian mode AI-assisted/vibe dihitung sistem terpisah — jangan didiskon di sini).
 Maksimal 4 fase. Fitur inti scope "mvp", pelengkap "full". Bahasa Indonesia.
@@ -325,6 +327,13 @@ TPL,
 Struktur wajib ROADMAP.md: section per fase mengikuti FITUR & STRUKTUR.
 Tiap fase: tujuan/milestone, daftar FR dengan prioritas (P0 = scope mvp, P1 = full), total estimasi man-days, dependency terhadap fase lain, dan kriteria selesai (definition of done).
 Semua FR dari PRD wajib terpetakan ke fase.
+TPL,
+        'TASK_BREAKDOWN' => <<<'TPL'
+Struktur wajib TASK_BREAKDOWN.md: Work Breakdown Structure mengikuti FITUR & STRUKTUR.
+Section per fase; per fitur satu tabel dengan kolom: Kode WBS (format x.y.z mengikuti urutan fase.fitur.task), Sub-fitur, Task, Deskripsi, Est (MD), Referensi FR-xx dari REQUIREMENTS.
+Subtotal MD per fitur dan per fase, grand total di akhir dokumen.
+JANGAN mengarang task baru — gunakan task dari FITUR & STRUKTUR apa adanya; boleh merapikan judul.
+Sub-fitur tanpa task tetap masuk sebagai satu baris tanpa kode task.
 TPL,
     ];
 
@@ -680,6 +689,11 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
                         'title' => $s->title,
                         'description' => $s->description,
                         'est_md' => $s->est_md,
+                        'tasks' => $nodes->where('parent_id', $s->id)->map(fn ($t) => [
+                            'title' => $t->title,
+                            'description' => $t->description,
+                            'est_md' => $t->est_md,
+                        ])->values()->all(),
                     ])->values()->all(),
                 ])->values()->all(),
             ];
@@ -934,10 +948,20 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
                     'description' => $f['quote'] ?? '',
                     'est_md' => 8,
                     'scope' => $i === 0 ? 'mvp' : 'full',
+                    // est task sengaja menjumlah persis ke est parent — leaf-sum tidak menggeser ekspektasi estimasi test lama
                     'subfeatures' => [
-                        ['title' => 'Desain & skema data', 'est_md' => 2],
-                        ['title' => 'Implementasi backend', 'est_md' => 3],
-                        ['title' => 'Implementasi frontend', 'est_md' => 3],
+                        ['title' => 'Desain & skema data', 'est_md' => 2, 'tasks' => [
+                            ['title' => 'Rancang skema data', 'description' => 'Definisikan tabel dan relasi.', 'est_md' => 1],
+                            ['title' => 'Migrasi & seeder', 'description' => 'Tulis migrasi beserta data awal.', 'est_md' => 1],
+                        ]],
+                        ['title' => 'Implementasi backend', 'est_md' => 3, 'tasks' => [
+                            ['title' => 'Endpoint & validasi', 'description' => 'Bangun endpoint beserta validasi input.', 'est_md' => 2],
+                            ['title' => 'Test backend', 'description' => 'Tulis feature test jalur utama.', 'est_md' => 1],
+                        ]],
+                        ['title' => 'Implementasi frontend', 'est_md' => 3, 'tasks' => [
+                            ['title' => 'Halaman & komponen UI', 'description' => 'Bangun halaman dan komponen utama.', 'est_md' => 2],
+                            ['title' => 'Integrasi API', 'description' => 'Hubungkan UI ke endpoint backend.', 'est_md' => 1],
+                        ]],
                     ],
                 ], $chunk),
             ];
@@ -1062,6 +1086,35 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
                 $md .= "| {$r['name']} | sesuai peran: {$r['note']} |\n";
             }
             $md .= "\n## Threat Model\n\n- Akses tidak sah → mitigasi: authn + authz per role (referensi FR-01).\n\n## Hardening Deploy\n\n- HTTPS, secrets via env, backup harian, audit log.\n";
+        } elseif ($docKey === 'TASK_BREAKDOWN') {
+            $md .= "## Work Breakdown Structure\n\n";
+            $grand = 0.0;
+            foreach ($structure as $pi => $p) {
+                $md .= "### {$p['phase']}\n\n";
+                $phaseMd = 0.0;
+                foreach ($p['features'] as $fi => $f) {
+                    $md .= "#### {$f['title']}\n\n| Kode WBS | Sub-fitur | Task | Deskripsi | Est (MD) |\n|---|---|---|---|---|\n";
+                    $featMd = 0.0;
+                    foreach ($f['subfeatures'] as $si => $s) {
+                        $tasks = $s['tasks'] ?? [];
+                        if (! $tasks) {
+                            $md .= sprintf("| %d.%d.%d | %s | - | %s | %s |\n", $pi + 1, $fi + 1, $si + 1, $s['title'], $s['description'] ?? '-', $s['est_md']);
+                            $featMd += (float) $s['est_md'];
+
+                            continue;
+                        }
+                        foreach ($tasks as $ti => $t) {
+                            $md .= sprintf("| %d.%d.%d.%d | %s | %s | %s | %s |\n", $pi + 1, $fi + 1, $si + 1, $ti + 1, $s['title'], $t['title'], $t['description'] ?? '-', $t['est_md']);
+                            $featMd += (float) $t['est_md'];
+                        }
+                    }
+                    $md .= "\nSubtotal fitur: {$featMd} MD\n\n";
+                    $phaseMd += $featMd;
+                }
+                $md .= "Subtotal fase: {$phaseMd} MD\n\n";
+                $grand += $phaseMd;
+            }
+            $md .= "**Grand total: {$grand} MD**\n";
         } else {
             $md .= "## Ringkasan\n\nDokumen $docKey untuk {$project->name}.\n\n## Detail\n\n";
             foreach ($structure as $p) {

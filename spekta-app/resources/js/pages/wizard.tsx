@@ -29,6 +29,7 @@ export type Node = {
     title: string;
     description: string | null;
     scope: string;
+    status?: string; // todo|doing|done — hanya bermakna untuk kind='task'
     est_md: number;
     phase_no: number | null;
 };
@@ -987,12 +988,23 @@ export function StepStructure({
 
     const featuresOf = (pid: string) => nodes.filter((n) => n.parent_id === pid && n.kind === 'feature' && n.scope !== 'parked');
 
-    const [detail, setDetail] = useState<Node | null>(null);
-    const subsOf = (fid: string) => nodes.filter((n) => n.parent_id === fid && n.kind === 'subfeature');
-    const mdOf = (f: Node) => {
-        const subs = subsOf(f.id);
-        return subs.length ? subs.reduce((a, s) => a + Number(s.est_md), 0) : Number(f.est_md);
+    const [detail, setDetailNode] = useState<Node | null>(null);
+    const [editingDesc, setEditingDesc] = useState(false);
+    const [descDraft, setDescDraft] = useState('');
+    // node di popup selalu versi terbaru dari props — edit task/deskripsi langsung terlihat
+    const setDetail = (n: Node | null) => {
+        setEditingDesc(false);
+        setDetailNode(n);
     };
+    const freshDetail = detail ? (nodes.find((n) => n.id === detail.id) ?? detail) : null;
+    const subsOf = (fid: string) => nodes.filter((n) => n.parent_id === fid && n.kind === 'subfeature');
+    const tasksOf = (sid: string) => nodes.filter((n) => n.parent_id === sid && n.kind === 'task' && n.scope !== 'parked');
+    // FR-05: est efektif = jumlah rekursif leaf non-parked (task → sub-fitur → fitur) — mirror Estimator::rolledMd
+    const rolledMd = (n: Node): number => {
+        const children = nodes.filter((c) => c.parent_id === n.id && c.scope !== 'parked' && c.kind !== 'root');
+        return children.length ? children.reduce((a, c) => a + rolledMd(c), 0) : Number(n.est_md);
+    };
+    const mdOf = (f: Node) => rolledMd(f);
     const inScope = (f: Node) => scopeMode === 'full' || f.scope === 'mvp';
     const totalMd = phases
         .flatMap((p) => featuresOf(p.id))
@@ -1364,7 +1376,10 @@ export function StepStructure({
                                             title={s.title + (s.description ? ` — ${s.description}` : '')}
                                             onClick={() => setDetail(s)}
                                         >
-                                            {s.title} <span className="font-mono text-gray-400">({Number(s.est_md).toFixed(0)})</span>
+                                            {s.title} <span className="font-mono text-gray-400">({rolledMd(s).toFixed(0)})</span>
+                                            {tasksOf(s.id).length > 0 && (
+                                                <span className="ml-1 font-mono text-[10px] text-gray-400">· {tasksOf(s.id).length} task</span>
+                                            )}
                                         </span>
                                     </div>
                                 )),
@@ -1443,7 +1458,7 @@ export function StepStructure({
                 </div>
 
                 {/* popup detail node — klik judul fitur / chip sub-fitur */}
-                {detail && (
+                {freshDetail && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center bg-gray-900/30" onClick={() => setDetail(null)}>
                         <div
                             className="w-[min(440px,90%)] rounded-xl border border-gray-200 bg-white p-5 shadow-2xl"
@@ -1453,33 +1468,125 @@ export function StepStructure({
                                 <div>
                                     <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-extrabold tracking-wide text-gray-500 uppercase">
-                                            {detail.kind === 'subfeature' ? 'Sub-fitur' : 'Fitur'}
+                                            {freshDetail.kind === 'task' ? 'Task' : freshDetail.kind === 'subfeature' ? 'Sub-fitur' : 'Fitur'}
                                         </span>
-                                        {detail.kind === 'feature' && (
+                                        {freshDetail.kind === 'feature' && (
                                             <span
-                                                className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold ${detail.scope === 'mvp' ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-700'}`}
+                                                className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold ${freshDetail.scope === 'mvp' ? 'bg-teal-100 text-teal-800' : 'bg-amber-100 text-amber-700'}`}
                                             >
-                                                {detail.scope === 'mvp' ? 'MVP' : 'POST-MVP'}
+                                                {freshDetail.scope === 'mvp' ? 'MVP' : 'POST-MVP'}
                                             </span>
                                         )}
                                     </div>
-                                    <div className="text-[15px] leading-snug font-bold text-gray-900">{detail.title}</div>
+                                    <div className="text-[15px] leading-snug font-bold text-gray-900">{freshDetail.title}</div>
                                 </div>
                                 <button className="text-gray-300 hover:text-gray-600" onClick={() => setDetail(null)}>
                                     ✕
                                 </button>
                             </div>
                             {(() => {
-                                const parent = nodes.find((n) => n.id === detail.parent_id);
+                                const parent = nodes.find((n) => n.id === freshDetail.parent_id);
                                 const grand = parent && nodes.find((n) => n.id === parent.parent_id);
                                 const path = [grand, parent].filter((n) => n && n.kind !== 'root').map((n) => n!.title);
                                 return path.length > 0 && <div className="mt-1 text-[11.5px] font-medium text-gray-400">{path.join(' › ')}</div>;
                             })()}
-                            <div className="mt-3 text-[13px] leading-relaxed text-gray-600">
-                                {detail.description || <span className="text-gray-400 italic">Belum ada deskripsi untuk node ini.</span>}
-                            </div>
+                            {editingDesc ? (
+                                <div className="mt-3">
+                                    <textarea
+                                        className="w-full rounded-lg border border-gray-200 p-2 text-[13px] leading-relaxed text-gray-700 focus:border-teal-400 focus:outline-none"
+                                        rows={3}
+                                        value={descDraft}
+                                        autoFocus
+                                        onChange={(e) => setDescDraft(e.target.value)}
+                                    />
+                                    <div className="mt-1.5 flex gap-2">
+                                        <button
+                                            className="rounded-md bg-teal-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-teal-700"
+                                            onClick={() => {
+                                                router.patch(
+                                                    route('wizard.nodes.update', [project.id, freshDetail.id]),
+                                                    { description: descDraft },
+                                                    { preserveScroll: true },
+                                                );
+                                                setEditingDesc(false);
+                                            }}
+                                        >
+                                            Simpan
+                                        </button>
+                                        <button
+                                            className="rounded-md px-2.5 py-1 text-[11px] font-bold text-gray-500 hover:text-gray-700"
+                                            onClick={() => setEditingDesc(false)}
+                                        >
+                                            Batal
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div
+                                    className="mt-3 cursor-pointer rounded-md text-[13px] leading-relaxed text-gray-600 hover:bg-gray-50"
+                                    title="Klik untuk edit deskripsi"
+                                    onClick={() => {
+                                        setDescDraft(freshDetail.description ?? '');
+                                        setEditingDesc(true);
+                                    }}
+                                >
+                                    {freshDetail.description || (
+                                        <span className="text-gray-400 italic">Belum ada deskripsi — klik untuk menulis.</span>
+                                    )}
+                                </div>
+                            )}
+                            {/* task list — sub-fitur, atau fitur tanpa sub-fitur */}
+                            {(freshDetail.kind === 'subfeature' || (freshDetail.kind === 'feature' && subsOf(freshDetail.id).length === 0)) && (
+                                <div className="mt-3.5 border-t border-gray-100 pt-3">
+                                    <div className="mb-1.5 flex items-center justify-between">
+                                        <span className="text-[10px] font-extrabold tracking-wide text-gray-400 uppercase">Task</span>
+                                        <button
+                                            className="text-[11px] font-bold text-teal-700 hover:text-teal-900"
+                                            onClick={async () => {
+                                                const title = await promptDialog('Judul task baru:');
+                                                if (title)
+                                                    router.post(
+                                                        route('wizard.nodes.store', project.id),
+                                                        { parent_id: freshDetail.id, kind: 'task', title, est_md: 1 },
+                                                        { preserveScroll: true },
+                                                    );
+                                            }}
+                                        >
+                                            + Task
+                                        </button>
+                                    </div>
+                                    <div className="max-h-[180px] space-y-1 overflow-y-auto">
+                                        {tasksOf(freshDetail.id).length === 0 && (
+                                            <div className="text-[12px] text-gray-400 italic">Belum ada task.</div>
+                                        )}
+                                        {tasksOf(freshDetail.id).map((t) => (
+                                            <div key={t.id} className="flex items-center gap-2 rounded-md bg-gray-50 px-2 py-1.5">
+                                                <span
+                                                    className="min-w-0 flex-1 cursor-pointer truncate text-[12px] font-semibold text-gray-700 hover:text-teal-700"
+                                                    title={t.title + (t.description ? ` — ${t.description}` : '')}
+                                                    onClick={() => setDetail(t)}
+                                                >
+                                                    {t.title}
+                                                </span>
+                                                <span className="font-mono text-[11px] text-gray-400">{Number(t.est_md).toFixed(0)} MD</span>
+                                                <button
+                                                    className="text-[10px] font-bold text-gray-400 hover:text-red-600"
+                                                    title="Parkir task"
+                                                    onClick={() =>
+                                                        router.delete(route('wizard.nodes.destroy', [project.id, t.id]), {
+                                                            preserveScroll: true,
+                                                        })
+                                                    }
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div className="mt-3.5 border-t border-gray-100 pt-3 font-mono text-[12px] font-semibold text-teal-700">
-                                est. {Number(detail.est_md).toFixed(0)} MD
+                                est. {rolledMd(freshDetail).toFixed(0)} MD
                             </div>
                         </div>
                     </div>

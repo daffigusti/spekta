@@ -49,6 +49,17 @@ class WizardController extends Controller
         ]);
     }
 
+    // Task board (list + kanban) per proyek — task dari structure nodes kind='task'
+    public function tasks(Request $request, Project $project)
+    {
+        ProjectController::authorizeProject($request, $project);
+
+        return Inertia::render('tasks', [
+            'project' => $project->only(['id', 'name', 'client_name', 'status', 'wizard_step', 'scope_mode']),
+            'nodes' => $project->structureNodes,
+        ]);
+    }
+
     // FR-06: stack sebagai halaman sendiri (di luar wizard)
     public function stack(Request $request, Project $project)
     {
@@ -220,10 +231,16 @@ class WizardController extends Controller
         ProjectController::authorizeProject($request, $project);
         $data = $request->validate([
             'parent_id' => 'required|uuid',
-            'kind' => 'required|in:phase,feature,subfeature',
+            'kind' => 'required|in:phase,feature,subfeature,task',
             'title' => 'required|string|max:255',
+            'description' => 'nullable|string|max:2000',
             'est_md' => 'numeric|min:0',
         ]);
+        // Task hanya boleh di bawah subfeature, atau feature tanpa subfeature
+        if ($data['kind'] === 'task') {
+            $parent = $project->structureNodes()->findOrFail($data['parent_id']);
+            abort_unless(in_array($parent->kind, ['subfeature', 'feature']), 422, 'Parent task harus sub-fitur atau fitur.');
+        }
         $project->structureNodes()->create($data + ['sort' => 99]);
 
         return back();
@@ -235,7 +252,9 @@ class WizardController extends Controller
         $node = $project->structureNodes()->findOrFail($nodeId);
         $node->update($request->validate([
             'title' => 'sometimes|string|max:255',
+            'description' => 'sometimes|nullable|string|max:2000',
             'scope' => 'sometimes|in:mvp,full,parked',
+            'status' => 'sometimes|in:todo,doing,done',
             'est_md' => 'sometimes|numeric|min:0',
         ]));
 

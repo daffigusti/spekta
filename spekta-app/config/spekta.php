@@ -79,6 +79,8 @@ return [
         'TESTING' => ['REQUIREMENTS', 'DATABASE', 'API'],
         'DESIGN' => ['USER_FLOWS'],
         'ROADMAP' => ['PRD', 'REQUIREMENTS'],
+        // WBS dari struktur task (FITUR & STRUKTUR selalu masuk konteks); REQUIREMENTS memberi nomor FR untuk rujukan
+        'TASK_BREAKDOWN' => ['REQUIREMENTS'],
     ],
 
     // Kompleksitas → subset dokumen (FR-07)
@@ -86,9 +88,10 @@ return [
         1 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'ROADMAP'],
         2 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'DATABASE', 'API', 'ROADMAP'],
         // SECURITY/FEATURES/DESIGN baru masuk mulai complexity 4 — proyek menengah tidak butuh set enterprise penuh
-        3 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'TESTING', 'ROADMAP'],
-        4 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
-        5 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'DESIGN', 'ROADMAP'],
+        // TASK_BREAKDOWN (WBS) baru relevan mulai kompleksitas menengah
+        3 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'TESTING', 'TASK_BREAKDOWN', 'ROADMAP'],
+        4 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'TASK_BREAKDOWN', 'DESIGN', 'ROADMAP'],
+        5 => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'USER_FLOWS', 'WIREFRAMES', 'BUSINESS_RULES', 'DATABASE', 'API', 'ARCHITECTURE', 'SECURITY', 'FEATURES', 'TESTING', 'TASK_BREAKDOWN', 'DESIGN', 'ROADMAP'],
     ],
 
     // Grup dokumen — presentasi (sidebar + README export), bukan pipeline.
@@ -97,7 +100,7 @@ return [
         'Planning' => ['PROJECT_BRIEF', 'PRD', 'REQUIREMENTS', 'BUSINESS_RULES', 'FEATURES'],
         'Design' => ['USER_FLOWS', 'WIREFRAMES', 'DESIGN'],
         'Technical' => ['ARCHITECTURE', 'DATABASE', 'API', 'SECURITY'],
-        'Delivery' => ['TESTING', 'ROADMAP'],
+        'Delivery' => ['TESTING', 'TASK_BREAKDOWN', 'ROADMAP'],
     ],
 
     // Dimensi Spec Health — grouping rule_key untuk panel health; bukan rule baru,

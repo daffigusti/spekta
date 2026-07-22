@@ -27,8 +27,8 @@ class GlobalSearchTest extends TestCase
         // query terlalu pendek → kosong
         $this->getJson('/search?q=a')->assertOk()->assertExactJson(['projects' => [], 'documents' => []]);
 
-        // cocok nama proyek
-        $this->getJson('/search?q=kasir')
+        // cocok nama proyek — case-insensitive (Postgres LIKE case-sensitive, harus whereLike)
+        $this->getJson('/search?q=KASIR')
             ->assertOk()
             ->assertJsonPath('projects.0.name', 'Aplikasi Kasir');
 

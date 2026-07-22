@@ -39,6 +39,7 @@ Route::middleware(['auth', EnsureWorkspace::class])->group(function () {
     // Wizard (FR-01..FR-07)
     Route::get('projects/{project}/wizard', [WizardController::class, 'show'])->name('projects.wizard');
     Route::get('projects/{project}/structure', [WizardController::class, 'structure'])->name('projects.structure');
+    Route::get('projects/{project}/tasks', [WizardController::class, 'tasks'])->name('projects.tasks');
     Route::get('projects/{project}/stack', [WizardController::class, 'stack'])->name('projects.stack');
     Route::get('projects/{project}/wireframes', [ProjectController::class, 'wireframes'])->name('projects.wireframes');
     Route::post('projects/{project}/wizard/input', [WizardController::class, 'saveInput'])->name('wizard.input');

@@ -67,8 +67,7 @@ class Estimator
         $baselineMd = 0.0;
 
         foreach ($features as $feature) {
-            $subMd = $nodes->where('parent_id', $feature->id)->sum('est_md');
-            $mdBase = ($subMd > 0 ? $subMd : $feature->est_md) * (1 + $cfg['integration_overhead_pct'] / 100);
+            $mdBase = $this->rolledMd($nodes, $feature) * (1 + $cfg['integration_overhead_pct'] / 100);
             $baselineMd += $mdBase;
             $md = round($mdBase * $mult, 2);
 
@@ -90,6 +89,21 @@ class Estimator
         $this->refreshTotals($estimate);
 
         return $estimate->fresh('lines');
+    }
+
+    /**
+     * FR-05: est efektif node = jumlah rekursif leaf non-parked di bawahnya
+     * (task → sub-fitur → fitur), atau est node sendiri bila leaf.
+     * Parked dikecualikan di semua level — konsisten dengan aturan parkir fitur.
+     */
+    private function rolledMd(Collection $nodes, $node): float
+    {
+        $children = $nodes->where('parent_id', $node->id)->where('scope', '!=', 'parked');
+        if ($children->isEmpty()) {
+            return (float) $node->est_md;
+        }
+
+        return $children->sum(fn ($c) => $this->rolledMd($nodes, $c));
     }
 
     public function applyOverride(Estimate $estimate, string $lineId, float $md, string $reason): void

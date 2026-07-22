@@ -44,7 +44,7 @@ class DashboardController extends Controller
         $like = '%'.$q.'%';
 
         $projects = $workspace->projects()
-            ->where(fn ($w) => $w->where('name', 'like', $like)->orWhere('client_name', 'like', $like))
+            ->where(fn ($w) => $w->whereLike('name', $like)->orWhereLike('client_name', $like))
             ->latest()
             ->limit(8)
             ->get()
@@ -57,7 +57,7 @@ class DashboardController extends Controller
 
         $documents = Document::query()
             ->whereHas('project', fn ($w) => $w->where('workspace_id', $workspace->id))
-            ->where(fn ($w) => $w->where('title', 'like', $like)->orWhere('doc_key', 'like', $like))
+            ->where(fn ($w) => $w->whereLike('title', $like)->orWhereLike('doc_key', $like))
             ->with('project:id,name')
             ->latest('updated_at')
             ->limit(8)

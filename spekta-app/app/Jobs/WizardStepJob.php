@@ -88,12 +88,21 @@ class WizardStepJob implements ShouldQueue
                         'est_md' => $f['est_md'] ?? 0, 'sort' => $fi,
                     ]);
                     foreach ($f['subfeatures'] ?? [] as $si => $sub) {
-                        $project->structureNodes()->create([
+                        $subNode = $project->structureNodes()->create([
                             'kind' => 'subfeature', 'parent_id' => $featureNode->id,
                             'title' => is_array($sub) ? $sub['title'] : $sub,
                             'description' => is_array($sub) ? ($sub['description'] ?? null) : null,
                             'est_md' => is_array($sub) ? ($sub['est_md'] ?? 0) : 0, 'sort' => $si,
                         ]);
+                        // FR-04: task per sub-fitur — 'tasks' hilang/kosong = sub-fitur tetap leaf
+                        foreach ((is_array($sub) ? ($sub['tasks'] ?? []) : []) as $ti => $t) {
+                            $project->structureNodes()->create([
+                                'kind' => 'task', 'parent_id' => $subNode->id,
+                                'title' => $t['title'] ?? 'Task',
+                                'description' => $t['description'] ?? null,
+                                'est_md' => $t['est_md'] ?? 0, 'sort' => $ti,
+                            ]);
+                        }
                     }
                 }
             }
