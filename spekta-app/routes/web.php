@@ -26,6 +26,7 @@ Route::redirect('legal', 'syarat-layanan');
 
 Route::middleware(['auth', EnsureWorkspace::class])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('search', [DashboardController::class, 'search'])->name('search');
 
     Route::post('workspace/switch', [WorkspaceController::class, 'switch'])->name('workspace.switch');
 
