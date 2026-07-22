@@ -9,14 +9,7 @@ type LoginForm = {
     remember: boolean;
 };
 
-const oauthFailureStatuses = new Set([
-    'Login Google tidak dapat dilanjutkan. Silakan coba lagi.',
-    'Login Google sedang bermasalah. Silakan coba lagi.',
-    'Google tidak memberikan email akun yang dapat digunakan.',
-    'Email Google harus terverifikasi untuk digunakan.',
-]);
-
-export default function Login({ status }: { status?: string; canResetPassword: boolean }) {
+export default function Login({ error, status }: { error?: string; status?: string; canResetPassword: boolean }) {
     const { data, setData, post, processing, errors, reset } = useForm<LoginForm>({
         email: '',
         password: '',
@@ -36,12 +29,14 @@ export default function Login({ status }: { status?: string; canResetPassword: b
             </h1>
             <div style={{ fontSize: 13, color: '#99F6E4', marginTop: 5, opacity: 0.85 }}>Lanjutkan blueprint yang sedang berjalan.</div>
 
+            {error && (
+                <div role="alert" aria-live="assertive" style={{ marginTop: 14, fontSize: 13, color: '#FCA5A5' }}>
+                    {error}
+                </div>
+            )}
+
             {status && (
-                <div
-                    role={oauthFailureStatuses.has(status) ? 'alert' : 'status'}
-                    aria-live={oauthFailureStatuses.has(status) ? 'assertive' : 'polite'}
-                    style={{ marginTop: 14, fontSize: 13, color: oauthFailureStatuses.has(status) ? '#FCA5A5' : '#5EEAD4' }}
-                >
+                <div role="status" style={{ marginTop: 14, fontSize: 13, color: '#5EEAD4' }}>
                     {status}
                 </div>
             )}
