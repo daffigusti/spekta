@@ -108,6 +108,7 @@ Extend `User::$fillable` with `'google_id'`. Add blank-key documentation only to
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI="${APP_URL}/auth/google/callback"
+GOOGLE_LINK_REDIRECT_URI="${APP_URL}/settings/profile/google/callback"
 ```
 
 - [ ] **Step 5: Run focused test to verify it passes**
@@ -361,10 +362,18 @@ git commit -m "feat: activate Google login button"
 
 - [ ] **Step 1: Create OAuth client in Google Cloud Console**
 
-Create a **Web application** OAuth client. Set local authorized redirect URI to:
+Create a **Web application** OAuth client. Register both authorized redirect URIs. Each URI must match the application callback **exactly**, including protocol, host, port, path, and trailing slash.
 
 ```text
 http://localhost/auth/google/callback
+http://localhost/settings/profile/google/callback
+```
+
+For production, register both equivalent production URIs:
+
+```text
+https://<deployment-host>/auth/google/callback
+https://<deployment-host>/settings/profile/google/callback
 ```
 
 - [ ] **Step 2: Set runtime configuration**
@@ -375,6 +384,7 @@ Set these values in local and deployed environment secret stores:
 GOOGLE_CLIENT_ID=<Google OAuth client ID>
 GOOGLE_CLIENT_SECRET=<Google OAuth client secret>
 GOOGLE_REDIRECT_URI=https://<deployment-host>/auth/google/callback
+GOOGLE_LINK_REDIRECT_URI=https://<deployment-host>/settings/profile/google/callback
 ```
 
 Do not store actual secrets in source control, documentation, test fixtures, or chat.

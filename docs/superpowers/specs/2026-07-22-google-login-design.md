@@ -16,7 +16,7 @@ Memungkinkan pengguna masuk atau mendaftar ke Spekta menggunakan akun Google.
 ## Arsitektur
 
 1. Tambahkan `laravel/socialite` sebagai dependensi aplikasi.
-2. Tambahkan provider Google pada `config/services.php`. Konfigurasi berasal dari `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, dan `GOOGLE_REDIRECT_URI`; nilai rahasia tidak disimpan dalam kode atau repository.
+2. Tambahkan provider Google pada `config/services.php`. Konfigurasi berasal dari `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, dan `GOOGLE_LINK_REDIRECT_URI`; nilai rahasia tidak disimpan dalam kode atau repository.
 3. Tambahkan endpoint `GET /auth/google` untuk mengarahkan pengguna ke consent screen Google dan endpoint callback untuk menyelesaikan autentikasi.
 4. Tambahkan `google_id` unik dan nullable pada user untuk mengikat akun Google secara stabil.
 5. Callback login membaca profil Google dengan email terverifikasi, lalu hanya mencari user berdasarkan `google_id`.
@@ -39,7 +39,7 @@ Memungkinkan pengguna masuk atau mendaftar ke Spekta menggunakan akun Google.
 - Email Google yang sama tidak otomatis menautkan akun lokal; pengguna harus login dengan password lalu melakukan link dari Pengaturan. Ini mencegah account takeover dari email yang dipraregistrasi penyerang.
 - User Google baru tidak memerlukan password lokal.
 - Tidak ada unlinking atau provider OAuth lain dalam perubahan ini.
-- Redirect URI harus didaftarkan di Google Cloud Console sesuai lingkungan aplikasi.
+- Redirect URI harus didaftarkan di Google Cloud Console sesuai lingkungan aplikasi dan harus cocok **persis** dengan URI callback yang dikirim aplikasi.
 
 ## Pengujian
 
@@ -54,6 +54,19 @@ Memungkinkan pengguna masuk atau mendaftar ke Spekta menggunakan akun Google.
 ## Setup Google Cloud
 
 1. Buat OAuth client type **Web application** pada Google Cloud Console.
-2. Tambahkan redirect URI aplikasi, misalnya `http://localhost/auth/google/callback` untuk lokal.
-3. Salin Client ID dan Client Secret ke environment lokal/deployment.
-4. Jangan commit secret atau membagikannya melalui chat.
+2. Tambahkan **kedua** authorized redirect URI berikut untuk setiap lingkungan. Google mengharuskan kecocokan URI secara **persis**—protokol, host, port, path, dan trailing slash harus sama dengan nilai yang digunakan aplikasi:
+
+   | Alur | Lokal | Produksi |
+   | --- | --- | --- |
+   | Login | `http://localhost/auth/google/callback` | `https://<deployment-host>/auth/google/callback` |
+   | Hubungkan akun setelah login | `http://localhost/settings/profile/google/callback` | `https://<deployment-host>/settings/profile/google/callback` |
+
+3. Atur environment untuk pasangan URI yang sama:
+
+   ```dotenv
+   GOOGLE_REDIRECT_URI="${APP_URL}/auth/google/callback"
+   GOOGLE_LINK_REDIRECT_URI="${APP_URL}/settings/profile/google/callback"
+   ```
+
+4. Salin Client ID dan Client Secret ke environment lokal/deployment.
+5. Jangan commit secret atau membagikannya melalui chat.
