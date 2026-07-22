@@ -63,6 +63,18 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertSame('http://localhost/settings/profile/google/callback', config('services.google.link_redirect'));
     }
 
+    public function test_login_page_exposes_status_and_error_session_props_independently(): void
+    {
+        $this->withSession([
+            'status' => 'Operasi berhasil.',
+            'error' => 'Login Google sedang bermasalah.',
+        ])
+            ->get(route('login'))
+            ->assertInertia(fn ($page) => $page
+                ->where('status', 'Operasi berhasil.')
+                ->where('error', 'Login Google sedang bermasalah.'));
+    }
+
     public function test_google_login_fails_safely_when_configuration_is_empty(): void
     {
         config([
@@ -72,7 +84,7 @@ class GoogleAuthenticationTest extends TestCase
 
         $this->get(route('google.redirect'))
             ->assertRedirect(route('login', absolute: false))
-            ->assertSessionHas('status', 'Login Google belum dikonfigurasi. Silakan hubungi administrator.');
+            ->assertSessionHas('error', 'Login Google belum dikonfigurasi. Silakan hubungi administrator.');
     }
 
     public function test_google_redirect_starts_oauth_flow(): void
@@ -136,7 +148,7 @@ class GoogleAuthenticationTest extends TestCase
 
         $this->get(route('google.callback'))
             ->assertRedirect(route('login', absolute: false))
-            ->assertSessionHas('status', 'Email Google harus terverifikasi untuk digunakan.');
+            ->assertSessionHas('error', 'Email Google harus terverifikasi untuk digunakan.');
 
         $this->assertDatabaseMissing('users', ['email' => 'unverified@example.com']);
     }
@@ -150,7 +162,7 @@ class GoogleAuthenticationTest extends TestCase
 
         $this->get(route('google.callback'))
             ->assertRedirect(route('login', absolute: false))
-            ->assertSessionHas('status', 'Masuk dengan kata sandi lalu hubungkan Google dari Pengaturan.');
+            ->assertSessionHas('error', 'Masuk dengan kata sandi lalu hubungkan Google dari Pengaturan.');
 
         $this->assertSame(null, $user->fresh()->google_id);
         $this->assertSame(0, User::where('google_id', 'google-existing')->count());
@@ -392,7 +404,7 @@ class GoogleAuthenticationTest extends TestCase
 
         $this->get(route('google.callback'))
             ->assertRedirect(route('login', absolute: false))
-            ->assertSessionHas('status', 'Email Google harus terverifikasi untuk digunakan.');
+            ->assertSessionHas('error', 'Email Google harus terverifikasi untuk digunakan.');
     }
 
     public function test_google_callback_handles_invalid_state_safely(): void
@@ -402,7 +414,7 @@ class GoogleAuthenticationTest extends TestCase
         $this->withSession(['state' => 'not-the-provider-state'])
             ->get(route('google.callback').'?state=wrong&code=fake')
             ->assertRedirect(route('login', absolute: false))
-            ->assertSessionHas('status', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.')
+            ->assertSessionHas('error', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.')
             ->assertSessionMissing('exception');
     }
 

@@ -26,7 +26,7 @@ class GoogleAuthenticatedSessionController extends Controller
     public function redirect(): RedirectResponse
     {
         if (! $this->hasGoogleConfiguration('redirect')) {
-            return to_route('login')->with('status', 'Login Google belum dikonfigurasi. Silakan hubungi administrator.');
+            return to_route('login')->with('error', 'Login Google belum dikonfigurasi. Silakan hubungi administrator.');
         }
 
         return Socialite::driver('google')->redirect();
@@ -143,26 +143,26 @@ class GoogleAuthenticatedSessionController extends Controller
         try {
             $googleUser = Socialite::driver('google')->user();
         } catch (InvalidStateException $exception) {
-            return to_route('login')->with('status', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.');
+            return to_route('login')->with('error', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.');
         } catch (DriverMissingConfigurationException $exception) {
             report($exception);
 
-            return to_route('login')->with('status', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.');
+            return to_route('login')->with('error', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.');
         } catch (Throwable $exception) {
             report($exception);
 
-            return to_route('login')->with('status', 'Login Google sedang bermasalah. Silakan coba lagi.');
+            return to_route('login')->with('error', 'Login Google sedang bermasalah. Silakan coba lagi.');
         }
 
         $email = Str::lower((string) $googleUser->getEmail());
         $googleId = (string) $googleUser->getId();
 
         if ($email === '' || $googleId === '') {
-            return to_route('login')->with('status', 'Google tidak memberikan email akun yang dapat digunakan.');
+            return to_route('login')->with('error', 'Google tidak memberikan email akun yang dapat digunakan.');
         }
 
         if (data_get($googleUser->user, 'email_verified') !== true) {
-            return to_route('login')->with('status', 'Email Google harus terverifikasi untuk digunakan.');
+            return to_route('login')->with('error', 'Email Google harus terverifikasi untuk digunakan.');
         }
 
         try {
@@ -210,16 +210,16 @@ class GoogleAuthenticatedSessionController extends Controller
             } catch (QueryException $databaseException) {
                 report($databaseException);
 
-                return to_route('login')->with('status', 'Login Google sedang bermasalah. Silakan coba lagi.');
+                return to_route('login')->with('error', 'Login Google sedang bermasalah. Silakan coba lagi.');
             }
         }
 
         if (($result['status'] ?? null) === 'link_required') {
-            return to_route('login')->with('status', 'Masuk dengan kata sandi lalu hubungkan Google dari Pengaturan.');
+            return to_route('login')->with('error', 'Masuk dengan kata sandi lalu hubungkan Google dari Pengaturan.');
         }
 
         if (($result['status'] ?? null) === 'conflict') {
-            return to_route('login')->with('status', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.');
+            return to_route('login')->with('error', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.');
         }
 
         $user = $result['user'];
