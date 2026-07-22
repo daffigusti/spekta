@@ -60,7 +60,19 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertSame('test-google-client-secret', config('services.google.client_secret'));
         $this->assertSame('http://localhost/auth/google/callback', config('services.google.redirect'));
         $this->assertSame(['openid', 'profile', 'email'], config('services.google.scopes'));
-        $this->assertSame('http://localhost:8765/oauth/google/link-callback', config('services.google.link_redirect'));
+        $this->assertSame('http://localhost/settings/profile/google/callback', config('services.google.link_redirect'));
+    }
+
+    public function test_google_login_fails_safely_when_configuration_is_empty(): void
+    {
+        config([
+            'services.google.client_id' => '',
+            'services.google.client_secret' => 'test-google-client-secret',
+        ]);
+
+        $this->get(route('google.redirect'))
+            ->assertRedirect(route('login', absolute: false))
+            ->assertSessionHas('status', 'Login Google belum dikonfigurasi. Silakan hubungi administrator.');
     }
 
     public function test_google_redirect_starts_oauth_flow(): void
@@ -415,6 +427,22 @@ class GoogleAuthenticationTest extends TestCase
 
         $this->assertSame($user->id, session('google_link_user_id'));
         $this->assertNotEmpty(session('state'));
+    }
+
+    public function test_google_link_fails_safely_when_configuration_is_empty(): void
+    {
+        config([
+            'services.google.client_id' => 'test-google-client-id',
+            'services.google.client_secret' => '',
+        ]);
+        $user = User::factory()->create(['google_id' => null]);
+
+        $this->actingAs($user)
+            ->withSession(['auth.password_confirmed_at' => now()->unix()])
+            ->get(route('google.link.redirect'))
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('googleStatus', 'Tautan Google belum dikonfigurasi. Silakan hubungi administrator.')
+            ->assertSessionMissing('google_link_user_id');
     }
 
     public function test_actual_google_link_callback_rejects_invalid_state_and_cleans_binding(): void

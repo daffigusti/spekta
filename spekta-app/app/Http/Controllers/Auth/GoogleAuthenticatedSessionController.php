@@ -25,11 +25,19 @@ class GoogleAuthenticatedSessionController extends Controller
 
     public function redirect(): RedirectResponse
     {
+        if (! $this->hasGoogleConfiguration('redirect')) {
+            return to_route('login')->with('status', 'Login Google belum dikonfigurasi. Silakan hubungi administrator.');
+        }
+
         return Socialite::driver('google')->redirect();
     }
 
     public function linkRedirect(Request $request)
     {
+        if (! $this->hasGoogleConfiguration('link_redirect')) {
+            return to_route('profile.edit')->with('googleStatus', 'Tautan Google belum dikonfigurasi. Silakan hubungi administrator.');
+        }
+
         $request->session()->put(self::LINK_SESSION_KEY, $request->user()->getAuthIdentifier());
 
         $providerRedirect = Socialite::driver('google')
@@ -119,6 +127,15 @@ class GoogleAuthenticatedSessionController extends Controller
         $hasExpectedColumns = array_values($exception->columns) === ['google_id'];
 
         return $hasExpectedIndex || $hasExpectedColumns;
+    }
+
+    private function hasGoogleConfiguration(string $redirectKey): bool
+    {
+        return collect([
+            config('services.google.client_id'),
+            config('services.google.client_secret'),
+            config("services.google.{$redirectKey}"),
+        ])->every(fn ($value): bool => is_string($value) && trim($value) !== '');
     }
 
     public function callback(Request $request): RedirectResponse
