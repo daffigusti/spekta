@@ -20,6 +20,13 @@ class GoogleAuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function tearDown(): void
+    {
+        Socialite::clearResolvedInstances();
+
+        parent::tearDown();
+    }
+
     public function test_users_table_stores_unique_nullable_google_identity(): void
     {
         $this->assertTrue(Schema::hasColumn('users', 'google_id'));
@@ -51,7 +58,7 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertSame('test-google-client-secret', config('services.google.client_secret'));
         $this->assertSame('http://localhost/auth/google/callback', config('services.google.redirect'));
         $this->assertSame(['openid', 'profile', 'email'], config('services.google.scopes'));
-        $this->assertSame('http://localhost/settings/profile/google/callback', config('services.google.link_redirect'));
+        $this->assertSame('http://localhost:8765/oauth/google/link-callback', config('services.google.link_redirect'));
     }
 
     public function test_google_redirect_starts_oauth_flow(): void
@@ -300,14 +307,47 @@ class GoogleAuthenticationTest extends TestCase
 
     public function test_authenticated_user_can_start_google_link_and_session_binds_user(): void
     {
+        Socialite::clearResolvedInstances();
         $user = User::factory()->create(['google_id' => null]);
-        Socialite::fake('google');
+
+        $response = $this->actingAs($user)
+            ->withSession(['auth.password_confirmed_at' => now()->unix()])
+            ->withHeader('X-Inertia', 'true')
+            ->get(route('google.link.redirect'))
+            ->assertStatus(409);
+
+        $this->assertNotEmpty($response->headers->get('X-Inertia-Location'));
+
+        $this->assertSame($user->id, session('google_link_user_id'));
+        $this->assertNotEmpty(session('state'));
+    }
+
+    public function test_actual_google_link_callback_rejects_invalid_state_and_cleans_binding(): void
+    {
+        Socialite::clearResolvedInstances();
+        $user = User::factory()->create(['google_id' => null]);
+
+        $this->actingAs($user)
+            ->withSession(['auth.password_confirmed_at' => now()->unix()])
+            ->get(route('google.link.redirect'));
+
+        $this->get(route('google.link.callback').'?state=invalid&code=fake')
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('googleStatus', 'Tautan Google tidak dapat dilanjutkan. Silakan coba lagi.')
+            ->assertSessionMissing('google_link_user_id');
+
+        $this->assertNull($user->fresh()->google_id);
+    }
+
+    public function test_google_link_start_requires_recent_password_confirmation(): void
+    {
+        $user = User::factory()->create(['google_id' => null]);
 
         $this->actingAs($user)
             ->get(route('google.link.redirect'))
-            ->assertRedirect();
+            ->assertRedirect(route('password.confirm', absolute: false));
 
-        $this->assertSame($user->id, session('google_link_user_id'));
+        $this->assertNull(session('google_link_user_id'));
     }
 
     public function test_google_link_rejects_missing_or_mismatched_session_user(): void
@@ -318,7 +358,7 @@ class GoogleAuthenticationTest extends TestCase
             ->withSession(['google_link_user_id' => $user->id + 1])
             ->get(route('google.link.callback'))
             ->assertRedirect(route('profile.edit', absolute: false))
-            ->assertSessionHas('status', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.')
+            ->assertSessionHas('googleStatus', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.')
             ->assertSessionMissing('google_link_user_id');
     }
 
@@ -331,7 +371,7 @@ class GoogleAuthenticationTest extends TestCase
         $this->actingAs($user)
             ->get(route('google.link.callback'))
             ->assertRedirect(route('profile.edit', absolute: false))
-            ->assertSessionHas('status', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.')
+            ->assertSessionHas('googleStatus', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.')
             ->assertSessionMissing('google_link_user_id');
 
         $this->assertNull($user->fresh()->google_id);
@@ -350,7 +390,7 @@ class GoogleAuthenticationTest extends TestCase
             ->withSession(['google_link_user_id' => $user->id])
             ->get(route('google.link.callback'))
             ->assertRedirect(route('profile.edit', absolute: false))
-            ->assertSessionHas('status', 'Google berhasil terhubung.')
+            ->assertSessionHas('googleStatus', 'Google berhasil terhubung.')
             ->assertSessionMissing('google_link_user_id');
 
         $this->assertSame('google-linked', $user->fresh()->google_id);
@@ -369,7 +409,7 @@ class GoogleAuthenticationTest extends TestCase
             ->withSession(['google_link_user_id' => $user->id])
             ->get(route('google.link.callback'))
             ->assertRedirect(route('profile.edit', absolute: false))
-            ->assertSessionHas('status', 'Google sudah terhubung ke akun lain.')
+            ->assertSessionHas('googleStatus', 'Google sudah terhubung ke akun lain.')
             ->assertSessionMissing('google_link_user_id');
 
         $this->assertNull($user->fresh()->google_id);
@@ -386,7 +426,7 @@ class GoogleAuthenticationTest extends TestCase
             ->withSession(['google_link_user_id' => $user->id])
             ->get(route('google.link.callback'))
             ->assertRedirect(route('profile.edit', absolute: false))
-            ->assertSessionHas('status', 'Akun ini sudah memiliki tautan Google.')
+            ->assertSessionHas('googleStatus', 'Akun ini sudah memiliki tautan Google.')
             ->assertSessionMissing('google_link_user_id');
 
         $this->assertSame('google-original', $user->fresh()->google_id);
@@ -403,7 +443,7 @@ class GoogleAuthenticationTest extends TestCase
             ->withSession(['google_link_user_id' => $user->id])
             ->get(route('google.link.callback'))
             ->assertRedirect(route('profile.edit', absolute: false))
-            ->assertSessionHas('status', 'Email Google harus terverifikasi untuk digunakan.')
+            ->assertSessionHas('googleStatus', 'Email Google harus terverifikasi untuk digunakan.')
             ->assertSessionMissing('google_link_user_id');
 
         $this->assertNull($user->fresh()->google_id);

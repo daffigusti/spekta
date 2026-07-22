@@ -22,6 +22,7 @@ class ProfileController extends Controller
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'googleLinked' => $request->user()->google_id !== null,
             'status' => $request->session()->get('status'),
+            'googleStatus' => $request->session()->get('googleStatus'),
         ]);
     }
 

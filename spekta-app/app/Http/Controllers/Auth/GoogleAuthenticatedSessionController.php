@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Inertia\Inertia;
 use Laravel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Laravel\Socialite\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
@@ -27,13 +28,15 @@ class GoogleAuthenticatedSessionController extends Controller
         return Socialite::driver('google')->redirect();
     }
 
-    public function linkRedirect(Request $request): RedirectResponse
+    public function linkRedirect(Request $request)
     {
         $request->session()->put(self::LINK_SESSION_KEY, $request->user()->getAuthIdentifier());
 
-        return Socialite::driver('google')
+        $providerRedirect = Socialite::driver('google')
             ->redirectUrl(config('services.google.link_redirect'))
             ->redirect();
+
+        return Inertia::location($providerRedirect);
     }
 
     public function linkCallback(Request $request): RedirectResponse
@@ -42,7 +45,7 @@ class GoogleAuthenticatedSessionController extends Controller
         $currentUser = $request->user();
 
         if ($expectedUserId === null || (string) $expectedUserId !== (string) $currentUser->getAuthIdentifier()) {
-            return to_route('profile.edit')->with('status', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.');
+            return to_route('profile.edit')->with('googleStatus', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.');
         }
 
         try {
@@ -50,25 +53,25 @@ class GoogleAuthenticatedSessionController extends Controller
                 ->redirectUrl(config('services.google.link_redirect'))
                 ->user();
         } catch (InvalidStateException $exception) {
-            return to_route('profile.edit')->with('status', 'Tautan Google tidak dapat dilanjutkan. Silakan coba lagi.');
+            return to_route('profile.edit')->with('googleStatus', 'Tautan Google tidak dapat dilanjutkan. Silakan coba lagi.');
         } catch (DriverMissingConfigurationException $exception) {
             report($exception);
 
-            return to_route('profile.edit')->with('status', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
+            return to_route('profile.edit')->with('googleStatus', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
         } catch (Throwable $exception) {
             report($exception);
 
-            return to_route('profile.edit')->with('status', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
+            return to_route('profile.edit')->with('googleStatus', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
         }
 
         $googleId = (string) $googleUser->getId();
 
         if ($googleId === '') {
-            return to_route('profile.edit')->with('status', 'Google tidak memberikan identitas akun yang dapat digunakan.');
+            return to_route('profile.edit')->with('googleStatus', 'Google tidak memberikan identitas akun yang dapat digunakan.');
         }
 
         if (data_get($googleUser->user, 'email_verified') !== true) {
-            return to_route('profile.edit')->with('status', 'Email Google harus terverifikasi untuk digunakan.');
+            return to_route('profile.edit')->with('googleStatus', 'Email Google harus terverifikasi untuk digunakan.');
         }
 
         try {
@@ -88,18 +91,32 @@ class GoogleAuthenticatedSessionController extends Controller
                 $user->forceFill(['google_id' => $googleId])->save();
             });
         } catch (\DomainException) {
-            return to_route('profile.edit')->with('status', 'Google sudah terhubung ke akun lain.');
+            return to_route('profile.edit')->with('googleStatus', 'Google sudah terhubung ke akun lain.');
         } catch (\LogicException) {
-            return to_route('profile.edit')->with('status', 'Akun ini sudah memiliki tautan Google.');
+            return to_route('profile.edit')->with('googleStatus', 'Akun ini sudah memiliki tautan Google.');
+        } catch (UniqueConstraintViolationException $exception) {
+            if ($this->isGoogleIdentityUniqueViolation($exception)) {
+                return to_route('profile.edit')->with('googleStatus', 'Google sudah terhubung ke akun lain.');
+            }
+
+            report($exception);
+
+            return to_route('profile.edit')->with('googleStatus', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
         } catch (Throwable $exception) {
             report($exception);
 
-            return to_route('profile.edit')->with('status', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
+            return to_route('profile.edit')->with('googleStatus', 'Tautan Google sedang bermasalah. Silakan coba lagi.');
         }
 
         $request->session()->regenerate();
 
-        return to_route('profile.edit')->with('status', 'Google berhasil terhubung.');
+        return to_route('profile.edit')->with('googleStatus', 'Google berhasil terhubung.');
+    }
+
+    private function isGoogleIdentityUniqueViolation(UniqueConstraintViolationException $exception): bool
+    {
+        return $exception->index === 'users_google_id_unique'
+            && $exception->columns === ['google_id'];
     }
 
     public function callback(Request $request): RedirectResponse

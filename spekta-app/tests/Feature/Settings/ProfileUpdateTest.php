@@ -30,6 +30,21 @@ class ProfileUpdateTest extends TestCase
             ->assertInertia(fn ($page) => $page->where('googleLinked', true));
     }
 
+    public function test_google_status_is_exposed_independently_from_general_status(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->withSession([
+                'status' => 'Status umum',
+                'googleStatus' => 'Google berhasil terhubung.',
+            ])
+            ->get('/settings/profile')
+            ->assertInertia(fn ($page) => $page
+                ->where('status', 'Status umum')
+                ->where('googleStatus', 'Google berhasil terhubung.'));
+    }
+
     public function test_profile_information_can_be_updated()
     {
         $user = User::factory()->create();

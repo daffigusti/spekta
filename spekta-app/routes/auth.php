@@ -43,6 +43,7 @@ Route::middleware('guest')->group(function () {
 
 Route::middleware('auth')->group(function () {
     Route::get('settings/profile/google', [GoogleAuthenticatedSessionController::class, 'linkRedirect'])
+        ->middleware('password.confirm')
         ->name('google.link.redirect');
 
     Route::get('settings/profile/google/callback', [GoogleAuthenticatedSessionController::class, 'linkCallback'])
