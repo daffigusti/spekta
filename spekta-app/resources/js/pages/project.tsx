@@ -473,6 +473,28 @@ export default function ProjectPage({
                         Struktur
                     </Link>
                     <Link
+                        href={route('projects.tasks', project.id)}
+                        className="inline-flex items-center gap-1.5 rounded-[10px] border border-gray-200 bg-white px-4 py-2 text-[13px] font-bold text-gray-700 hover:bg-gray-50"
+                    >
+                        <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M3 6h11" />
+                            <path d="M3 12h11" />
+                            <path d="M3 18h11" />
+                            <path d="m17 6 2 2 4-4" />
+                            <path d="m17 12 2 2 4-4" />
+                        </svg>
+                        Tasks
+                    </Link>
+                    <Link
                         href={route('projects.wireframes', project.id)}
                         className="inline-flex items-center gap-1.5 rounded-[10px] border border-gray-200 bg-white px-4 py-2 text-[13px] font-bold text-gray-700 hover:bg-gray-50"
                     >
