@@ -15,8 +15,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Socialite\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
-use Throwable;
 use Tests\TestCase;
+use Throwable;
 
 class GoogleAuthenticationTest extends TestCase
 {
@@ -182,7 +182,7 @@ class GoogleAuthenticationTest extends TestCase
 
         try {
             DB::select('select 1');
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             $this->markTestSkipped('PostgreSQL is unavailable.');
         }
 
