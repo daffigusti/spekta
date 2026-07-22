@@ -11,6 +11,16 @@ import { confirmDialog, promptDialog } from '@/components/system-dialog';
 import ThemeToggle from '@/components/theme-toggle';
 import WorkspaceLayout from '@/layouts/workspace-layout';
 
+// ponytail: unduh dari konten yang sudah ada di props — tanpa route/controller baru
+function downloadMd(filename: string, content: string) {
+    const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 type DocVersion = {
     id: string;
     version_no: number;
@@ -929,6 +939,15 @@ export default function ProjectPage({
                                     }`}
                                 >
                                     Traceability
+                                </button>
+                            )}
+
+                            {doc?.content_md && (
+                                <button
+                                    onClick={() => downloadMd(`${doc.doc_key}.md`, doc.content_md ?? '')}
+                                    className="rounded-[10px] border-2 border-gray-200 bg-white px-3.5 py-[7px] text-[12.5px] font-bold text-gray-500 hover:border-teal-300"
+                                >
+                                    ⬇ Unduh .md
                                 </button>
                             )}
 
