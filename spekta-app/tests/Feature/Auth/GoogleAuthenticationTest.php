@@ -3,9 +3,11 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Services\WorkspaceProvisioner;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Socialite\Socialite;
@@ -160,38 +162,71 @@ class GoogleAuthenticationTest extends TestCase
         $this->assertNull($emailOwner->fresh()->google_id);
     }
 
-    public function test_google_login_recovers_unique_creation_collision_safely(): void
+    public function test_google_login_recovers_committed_postgres_creation_race(): void
     {
+        if (getenv('DB_CONNECTION') !== 'pgsql' || ! function_exists('pcntl_fork')) {
+            $this->markTestSkipped('Requires PostgreSQL and pcntl for independent connection concurrency coverage.');
+        }
+
+        try {
+            DB::select('select 1');
+        } catch (\Throwable $exception) {
+            $this->markTestSkipped('PostgreSQL is unavailable.');
+        }
+
+        // RefreshDatabase keeps one connection transaction open. Close it before fork so
+        // both processes create genuinely independent PostgreSQL sessions.
+        DB::rollBack();
+        DB::disconnect();
+
+        [$reader, $writer] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, 0);
+        $pid = pcntl_fork();
+
+        if ($pid === -1) {
+            $this->fail('Could not fork PostgreSQL race process.');
+        }
+
+        if ($pid === 0) {
+            fclose($reader);
+            config(['database.connections.oauth_race' => config('database.connections.pgsql')]);
+            DB::setDefaultConnection('oauth_race');
+
+            DB::beginTransaction();
+            $winner = User::create([
+                'name' => 'Committed Winner',
+                'email' => 'collision@example.com',
+                'google_id' => 'collision-google',
+                'password' => Hash::make('collision-password'),
+            ]);
+            $winner->forceFill(['email_verified_at' => now()])->save();
+            $workspace = app(WorkspaceProvisioner::class)->provision($winner, 'Workspace Committed Winner');
+            $winner->forceFill(['current_workspace_id' => $workspace->id])->save();
+
+            fwrite($writer, '1');
+            usleep(750000);
+            DB::commit();
+            fclose($writer);
+            exit(0);
+        }
+
+        fclose($writer);
+        $this->assertSame('1', fread($reader, 1));
+        fclose($reader);
+        DB::reconnect();
+        DB::beginTransaction();
+
         Socialite::fake('google', SocialiteUser::fake([
             'id' => 'collision-google', 'email' => 'collision@example.com', 'email_verified' => true,
         ]));
 
-        $this->partialMock(\App\Http\Controllers\Auth\GoogleAuthenticatedSessionController::class, function ($mock) {
-            $mock->shouldAllowMockingProtectedMethods();
-            $mock->shouldReceive('createGoogleUser')->once()->andReturnUsing(function (SocialiteUser $googleUser, string $email, string $googleId) {
-                User::create([
-                    'name' => 'Collision Owner',
-                    'email' => $email,
-                    'google_id' => $googleId,
-                    'password' => Hash::make('collision-password'),
-                ]);
-
-                return User::create([
-                    'name' => $googleUser->getName() ?: $email,
-                    'email' => $email,
-                    'google_id' => $googleId,
-                    'password' => Hash::make('collision-password'),
-                ]);
-            });
-        });
-
         $this->get(route('google.callback'))
-            ->assertRedirect(route('login', absolute: false))
-            ->assertSessionHas('status', 'Login Google tidak dapat dilanjutkan. Silakan coba lagi.');
+            ->assertRedirect(route('dashboard', absolute: false));
 
-        $this->assertGuest();
-        $this->assertSame(0, User::where('google_id', 'collision-google')->count());
-        $this->assertDatabaseCount('workspaces', 0);
+        pcntl_waitpid($pid, $status);
+
+        $this->assertAuthenticatedAs(User::where('google_id', 'collision-google')->firstOrFail());
+        $this->assertSame(1, User::where('google_id', 'collision-google')->count());
+        $this->assertSame(1, DB::table('workspaces')->where('name', 'Workspace Committed Winner')->count());
     }
 
     public function test_google_login_requires_canonical_boolean_email_verified_claim(): void

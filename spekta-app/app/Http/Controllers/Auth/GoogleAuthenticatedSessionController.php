@@ -55,11 +55,12 @@ class GoogleAuthenticatedSessionController extends Controller
         try {
             $result = DB::transaction(function () use ($googleUser, $googleId, $email) {
                 $identityOwner = User::where('google_id', $googleId)->lockForUpdate()->first();
-                $emailOwner = User::where('email', $email)->lockForUpdate()->first();
 
                 if ($identityOwner) {
                     return ['user' => $identityOwner];
                 }
+
+                $emailOwner = User::where('email', $email)->lockForUpdate()->first();
 
                 if ($emailOwner) {
                     return ['status' => 'link_required'];
@@ -67,21 +68,32 @@ class GoogleAuthenticatedSessionController extends Controller
 
                 return ['user' => $this->createGoogleUser($googleUser, $email, $googleId)];
             });
-        } catch (UniqueConstraintViolationException $exception) {
-            $result = DB::transaction(function () use ($googleId, $email) {
-                $identityOwner = User::where('google_id', $googleId)->lockForUpdate()->first();
-                $emailOwner = User::where('email', $email)->lockForUpdate()->first();
-
-                if ($identityOwner && $emailOwner && $emailOwner->is($identityOwner)) {
-                    return ['user' => $identityOwner];
+        } catch (QueryException $exception) {
+            try {
+                if (! $this->isExpectedUserCreationRace($exception)) {
+                    throw $exception;
                 }
 
-                return ['status' => 'conflict'];
-            });
-        } catch (QueryException $exception) {
-            report($exception);
+                $result = DB::transaction(function () use ($googleId, $email) {
+                    $identityOwner = User::where('google_id', $googleId)->lockForUpdate()->first();
 
-            return to_route('login')->with('status', 'Login Google sedang bermasalah. Silakan coba lagi.');
+                    if ($identityOwner && $identityOwner->email === $email) {
+                        return ['user' => $identityOwner];
+                    }
+
+                    $emailOwner = User::where('email', $email)->lockForUpdate()->first();
+
+                    if ($emailOwner) {
+                        return ['status' => 'conflict'];
+                    }
+
+                    return ['status' => 'conflict'];
+                });
+            } catch (QueryException $databaseException) {
+                report($databaseException);
+
+                return to_route('login')->with('status', 'Login Google sedang bermasalah. Silakan coba lagi.');
+            }
         }
 
         if (($result['status'] ?? null) === 'link_required') {
@@ -98,6 +110,19 @@ class GoogleAuthenticatedSessionController extends Controller
         $request->session()->regenerate();
 
         return redirect()->intended(route('dashboard', absolute: false));
+    }
+
+    private function isExpectedUserCreationRace(QueryException $exception): bool
+    {
+        if (! $exception instanceof UniqueConstraintViolationException) {
+            return false;
+        }
+
+        $message = Str::lower($exception->getMessage());
+
+        return Str::contains($message, 'users')
+            && (Str::contains($message, 'google_id')
+                || Str::contains($message, 'email'));
     }
 
     protected function createGoogleUser($googleUser, string $email, string $googleId): User
