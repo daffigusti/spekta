@@ -225,14 +225,11 @@ export const authError: React.CSSProperties = {
 };
 
 // Tombol Google + divider "ATAU DENGAN EMAIL" per design Auth v2.
-// ponytail: OAuth Google belum ada di MVP — tombol disabled dengan label segera.
 export function GoogleDivider() {
     return (
         <>
-            <button
-                type="button"
-                disabled
-                title="Login Google segera hadir"
+            <a
+                href={route('google.redirect')}
                 style={{
                     width: '100%',
                     display: 'flex',
@@ -248,8 +245,7 @@ export function GoogleDivider() {
                     fontWeight: 700,
                     marginTop: 22,
                     boxSizing: 'border-box',
-                    cursor: 'not-allowed',
-                    opacity: 0.75,
+                    textDecoration: 'none',
                 }}
             >
                 <svg width="17" height="17" viewBox="0 0 24 24">
@@ -270,8 +266,8 @@ export function GoogleDivider() {
                         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"
                     />
                 </svg>
-                Lanjutkan dengan Google <span style={{ fontSize: 10, fontWeight: 800, color: '#0D9488' }}>SEGERA</span>
-            </button>
+                Lanjutkan dengan Google
+            </a>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
                 <div style={{ flex: 1, height: 1, background: 'rgba(148,163,184,0.15)' }} />
                 <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.1em', color: '#5EEAD4', opacity: 0.7 }}>ATAU DENGAN EMAIL</span>
