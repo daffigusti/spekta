@@ -322,6 +322,23 @@ class GoogleAuthenticationTest extends TestCase
             ->assertSessionMissing('google_link_user_id');
     }
 
+    public function test_google_link_rejects_missing_session_user_without_mutation_or_creation(): void
+    {
+        $user = User::factory()->create(['google_id' => null]);
+        $userCount = User::query()->count();
+        $workspaceCount = Workspace::query()->count();
+
+        $this->actingAs($user)
+            ->get(route('google.link.callback'))
+            ->assertRedirect(route('profile.edit', absolute: false))
+            ->assertSessionHas('status', 'Tautan Google tidak dapat dilanjutkan. Silakan mulai lagi dari Pengaturan.')
+            ->assertSessionMissing('google_link_user_id');
+
+        $this->assertNull($user->fresh()->google_id);
+        $this->assertSame($userCount, User::query()->count());
+        $this->assertSame($workspaceCount, Workspace::query()->count());
+    }
+
     public function test_authenticated_user_can_link_google_identity(): void
     {
         $user = User::factory()->create(['google_id' => null]);
