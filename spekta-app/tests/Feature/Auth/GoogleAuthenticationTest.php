@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Laravel\Socialite\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
+use Throwable;
 use Tests\TestCase;
 
 class GoogleAuthenticationTest extends TestCase
@@ -191,6 +192,8 @@ class GoogleAuthenticationTest extends TestCase
         DB::disconnect();
 
         [$reader, $writer] = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, 0);
+        stream_set_blocking($reader, false);
+        stream_set_blocking($writer, false);
         $pid = pcntl_fork();
 
         if ($pid === -1) {
@@ -199,37 +202,46 @@ class GoogleAuthenticationTest extends TestCase
 
         if ($pid === 0) {
             fclose($reader);
-            config(['database.connections.oauth_race' => config('database.connections.pgsql')]);
-            DB::setDefaultConnection('oauth_race');
 
-            DB::beginTransaction();
-            $winner = User::create([
-                'name' => 'Committed Winner',
-                'email' => 'collision@example.com',
-                'google_id' => 'collision-google',
-                'password' => Hash::make('collision-password'),
-            ]);
-            $winner->forceFill(['email_verified_at' => now()])->save();
-            $workspace = app(WorkspaceProvisioner::class)->provision($winner, 'Workspace Committed Winner');
-            $winner->forceFill(['current_workspace_id' => $workspace->id])->save();
+            try {
+                config(['database.connections.oauth_race' => config('database.connections.pgsql')]);
+                DB::setDefaultConnection('oauth_race');
 
-            // Do not commit until parent has entered createGoogleUser. This
-            // proves recovery handles the unique violation, rather than merely
-            // logging in a row that was already committed before the attempt.
-            fwrite($writer, 'r');
-            if (fread($writer, 1) !== 'a') {
-                DB::rollBack();
+                DB::beginTransaction();
+                $winner = User::create([
+                    'name' => 'Committed Winner',
+                    'email' => 'collision@example.com',
+                    'google_id' => 'collision-google',
+                    'password' => Hash::make('collision-password'),
+                ]);
+                $winner->forceFill(['email_verified_at' => now()])->save();
+                $workspace = app(WorkspaceProvisioner::class)->provision($winner, 'Workspace Committed Winner');
+                $winner->forceFill(['current_workspace_id' => $workspace->id])->save();
+
+                // Do not commit until parent has entered createGoogleUser. This
+                // proves recovery handles the unique violation, rather than merely
+                // logging in a row that was already committed before the attempt.
+                $this->writeRaceSocket($writer, 'r');
+                if ($this->readRaceSocket($writer) !== 'a') {
+                    throw new \RuntimeException('OAuth race barrier failed.');
+                }
+                DB::commit();
+                $this->writeRaceSocket($writer, 'c');
+                exit(0);
+            } catch (Throwable) {
+                if (DB::connection()->transactionLevel() > 0) {
+                    DB::rollBack();
+                }
+
                 exit(1);
+            } finally {
+                fclose($writer);
             }
-            DB::commit();
-            fwrite($writer, 'c');
-            fclose($writer);
-            exit(0);
         }
 
         fclose($writer);
         try {
-            $this->assertSame('r', fread($reader, 1));
+            $this->assertSame('r', $this->readRaceSocket($reader));
             DB::reconnect();
             DB::beginTransaction();
 
@@ -239,12 +251,42 @@ class GoogleAuthenticationTest extends TestCase
 
                 protected function createGoogleUser($googleUser, string $email, string $googleId): User
                 {
-                    fwrite($this->socket, 'a');
-                    if (fread($this->socket, 1) !== 'c') {
+                    $this->writeSocket('a');
+                    if ($this->readSocket() !== 'c') {
                         throw new \RuntimeException('OAuth race barrier failed.');
                     }
 
                     return parent::createGoogleUser($googleUser, $email, $googleId);
+                }
+
+                private function readSocket(): string
+                {
+                    $read = [$this->socket];
+                    $write = null;
+                    $except = null;
+
+                    if (stream_select($read, $write, $except, 5) !== 1) {
+                        throw new \RuntimeException('Timed out waiting for OAuth race socket.');
+                    }
+
+                    $value = fread($this->socket, 1);
+
+                    if ($value === false || $value === '') {
+                        throw new \RuntimeException('OAuth race socket closed unexpectedly.');
+                    }
+
+                    return $value;
+                }
+
+                private function writeSocket(string $value): void
+                {
+                    $read = null;
+                    $write = [$this->socket];
+                    $except = null;
+
+                    if (stream_select($read, $write, $except, 5) !== 1 || fwrite($this->socket, $value) !== 1) {
+                        throw new \RuntimeException('Timed out writing OAuth race socket.');
+                    }
                 }
             });
 
@@ -255,25 +297,77 @@ class GoogleAuthenticationTest extends TestCase
             $this->get(route('google.callback'))
                 ->assertRedirect(route('dashboard', absolute: false));
 
-            pcntl_waitpid($pid, $status);
-
             $this->assertAuthenticatedAs(User::where('google_id', 'collision-google')->firstOrFail());
             $this->assertSame(1, User::where('google_id', 'collision-google')->count());
             $this->assertSame(1, DB::table('workspaces')->where('name', 'Workspace Committed Winner')->count());
         } finally {
-            // Child committed outside RefreshDatabase's transaction. Roll back
-            // parent first, then remove all child-owned durable rows.
+            // Stop and reap child before touching database. This covers assertion,
+            // controller, and child failures; cleanup must not wait on child locks.
+            $this->terminateAndReapRaceChild($pid);
+            fclose($reader);
+
             if (DB::connection()->transactionLevel() > 0) {
                 DB::rollBack();
             }
 
+            DB::statement("SET lock_timeout = '2s'");
             $workspaceIds = Workspace::where('name', 'Workspace Committed Winner')->pluck('id');
             if ($workspaceIds->isNotEmpty()) {
                 Workspace::whereKey($workspaceIds)->delete();
             }
             User::where('email', 'collision@example.com')->delete();
+        }
+    }
 
-            fclose($reader);
+    protected function readRaceSocket($socket): string
+    {
+        $read = [$socket];
+        $write = null;
+        $except = null;
+        $ready = stream_select($read, $write, $except, 5);
+
+        if ($ready !== 1) {
+            throw new \RuntimeException('Timed out waiting for OAuth race socket.');
+        }
+
+        $value = fread($socket, 1);
+
+        if ($value === false || $value === '') {
+            throw new \RuntimeException('OAuth race socket closed unexpectedly.');
+        }
+
+        return $value;
+    }
+
+    protected function writeRaceSocket($socket, string $value): void
+    {
+        $deadline = microtime(true) + 5;
+
+        while (microtime(true) < $deadline) {
+            $read = null;
+            $write = [$socket];
+            $except = null;
+            $ready = stream_select($read, $write, $except, 1);
+
+            if ($ready === 1 && fwrite($socket, $value) === 1) {
+                return;
+            }
+        }
+
+        throw new \RuntimeException('Timed out writing OAuth race socket.');
+    }
+
+    private function terminateAndReapRaceChild(int $pid): void
+    {
+        $status = 0;
+        $result = pcntl_waitpid($pid, $status, WNOHANG);
+
+        if ($result === 0) {
+            posix_kill($pid, SIGTERM);
+        }
+
+        if ($result !== $pid) {
+            pcntl_waitpid($pid, $status);
         }
     }
 

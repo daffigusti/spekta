@@ -220,16 +220,12 @@ class GoogleAuthenticatedSessionController extends Controller
         }
 
         $columns = array_values($exception->columns);
+        $hasExpectedIndex = in_array($exception->index, ['users_email_unique', 'users_google_id_unique'], true);
+        $hasExpectedColumns = in_array($columns, [['email'], ['google_id']], true);
 
-        if (count($columns) !== 1 || ! in_array($columns[0], ['email', 'google_id'], true)) {
-            return false;
-        }
-
-        // SQLite does not expose an index name. PostgreSQL does, and accepting
-        // only these known users indexes prevents users_pkey/unrelated uniques
-        // from being mistaken for an OAuth creation race.
-        return $exception->index === null
-            || in_array($exception->index, ['users_email_unique', 'users_google_id_unique'], true);
+        // SQLite reports constrained columns, while MySQL/SQL Server may only
+        // expose the constraint/index name. Never recover unrelated uniques.
+        return $hasExpectedIndex || $hasExpectedColumns;
     }
 
     protected function createGoogleUser($googleUser, string $email, string $googleId): User
