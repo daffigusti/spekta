@@ -188,11 +188,17 @@ SYS, $ctx);
         } elseif ($docKey === 'WIREFRAMES') {
             // FR-07: wireframe low-fi per user flow — content JSON, dirender canvas /projects/{id}/wireframes
             $ctx = $this->documentContext($project, $upstreamDocs, $docKey);
-            $md = $this->text('standard', self::WIREFRAME_SYSTEM, $ctx, $tokensIn, $tokensOut, $onDelta);
+            $md = $this->text('economy', self::WIREFRAME_SYSTEM, $ctx, $tokensIn, $tokensOut, $onDelta);
             $md = preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md)); // buang code fence bila model membungkus
-            $meta = ['model' => config('spekta.llm.models.standard'), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
+            $meta = ['model' => config('spekta.llm.models.economy'), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
         } else {
-            $class = in_array($docKey, ['PRD', 'ARCHITECTURE', 'SECURITY']) ? 'reasoning' : 'standard';
+            // BR-50: reasoning untuk node fan-out besar (error upstream menular ke downstream);
+            // economy untuk dokumen derivatif/template yang kualitasnya ditentukan konteks upstream
+            $class = match (true) {
+                in_array($docKey, ['PRD', 'REQUIREMENTS', 'ARCHITECTURE']) => 'reasoning',
+                in_array($docKey, ['PROJECT_BRIEF', 'DESIGN', 'ROADMAP', 'TASK_BREAKDOWN']) => 'economy',
+                default => 'standard',
+            };
             $ctx = $this->documentContext($project, $upstreamDocs, $docKey);
             // Bahasa: blueprint proyek menang, lalu template perusahaan, lalu default id
             $langLine = match ($project->blueprint['language'] ?? $project->docTemplate?->language ?? 'id') {
