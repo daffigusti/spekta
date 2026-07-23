@@ -18,6 +18,9 @@ use Illuminate\Support\Str;
  */
 class SpecEngine
 {
+    /** Nama model real dari response call terakhir — bisa beda dari alias config bila lewat proxy (mis. spekta-reasoning → xai/grok-4.5). */
+    public ?string $lastResolvedModel = null;
+
     public function driver(): string
     {
         return config('spekta.llm.driver');
@@ -190,7 +193,7 @@ SYS, $ctx);
             $ctx = $this->documentContext($project, $upstreamDocs, $docKey);
             $md = $this->text('economy', self::WIREFRAME_SYSTEM, $ctx, $tokensIn, $tokensOut, $onDelta);
             $md = preg_replace('/^```(json)?\s*|```\s*$/m', '', trim($md)); // buang code fence bila model membungkus
-            $meta = ['model' => config('spekta.llm.models.economy'), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
+            $meta = ['model' => config('spekta.llm.models.economy'), 'model_resolved' => $this->lastResolvedModel, 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
         } else {
             // BR-50: reasoning untuk node fan-out besar (error upstream menular ke downstream);
             // economy untuk dokumen derivatif/template yang kualitasnya ditentukan konteks upstream
@@ -246,7 +249,7 @@ $template
 $depthLine
 $langLine $toneLine Hanya markdown, tanpa pembuka/penutup, JANGAN bungkus seluruh dokumen dalam code fence (```).
 SYS, $ctx, $tokensIn, $tokensOut, $onDelta);
-            $meta = ['model' => config('spekta.llm.models.'.$class), 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
+            $meta = ['model' => config('spekta.llm.models.'.$class), 'model_resolved' => $this->lastResolvedModel, 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut];
         }
 
         $meta['duration_ms'] = (int) ((microtime(true) - $started) * 1000);
@@ -822,6 +825,7 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
     /** Anthropic Messages API — base_url configurable untuk endpoint Anthropic-compatible. */
     private function anthropicText(string $class, string $system, string $user, ?int &$tokensIn = null, ?int &$tokensOut = null, ?callable $onDelta = null): string
     {
+        $this->lastResolvedModel = null;
         $payload = [
             'model' => config('spekta.llm.models.'.$class),
             'max_tokens' => (int) config('spekta.llm.max_tokens', 16000),
@@ -844,11 +848,13 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
                     $onDelta($acc);
                 } elseif (($event['type'] ?? '') === 'message_start') {
                     $tokensIn = $event['message']['usage']['input_tokens'] ?? 0;
+                    $this->lastResolvedModel = $event['message']['model'] ?? $this->lastResolvedModel;
                 } elseif (($event['type'] ?? '') === 'message_delta') {
                     $tokensOut = $event['usage']['output_tokens'] ?? 0;
                     $stopReason = $event['delta']['stop_reason'] ?? $stopReason;
                 } elseif (isset($event['choices'][0])) {
                     // Chunk format OpenAI dari proxy multi-upstream (lihat catatan non-stream di bawah)
+                    $this->lastResolvedModel = $event['model'] ?? $this->lastResolvedModel;
                     $acc .= $event['choices'][0]['delta']['content'] ?? '';
                     if ($event['choices'][0]['delta']['content'] ?? '') {
                         $onDelta($acc);
@@ -871,6 +877,7 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
             ?? throw new \RuntimeException('LLM response bukan JSON valid: '.mb_substr($body, 0, 200));
         $tokensIn = $resp['usage']['input_tokens'] ?? $resp['usage']['prompt_tokens'] ?? 0;
         $tokensOut = $resp['usage']['output_tokens'] ?? $resp['usage']['completion_tokens'] ?? 0;
+        $this->lastResolvedModel = $resp['model'] ?? $this->lastResolvedModel;
         $out = collect($resp['content'] ?? [])->where('type', 'text')->pluck('text')->implode('');
         // Proxy multi-upstream bisa membalas endpoint /v1/messages dengan body format OpenAI
         // (choices[].message.content) tergantung upstream — terima dua-duanya
@@ -888,6 +895,7 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
     /** OpenAI Chat Completions — kompatibel OpenAI/Groq/DeepSeek/OpenRouter/Ollama dll. */
     private function openaiText(string $class, string $system, string $user, ?int &$tokensIn = null, ?int &$tokensOut = null, ?callable $onDelta = null): string
     {
+        $this->lastResolvedModel = null;
         $payload = [
             'model' => config('spekta.llm.models.'.$class),
             'max_tokens' => (int) config('spekta.llm.max_tokens', 16000),
@@ -904,6 +912,7 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
             $acc = '';
             $finish = null;
             foreach ($this->sse($pending, $url, $payload + ['stream' => true, 'stream_options' => ['include_usage' => true]]) as $event) {
+                $this->lastResolvedModel = $event['model'] ?? $this->lastResolvedModel;
                 $acc .= $event['choices'][0]['delta']['content'] ?? '';
                 if ($event['choices'][0]['delta']['content'] ?? '') {
                     $onDelta($acc);
@@ -922,6 +931,7 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
         $resp = $pending->retry(2, 2000)->post($url, $payload)->throw()->json();
         $tokensIn = $resp['usage']['prompt_tokens'] ?? 0;
         $tokensOut = $resp['usage']['completion_tokens'] ?? 0;
+        $this->lastResolvedModel = $resp['model'] ?? $this->lastResolvedModel;
         $out = $resp['choices'][0]['message']['content'] ?? '';
         $this->guardTruncation(($resp['choices'][0]['finish_reason'] ?? null) === 'length', $out);
 
