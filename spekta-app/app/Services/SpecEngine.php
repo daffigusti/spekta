@@ -847,6 +847,17 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
                 } elseif (($event['type'] ?? '') === 'message_delta') {
                     $tokensOut = $event['usage']['output_tokens'] ?? 0;
                     $stopReason = $event['delta']['stop_reason'] ?? $stopReason;
+                } elseif (isset($event['choices'][0])) {
+                    // Chunk format OpenAI dari proxy multi-upstream (lihat catatan non-stream di bawah)
+                    $acc .= $event['choices'][0]['delta']['content'] ?? '';
+                    if ($event['choices'][0]['delta']['content'] ?? '') {
+                        $onDelta($acc);
+                    }
+                    if (($event['choices'][0]['finish_reason'] ?? null) === 'length') {
+                        $stopReason = 'max_tokens';
+                    }
+                    $tokensIn = $event['usage']['prompt_tokens'] ?? $tokensIn;
+                    $tokensOut = $event['usage']['completion_tokens'] ?? $tokensOut;
                 }
             }
             $this->guardTruncation($stopReason === 'max_tokens', $acc);
@@ -858,9 +869,17 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
         // Beberapa proxy Anthropic-compatible menempel sisa SSE ("data: [DONE]") di belakang JSON
         $resp = json_decode(substr($body, 0, strrpos($body, '}') + 1), true)
             ?? throw new \RuntimeException('LLM response bukan JSON valid: '.mb_substr($body, 0, 200));
-        $tokensIn = $resp['usage']['input_tokens'] ?? 0;
-        $tokensOut = $resp['usage']['output_tokens'] ?? 0;
+        $tokensIn = $resp['usage']['input_tokens'] ?? $resp['usage']['prompt_tokens'] ?? 0;
+        $tokensOut = $resp['usage']['output_tokens'] ?? $resp['usage']['completion_tokens'] ?? 0;
         $out = collect($resp['content'] ?? [])->where('type', 'text')->pluck('text')->implode('');
+        // Proxy multi-upstream bisa membalas endpoint /v1/messages dengan body format OpenAI
+        // (choices[].message.content) tergantung upstream — terima dua-duanya
+        if ($out === '' && isset($resp['choices'][0]['message']['content'])) {
+            $out = (string) $resp['choices'][0]['message']['content'];
+            $this->guardTruncation(($resp['choices'][0]['finish_reason'] ?? null) === 'length', $out);
+
+            return $out;
+        }
         $this->guardTruncation(($resp['stop_reason'] ?? null) === 'max_tokens', $out);
 
         return $out;
