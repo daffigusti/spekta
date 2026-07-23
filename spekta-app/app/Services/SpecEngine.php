@@ -802,6 +802,7 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
             Log::channel('llm')->debug('llm.call', [
                 'driver' => $this->driver(),
                 'model' => $model,
+                'model_resolved' => $this->lastResolvedModel,
                 'class' => $class,
                 'duration_ms' => $ms,
                 'tokens_in' => $tokensIn,
@@ -814,7 +815,7 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
             // Ringkasan satu baris → channel default, kelihatan di `php artisan pail`
             Log::info(sprintf(
                 'LLM %s/%s [%s] %dms · in %d / out %d tokens · %s…',
-                $this->driver(), $model, $class, $ms, $tokensIn ?? 0, $tokensOut ?? 0,
+                $this->driver(), $this->lastResolvedModel ?? $model, $class, $ms, $tokensIn ?? 0, $tokensOut ?? 0,
                 mb_substr(str_replace("\n", ' ', $out), 0, 120)
             ));
         }
@@ -839,32 +840,39 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
         ])->timeout(180);
         $url = rtrim(config('spekta.llm.base_url'), '/').'/v1/messages';
 
-        if ($onDelta) {
-            $acc = '';
-            $stopReason = null;
-            foreach ($this->sse($pending, $url, $payload + ['stream' => true]) as $event) {
-                if (($event['type'] ?? '') === 'content_block_delta') {
-                    $acc .= $event['delta']['text'] ?? '';
+        $acc = '';
+        $stopReason = null;
+        // Satu folder event untuk jalur stream DAN body SSE dari request non-stream —
+        // menerima event Anthropic maupun chunk format OpenAI (proxy multi-upstream)
+        $fold = function (array $event) use (&$acc, &$stopReason, &$tokensIn, &$tokensOut, $onDelta): void {
+            if (($event['type'] ?? '') === 'content_block_delta') {
+                $acc .= $event['delta']['text'] ?? '';
+                if ($onDelta && ($event['delta']['text'] ?? '') !== '') {
                     $onDelta($acc);
-                } elseif (($event['type'] ?? '') === 'message_start') {
-                    $tokensIn = $event['message']['usage']['input_tokens'] ?? 0;
-                    $this->lastResolvedModel = $event['message']['model'] ?? $this->lastResolvedModel;
-                } elseif (($event['type'] ?? '') === 'message_delta') {
-                    $tokensOut = $event['usage']['output_tokens'] ?? 0;
-                    $stopReason = $event['delta']['stop_reason'] ?? $stopReason;
-                } elseif (isset($event['choices'][0])) {
-                    // Chunk format OpenAI dari proxy multi-upstream (lihat catatan non-stream di bawah)
-                    $this->lastResolvedModel = $event['model'] ?? $this->lastResolvedModel;
-                    $acc .= $event['choices'][0]['delta']['content'] ?? '';
-                    if ($event['choices'][0]['delta']['content'] ?? '') {
-                        $onDelta($acc);
-                    }
-                    if (($event['choices'][0]['finish_reason'] ?? null) === 'length') {
-                        $stopReason = 'max_tokens';
-                    }
-                    $tokensIn = $event['usage']['prompt_tokens'] ?? $tokensIn;
-                    $tokensOut = $event['usage']['completion_tokens'] ?? $tokensOut;
                 }
+            } elseif (($event['type'] ?? '') === 'message_start') {
+                $tokensIn = $event['message']['usage']['input_tokens'] ?? 0;
+                $this->lastResolvedModel = $event['message']['model'] ?? $this->lastResolvedModel;
+            } elseif (($event['type'] ?? '') === 'message_delta') {
+                $tokensOut = $event['usage']['output_tokens'] ?? 0;
+                $stopReason = $event['delta']['stop_reason'] ?? $stopReason;
+            } elseif (isset($event['choices'][0])) {
+                $this->lastResolvedModel = $event['model'] ?? $this->lastResolvedModel;
+                $acc .= $event['choices'][0]['delta']['content'] ?? '';
+                if ($onDelta && ($event['choices'][0]['delta']['content'] ?? '') !== '') {
+                    $onDelta($acc);
+                }
+                if (($event['choices'][0]['finish_reason'] ?? null) === 'length') {
+                    $stopReason = 'max_tokens';
+                }
+                $tokensIn = $event['usage']['prompt_tokens'] ?? $tokensIn;
+                $tokensOut = $event['usage']['completion_tokens'] ?? $tokensOut;
+            }
+        };
+
+        if ($onDelta) {
+            foreach ($this->sse($pending, $url, $payload + ['stream' => true]) as $event) {
+                $fold($event);
             }
             $this->guardTruncation($stopReason === 'max_tokens', $acc);
 
@@ -872,6 +880,21 @@ SYS, Str::limit($md, 15000, '… [dipotong]'));
         }
 
         $body = $pending->retry(2, 2000)->post($url, $payload)->throw()->body();
+        // Proxy bisa membalas SSE utuh meski request non-stream — fold event-nya jadi teks
+        if (preg_match('/^\s*(event|data):/', $body)) {
+            foreach (preg_split('/\r?\n/', $body) as $line) {
+                if (! str_starts_with($line, 'data:')) {
+                    continue;
+                }
+                $json = trim(substr($line, 5));
+                if ($json !== '' && $json !== '[DONE]' && is_array($event = json_decode($json, true))) {
+                    $fold($event);
+                }
+            }
+            $this->guardTruncation($stopReason === 'max_tokens', $acc);
+
+            return $acc;
+        }
         // Beberapa proxy Anthropic-compatible menempel sisa SSE ("data: [DONE]") di belakang JSON
         $resp = json_decode(substr($body, 0, strrpos($body, '}') + 1), true)
             ?? throw new \RuntimeException('LLM response bukan JSON valid: '.mb_substr($body, 0, 200));

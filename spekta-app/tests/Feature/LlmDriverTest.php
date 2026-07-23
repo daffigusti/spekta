@@ -78,4 +78,34 @@ class LlmDriverTest extends TestCase
         Http::assertSent(fn ($req) => str_contains($req->url(), 'api.z.ai/api/anthropic/v1/messages')
             && $req->header('x-api-key')[0] === 'sk-ant-test');
     }
+
+    public function test_anthropic_driver_tolerates_sse_body_on_non_stream_request(): void
+    {
+        config([
+            'spekta.llm.driver' => 'anthropic',
+            'spekta.llm.anthropic_key' => 'sk-ant-test',
+            'spekta.llm.base_url' => 'https://proxy.example.com',
+        ]);
+        $json = json_encode([
+            'roles' => [], 'features' => [['title' => 'Fitur SSE', 'quote' => '']],
+            'domain' => 'x', 'complexity' => 1, 'assumptions' => [],
+        ]);
+        // Proxy multi-upstream membalas request non-stream dengan body SSE utuh
+        $sse = "event: message_start\n"
+            ."data: {\"type\":\"message_start\",\"message\":{\"model\":\"glm-5.2\",\"usage\":{\"input_tokens\":7}}}\n\n"
+            ."event: content_block_delta\n"
+            .'data: {"type":"content_block_delta","delta":{"text":'.json_encode($json)."}}\n\n"
+            ."event: message_delta\n"
+            ."data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":11}}\n\n"
+            ."data: [DONE]\n";
+        Http::fake(['proxy.example.com/*' => Http::response($sse)]);
+
+        $project = $this->project();
+        $this->post("/projects/{$project->id}/wizard/input", [
+            'name' => 'P', 'kind' => 'idea',
+            'raw_text' => str_repeat('Aplikasi booking lapangan dengan pembayaran digital. ', 3),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame('Fitur SSE', $project->refresh()->understanding->features[0]['title']);
+    }
 }
