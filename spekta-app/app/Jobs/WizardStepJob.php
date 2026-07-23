@@ -11,6 +11,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Step wizard berat (panggilan LLM lama) berjalan async di queue:
@@ -69,6 +70,22 @@ class WizardStepJob implements ShouldQueue
     /** FR-04: bangun struktur awal dari AI (dipindah dari WizardController::finishInterview). */
     private function buildStructure(Project $project, SpecEngine $engine): void
     {
+        // BR-44: asumsi yang sudah terjawab interview → tutup open question-nya.
+        // Best-effort — kegagalan resolusi tidak boleh menggagalkan step structure.
+        try {
+            $project->syncOpenQuestions();
+            foreach ($engine->resolveOpenQuestions($project) as $r) {
+                $r['question']->update([
+                    'status' => 'answered',
+                    'answer_text' => $r['answer'],
+                    'answered_by' => 'interview',
+                    'answered_at' => now(),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('resolveOpenQuestions gagal (dilewati): '.$e->getMessage());
+        }
+
         // AI dipanggil SEBELUM tulis apa pun — gagal di sini = tidak ada state parsial
         $phases = $engine->buildStructure($project);
         if (! $phases) {

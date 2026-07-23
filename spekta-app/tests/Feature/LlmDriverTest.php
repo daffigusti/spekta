@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Project;
 use App\Models\User;
+use App\Services\SpecEngine;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -107,5 +108,35 @@ class LlmDriverTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $this->assertSame('Fitur SSE', $project->refresh()->understanding->features[0]['title']);
+    }
+
+    public function test_resolve_open_questions_matches_assumptions_to_interview_answers(): void
+    {
+        config([
+            'spekta.llm.driver' => 'anthropic',
+            'spekta.llm.anthropic_key' => 'sk-ant-test',
+            'spekta.llm.base_url' => 'https://proxy.example.com',
+        ]);
+        $project = $this->project();
+        $project->understanding()->create([
+            'roles' => [], 'features' => [], 'domain' => 'x', 'complexity' => 2,
+            'assumptions' => ['Bentuk aplikasi belum ditentukan.', 'Slot berdurasi satu jam.'],
+            'contradictions' => [],
+        ]);
+        $project->interviewItems()->create(['seq' => 1, 'question' => 'Web atau mobile?', 'skipped' => false, 'answer_text' => 'Web untuk keduanya']);
+        $project->syncOpenQuestions();
+
+        Http::fake(['proxy.example.com/*' => Http::response([
+            'content' => [['type' => 'text', 'text' => json_encode([
+                'resolved' => [['index' => 1, 'answer' => 'Web untuk penyewa dan admin.']],
+            ])]],
+            'usage' => ['input_tokens' => 5, 'output_tokens' => 9],
+        ])]);
+
+        $resolved = app(SpecEngine::class)->resolveOpenQuestions($project);
+
+        $this->assertCount(1, $resolved);
+        $this->assertSame('Bentuk aplikasi belum ditentukan.', $resolved[0]['question']->question);
+        $this->assertSame('Web untuk penyewa dan admin.', $resolved[0]['answer']);
     }
 }

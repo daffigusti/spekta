@@ -80,6 +80,40 @@ SYS, $ctx);
         return $out['questions'] ?? [];
     }
 
+    /**
+     * BR-44: cocokkan asumsi understanding yang masih open dengan jawaban interview —
+     * yang sudah terjawab internal jangan sampai ditanyakan lagi ke klien di portal.
+     * Return: [['question' => OpenQuestion, 'answer' => string], …]
+     */
+    public function resolveOpenQuestions(Project $project): array
+    {
+        $questions = $project->openQuestions()->where('status', 'open')->where('source', 'assumption')->orderBy('created_at')->orderBy('id')->get()->values();
+        $answers = $project->interviewItems()->whereNotNull('answer_text')->orderBy('seq')->get();
+        if ($this->driver() === 'stub' || $questions->isEmpty() || $answers->isEmpty()) {
+            return [];
+        }
+
+        $qList = $questions->map(fn ($q, $i) => ($i + 1).'. '.$q->question)->implode("\n");
+        $aList = $answers->map(fn ($it) => 'T: '.$it->question."\nJ: ".$it->answer_text)->implode("\n\n");
+        $out = $this->json('economy', <<<'SYS'
+Kamu analis requirement. Diberikan daftar ASUMSI terbuka dan transkrip tanya-jawab interview klien.
+Tentukan asumsi mana yang SUDAH terjawab langsung oleh jawaban interview.
+Hanya masukkan asumsi yang jawabannya eksplisit di interview — jangan menebak atau menyimpulkan sendiri.
+Balas JSON: {"resolved":[{"index":<nomor asumsi>,"answer":"<jawaban ringkas berdasarkan interview>"}]}
+Bahasa Indonesia.
+SYS, "ASUMSI TERBUKA:\n".$qList."\n\nINTERVIEW:\n".$aList);
+
+        $resolved = [];
+        foreach (($out['resolved'] ?? []) as $r) {
+            $q = $questions[(int) ($r['index'] ?? 0) - 1] ?? null;
+            if ($q && is_string($r['answer'] ?? null) && trim($r['answer']) !== '') {
+                $resolved[] = ['question' => $q, 'answer' => trim($r['answer'])];
+            }
+        }
+
+        return $resolved;
+    }
+
     // ---------- FR-04: Structure ----------
     public function buildStructure(Project $project): array
     {
