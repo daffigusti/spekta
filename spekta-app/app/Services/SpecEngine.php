@@ -315,7 +315,7 @@ Struktur wajib PRD.md versi DOKUMEN TUNGGAL — satu file mencakup seluruh spesi
 7. "Layar Utama" — tabel: nama layar, tujuan, informasi/aksi kunci yang tampil, role yang mengakses; sebut state penting (kosong/loading/error) hanya bila krusial. TANPA mockup/wireframe.
 8. "Aturan Bisnis Kunci" — aturan bernomor (BR-01, …) untuk validasi, batasan, perhitungan, dan hak akses terpenting; rujuk FR terkait.
 9. "Edge Cases Kunci" — kondisi tidak normal terpenting per area (duplikasi data, input kosong, akses bersamaan, kegagalan integrasi); daftar singkat, rujuk FR terkait.
-10. "Model Data Ringkas" — daftar entity utama + atribut kunci + relasi, sebagai daftar atau tabel; TANPA DDL.
+10. "Model Data Ringkas" — daftar entity utama + atribut kunci + relasi. Jika ada >=2 entity yang berelasi, sertakan SATU diagram ERD ringkas dalam blok ```mermaid``` (erDiagram: entity + atribut kunci + PK/FK + relasi/cardinality), diikuti tabel entity->deskripsi 1 baris. Untuk proyek 1 entity trivial, cukup daftar/tabel tanpa diagram. TANPA DDL (jangan tulis CREATE TABLE / SQL).
 11. "Arsitektur & Stack Ringkas" — tabel dari STACK: layer, pilihan, alasan 1 kalimat; plus 2-3 kalimat gambaran arsitektur (monolith/API, hosting, integrasi eksternal). TANPA diagram, TANPA detail deployment.
 12. "Non-Functional Requirements" — performa, keamanan, kompatibilitas seperlunya sesuai kompleksitas.
 13. "Roadmap" — fase pengerjaan dengan fitur per fase (rujuk FR), tandai mvp vs full.
